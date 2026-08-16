@@ -497,6 +497,29 @@ def main() -> int:
     upd(t7, got7, True, '', '好')        # 轮询捕获（鼠标选字）
     check('轮询捕获鼠标选字', got7 == ['好'])
 
+    print('== 分钟数据跨 flush 累计（回归）==')
+    td2 = make_temp_dir()
+    try:
+        conn2 = connect_db(td2 / 't.db')
+        init_schema(conn2)
+        repo2 = Repository(conn2)
+
+        def gs2(key, default=None):
+            return repo2.get_setting(key, default)
+
+        eng3 = StatsEngine(repo2, gs2, BALANCE)
+        eng3.handle_char('letter')
+        eng3.flush()                     # 首次 flush：分钟行含 1 键
+        eng3.handle_char('letter')       # 同分钟追加
+        eng3.handle_char('letter')
+        eng3.flush()                     # 再次 flush：必须完整累计
+        row = repo2._conn.execute(
+            'SELECT typed_chars FROM minute_stats ORDER BY date DESC, minute DESC'
+        ).fetchone()
+        check('分钟跨 flush 累计（不再欠计）', row['typed_chars'] == 3)
+    finally:
+        cleanup_temp_dir(td2)
+
     print(f'\n全部通过：{_passed} 项')
     return 0
 
