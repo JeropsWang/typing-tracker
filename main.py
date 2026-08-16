@@ -110,12 +110,14 @@ def main() -> int:
         print(f'[{title}] {msg}')
 
     # 每天首次启动自动打卡
-    result = checkin.checkin_if_needed(engine.current_day())
-    if result:
-        notify('打卡', f'{result["date"]} 连签 {result["streak"]} 天，+{result["total_exp"]} exp')
-        if result.get('milestone'):
-            notify('里程碑', f'连签 {result["milestone"]} 天达成，里程碑礼包已发放！')
-        QTimer.singleShot(800, lambda r=result: window.show_checkin_popup(r))
+    checkin_result = checkin.checkin_if_needed(engine.current_day())
+    if checkin_result:
+        notify('打卡',
+               f'{checkin_result["date"]} 连签 {checkin_result["streak"]} 天，'
+               f'+{checkin_result["total_exp"]} exp')
+        if checkin_result.get('milestone'):
+            notify('里程碑',
+                   f'连签 {checkin_result["milestone"]} 天达成，里程碑礼包已发放！')
     startup_unlocks = achievements.check_all(engine)
     for a in startup_unlocks:
         notify('成就', f'解锁「{a["name"]}」，到成就页领取奖励')
@@ -142,6 +144,11 @@ def main() -> int:
         print(f'[{title}] {msg}')
         window.notify(title, msg, kind)
         tray.showMessage(title, msg, QSystemTrayIcon.Information, 4000)
+
+    # 打卡弹窗在窗口就绪后再弹（曾用 QTimer.singleShot 引用未定义变量）
+    if checkin_result:
+        QTimer.singleShot(800,
+                          lambda r=checkin_result: window.show_checkin_popup(r))
 
     # 键盘钩子：尽早启动；失败时给用户明确可见的提示
     # 注意：钩子线程只碰内存快照，排除程序列表以快照方式注入（主线程读取 SQLite）

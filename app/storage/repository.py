@@ -80,6 +80,12 @@ class Repository:
         return [dict(r) for r in rows]
 
     # ---------- minute ----------
+    def clean_minute_stats(self, before_date: str) -> None:
+        """删除指定日期之前的分钟数据（滚动保留策略）。"""
+        self._conn.execute(
+            'DELETE FROM minute_stats WHERE date < ?', (before_date,))
+        self._conn.commit()
+
     def upsert_minutes(self, rows) -> None:
         self._conn.executemany(
             'INSERT INTO minute_stats(date,minute,typed_chars,deleted_chars,total_tw) '

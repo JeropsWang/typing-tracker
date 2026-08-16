@@ -190,6 +190,13 @@ class StatsEngine:
         self.repo.upsert_lifetime(life)
         if rows:
             self.repo.upsert_minutes(rows)
+        # 分钟表滚动清理：只保留近 30 天（成就窗口只需 7 天；曾无限增长，
+        # 一年 ~10 万行拖慢时段查询，v0.8.9 加入）
+        try:
+            cutoff = (datetime.now() - timedelta(days=30)).date().isoformat()
+            self.repo.clean_minute_stats(cutoff)
+        except Exception:
+            pass
 
     def _grant_typing_exp_locked(self) -> int:
         """打字经验：每 1000 有效字 +per（每日上限 cap；经验加成卡生效 ×2）。
