@@ -57,7 +57,10 @@ class SettingsDialog(QDialog):
         form.addRow('头像', avatar_row)
 
         self._unit_edit = QLineEdit(repo.get_setting('unit_name', balance['unit']['name']))
-        self._unit_edit.setPlaceholderText('如 tw / 字')
+        self._unit_edit.setPlaceholderText('如 tw / 击键（建议保留 tw）')
+        self._unit_edit.setToolTip(
+            '速度/字数数值始终按 tw 口径（1 字母=1tw、1 汉字=2tw）；'
+            '若改为「字」会与预测汉字/分相差 2 倍，容易误解，建议保留 tw')
         form.addRow('单位名称', self._unit_edit)
 
         self._hour_spin = QSpinBox()

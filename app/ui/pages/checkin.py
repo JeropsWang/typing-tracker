@@ -211,7 +211,8 @@ class CheckinPage(QWidget):
             ret = QMessageBox.question(
                 self, '补签', f'使用 1 张补签卡补签 {missed}？\n补签后连签天数恢复延续。')
             if ret == QMessageBox.Yes:
-                self._repo.use_reward('makeup_card')
-                r = self._checkin.apply_makeup_card(missed)
+                # 先补签成功再扣卡（曾先扣卡后补签，失败时吞卡，v0.8.9 修复）
+                r = self._checkin.apply_makeup_card(missed, today_iso=_dstr(today))
                 if r:
+                    self._repo.use_reward('makeup_card')
                     self.refresh()

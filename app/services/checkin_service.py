@@ -72,8 +72,15 @@ class CheckinService:
         except (ValueError, TypeError):
             return []
 
-    def apply_makeup_card(self, missed_date):
-        """补签卡补签：恢复连签记录（只给基础经验，无连签奖励）。"""
+    def apply_makeup_card(self, missed_date, today_iso=None):
+        """补签卡补签：只允许补**昨天**（防止未来日期/任意历史刷连签）。
+
+        返回 dict（含可选 milestone 字段）或 None。
+        """
+        today_iso = today_iso or date.today().isoformat()
+        yesterday = (date.fromisoformat(today_iso) - timedelta(days=1)).isoformat()
+        if missed_date != yesterday:
+            return None  # 只允许补昨天（服务层强制，UI 亦如此限制）
         if self._repo.has_checkin(missed_date):
             return None
         prev = (date.fromisoformat(missed_date) - timedelta(days=1)).isoformat()
@@ -82,4 +89,9 @@ class CheckinService:
         self._repo.add_checkin(missed_date, streak, base, 0, card_used=1)
         self._repo.add_exp(base)
         self._repo.add_exp_to_daily(missed_date, base)
-        return {'date': missed_date, 'streak': streak, 'base_exp': base}
+        result = {'date': missed_date, 'streak': streak, 'base_exp': base}
+        # 补签把连签推进到里程碑数字时，里程碑礼包照发（曾漏发，v0.8.9 修复）
+        milestone = self._grant_milestone(missed_date, streak)
+        if milestone:
+            result['milestone'] = milestone
+        return result

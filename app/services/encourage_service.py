@@ -56,7 +56,13 @@ class EncourageService:
             ('ai_pass', 1),        # AI 训练券：Lv.45 前可提前体验 AI 定制训练
         ]
         kind, qty = random.choice(pool)
-        self._repo.add_reward(kind, qty, 'encourage')
+        if kind == 'exp':
+            # 经验直接入账（曾误入 rewards 库存表，无消费路径 = 死库存，v0.8.9 修复）
+            today = engine.current_day()
+            self._repo.add_exp(qty)
+            self._repo.add_exp_to_daily(today, qty)
+        else:
+            self._repo.add_reward(kind, qty, 'encourage')
         self._repo.set_setting('last_encourage_at',
                                datetime.now().isoformat(timespec='seconds'))
         return {

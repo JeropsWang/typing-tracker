@@ -87,6 +87,18 @@ def _range_text(rng, ec=0):
     return ''
 
 
+def _release_com(ptr):
+    """释放 comtypes 包装的 COM 接口指针（GetRange/Enum 等返回的裸指针）。
+
+    曾从不 Release，每 150ms 泄漏 2-3 个引用（长时间运行累积，v0.8.9 修复）。
+    """
+    try:
+        if ptr is not None:
+            ptr.Release()
+    except Exception:
+        pass
+
+
 class TsfHook:
     """TSF 组字监听器。回调：on_commit(text) / on_composing(bool)（可选）。"""
 
@@ -122,6 +134,22 @@ class TsfHook:
 
     def stop(self):
         self._running = False
+        # 反注册事件接收器并停用线程管理器（曾缺失，COM 引用悬挂，v0.8.9）
+        try:
+            if getattr(self, '_sink_cookie', None) is not None and hasattr(self, '_sink'):
+                mgr = getattr(self, '_mgr', None)
+                if mgr is not None:
+                    source = mgr.QueryInterface(T.ITfSource)
+                    source.UnadviseSink(self._sink_cookie)
+        except Exception:
+            pass
+        try:
+            mgr = getattr(self, '_mgr', None)
+            if mgr is not None:
+                mgr.Deactivate()
+        except Exception:
+            pass
+        self.available = False
         if self._thread is not None:
             self._thread.join(timeout=3)
 
@@ -130,6 +158,7 @@ class TsfHook:
         try:
             CoInitialize()
             mgr = CoCreateInstance(T.CLSID_TF_ThreadMgr, interface=T.ITfThreadMgr)
+            self._mgr = mgr
             tid = c_ulong()
             if mgr.Activate(byref(tid)) != 0:
                 CoUninitialize()
@@ -217,11 +246,24 @@ class TsfHook:
                                 rng = ctypes.cast(pp_rng, POINTER(T.ITfRange))
                                 text = _range_text(rng)
                                 composing = True
+                            else:
+                                _release_com(view)
+                        else:
+                            _release_com(enum)
                 except Exception:
                     pass
+            # 防假提交：组字中且拼音串与上一轮互为前缀（同词增长/退格）时，
+            # range 内容仍是拼音，读 final 会把它误判为上屏（曾致单字计
+            # 10+ tw，v0.8.9 修复）。仅在组字消失或新词开始（互不为前缀）
+            # 时读取上一轮 range 的最终文本。
+            changed = (not composing) or not self._comp or (
+                not text.startswith(self._comp)
+                and not self._comp.startswith(text))
             final = ''
-            if self._pending and self._pending_rng is not None:
+            if changed and self._pending and self._pending_rng is not None:
                 final = self._final_text(self._pending_rng)
+                _release_com(self._pending_rng)
+                self._pending_rng = None
             commits = self._update_state(composing, text, final)
             self._pending_rng = rng if composing else None
             self._comp = text

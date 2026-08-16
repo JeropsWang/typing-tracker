@@ -27,8 +27,10 @@ def export_all(repo, out_dir) -> str:
     bundle = {
         'exported_at': datetime.now().isoformat(timespec='seconds'),
         'lifetime': repo.get_lifetime(),
-        'settings': {r['key']: r['value'] for r in
-                     repo._conn.execute('SELECT key, value FROM settings')},
+        # 备份文件可能被分享/上传，API Key 必须脱敏（v0.8.9）
+        'settings': {
+            r['key']: ('***' if r['key'] == 'ai_api_key' else r['value'])
+            for r in repo._conn.execute('SELECT key, value FROM settings')},
         'achievements': repo.get_achievements(),
         'rewards': repo.list_rewards(),
         'checkins': repo.get_checkins('0000-01-01', '9999-12-31'),

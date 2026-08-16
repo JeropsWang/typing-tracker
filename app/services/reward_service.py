@@ -21,6 +21,16 @@ class RewardService:
     # ---------- 经验加成卡 ----------
     def activate_exp_boost(self, minutes=30):
         until = datetime.now() + timedelta(minutes=minutes)
+        # 已有生效中的加成时不缩短剩余时长（曾直接覆盖，前卡余时作废，
+        # v0.8.9 修复）
+        raw = self._repo.get_setting('exp_boost_until')
+        if raw:
+            try:
+                existing = datetime.fromisoformat(raw)
+                if existing > until:
+                    until = existing
+            except ValueError:
+                pass
         self._repo.set_setting('exp_boost_until', until.isoformat(timespec='seconds'))
         return until
 

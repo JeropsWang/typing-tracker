@@ -19,7 +19,11 @@ def cumulative_cost(k: int, balance: dict) -> int:
 
 
 def level_from_exp(exp: int, balance: dict) -> int:
-    """由总经验反解等级（公式累加，可解一元二次方程）。"""
+    """由总经验反解等级（公式累加，可解一元二次方程）。
+
+    k = 已完成的升级次数；等级 = k+1（cum(1)=42 时 42 exp 应升 Lv.2）。
+    曾返回 k 导致全员低一级（v0.8.9 修复）。
+    """
     base = balance['level']['cost_base']
     growth = balance['level']['cost_growth']
     if growth == 0:
@@ -28,7 +32,7 @@ def level_from_exp(exp: int, balance: dict) -> int:
         a = growth / 2.0
         b = base + growth / 2.0
         k = int((math.sqrt(b * b + 4 * a * exp) - b) / (2 * a))
-    return max(1, k)
+    return max(1, k + 1)
 
 
 def level_and_progress(exp: int, balance: dict):

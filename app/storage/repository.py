@@ -177,9 +177,11 @@ class Repository:
         return True
 
     def count_ai_passes(self) -> int:
-        """AI 训练券数量（未使用）。"""
-        return sum(r['qty'] for r in self.list_rewards(unused_only=True)
-                   if r['kind'] == 'ai_pass')
+        """AI 训练券数量（未使用，SQL 聚合而非全表扫描）。"""
+        row = self._conn.execute(
+            "SELECT COALESCE(SUM(qty),0) AS n FROM rewards "
+            "WHERE kind='ai_pass' AND used_at IS NULL").fetchone()
+        return int(row['n'] or 0)
 
     # ---------- 打字竞速挑战（0.7） ----------
     def add_challenge(self, started_at, text_id, typed_chars, errors,

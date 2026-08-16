@@ -86,7 +86,8 @@ class AchievementService:
         item = self.find(code)
         if not item:
             return None
-        self._repo.set_claimed(code)
+        # 先发放奖励、成功后标记已领取（曾先标记后发放，异常时奖励永久丢失，
+        # v0.8.9 修复）
         granted = []
         for rw in item.get('rewards', []):
             kind, qty = rw['kind'], rw.get('qty', 1)
@@ -100,4 +101,5 @@ class AchievementService:
                 self._repo.add_reward('title', 1, f'achievement:{code}',
                                       note=rw.get('value', ''))
                 granted.append(('title', rw.get('value', '')))
+        self._repo.set_claimed(code)
         return granted

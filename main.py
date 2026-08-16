@@ -1,4 +1,4 @@
-﻿"""打字管家 - 入口：单实例锁、初始化、后台钩子、托盘、主窗口。
+"""打字管家 - 入口：单实例锁、初始化、后台钩子、托盘、主窗口。
 
 用法：python main.py [--data-dir DIR]
 """
@@ -177,8 +177,15 @@ def main() -> int:
     for a in startup_unlocks:
         window.notify('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
 
+    def on_flush():
+        engine.flush()
+        # 累计值成就（chars/total_acc）在数据落盘时即时判定：
+        # 曾只在启动与日切判定，白天跨过 1 万字门槛要等次日才解锁（v0.8.9）
+        for a in achievements.check_all(engine):
+            toast('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
+
     flush_timer = QTimer()
-    flush_timer.timeout.connect(engine.flush)
+    flush_timer.timeout.connect(on_flush)
     flush_timer.start(10_000)
 
     roll_timer = QTimer()

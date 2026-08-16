@@ -82,19 +82,25 @@ class ImeCommitTracker:
         if not comp:
             # 组字结束：提交（有结果串）/ 取消或删空（无结果串，不计数）
             if self._comp:
-                if result:
+                # 结果串保留期间轮询会重复读到同一串：与 _last_result 去重
+                # （曾漏更新导致停顿 >1s 时二次提交，v0.8.9 修复）
+                if result and result != self._last_result:
                     committed = result
+                self._last_result = result
             elif result and result != self._last_result:
                 # 非组字状态的直接提交（中文标点等）
                 committed = result
                 self._last_result = result
         elif comp != self._comp:
-            if comp.startswith(self._comp):
+            if self._comp and comp.startswith(self._comp):
                 pass                    # 拼音继续增长
-            elif self._comp.startswith(comp):
+            elif self._comp and self._comp.startswith(comp):
                 pass                    # 组字内退格（旧串以新串开头）
             else:
-                # 与旧组字互不为前缀 → 上一轮已结束（提交/取消），新组字已开始
+                # 上一轮已结束（提交/取消），新组字已开始：
+                # result 是权威结果串；若与上一轮相同（保留串）则用拼音
+                # 近似兜底；_last_result 随 result 更新——新组字开始时
+                # result 为空即清除标记，同内容二次提交不会被误吞
                 if result and result != self._last_result:
                     committed = result  # 权威结果串
                 else:
@@ -260,13 +266,18 @@ class KeyboardHook:
         # IME 状态同步（任何按键都可能结束/开始一轮组字）
         if self._tsf is not None and self._tsf.available and self._tsf.active:
             # TSF 路径（微软拼音等 TSF 输入法 + TSF 感知窗口）：
-            # 组字状态由 TSF 监听精确提供，提交经 on_tsf_commit 回调
+            # 组字状态由 TSF 监听精确提供，提交经 on_tsf_commit 回调。
+            # composing 由 150ms 轮询更新，新词首字母按下时必为 False——
+            # 若 IME 开启且键是字母（拼音），不直接计数，等 TSF 提交；
+            # 否则首字母会被双计（曾系统性膨胀中文 tw/字数，v0.8.9 修复）
             if self._tsf.composing:
                 return          # 组字中：按键交给输入法，不直接计数
             if vk in (VK_BACK, VK_DELETE):
                 self._on_delete()
                 return
             if vk in PRINTABLE_VKS:
+                if vk in LETTER_VKS and self._ime_open():
+                    return      # 中文模式：字母=拼音，交给 TSF 提交
                 self._on_char(self._vk_kind(vk))
             return
 
@@ -353,6 +364,26 @@ class KeyboardHook:
                         kernel32.CloseHandle(h)
         self._proc_cache = (name, now)
         return name
+
+    def _ime_open(self) -> bool:
+        """前台窗口 IME 是否开启（TSF 输入法也维护 IMM 兼容状态）。
+
+        中文模式下返回 True（字母键=拼音，不直接计数）；
+        英文模式/无 IME 返回 False（字母键正常计数）。
+        """
+        try:
+            hwnd = user32.GetForegroundWindow()
+            if not hwnd:
+                return False
+            himc = imm32.ImmGetContext(hwnd)
+            if not himc:
+                return False
+            try:
+                return bool(imm32.ImmGetOpenStatus(himc))
+            finally:
+                imm32.ImmReleaseContext(hwnd, himc)
+        except Exception:
+            return False
 
     def _read_ime_state(self):
         """读取前台窗口输入法的 (是否开启, 组字串, 结果串)。

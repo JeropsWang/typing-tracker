@@ -40,6 +40,11 @@ class StarField(QWidget):
         self._sparkle = bool(stars.get('sparkle', True))
         self._reseed()
         self.setVisible(self._enabled)
+        # 星星禁用时停掉 30fps 定时器（避免托盘隐藏时空转唤醒）
+        if self._enabled and not self._timer.isActive():
+            self._timer.start(33)
+        elif not self._enabled:
+            self._timer.stop()
         self.update()
 
     # ---------- 粒子 ----------

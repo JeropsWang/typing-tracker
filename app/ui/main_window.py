@@ -268,6 +268,8 @@ class MainWindow(QMainWindow):
 
     # ---------- 刷新 ----------
     def refresh(self):
+        if not self.isVisible():
+            return  # 驻留托盘时停止每秒刷新（UI 与 SQL 都省）
         snap = self._engine.snapshot()
         exp = self._repo.get_exp()
         level, progress, _ = level_and_progress(exp, self._balance)
@@ -337,6 +339,9 @@ class MainWindow(QMainWindow):
             if hasattr(self, '_profile_page'):
                 self._profile_page.refresh()
             self.refresh()
+        else:
+            # 取消：设置框里"切主题即时生效"是预览，取消要还原
+            self._theme_mgr.apply(self._theme_mgr.current_id())
 
     def closeEvent(self, event):
         event.ignore()
@@ -345,3 +350,11 @@ class MainWindow(QMainWindow):
             self._tray.showMessage(
                 '打字管家', '已最小化到托盘，后台继续统计打字。',
                 QSystemTrayIcon.Information, 2000)
+
+    def changeEvent(self, event):
+        """窗口隐藏/显示时暂停/恢复动画定时器（减少托盘空转唤醒）。"""
+        if event.type() == event.Type.WindowStateChange and self.isVisible():
+            self._dashboard.resume_animations(True)
+        elif event.type() == event.Type.WindowStateChange:
+            self._dashboard.resume_animations(False)
+        super().changeEvent(event)

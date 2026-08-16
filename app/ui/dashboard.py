@@ -14,8 +14,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel,
-    QVBoxLayout, QWidget,
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
 )
 
 from ..core.classifier import tw_to_hanzi_per_min, tw_to_letters_per_min
@@ -48,11 +47,9 @@ class _HeroCard(QFrame):
         self.setFrameShape(QFrame.StyledPanel)
         self._key = key
         self._color = _HERO_COLORS.get(key, '#6366F1')
-        shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(20)
-        shadow.setOffset(0, 5)
-        shadow.setColor(QColor(0, 0, 0, 90))
-        self.setGraphicsEffect(shadow)
+        # 注意：不使用 QGraphicsDropShadowEffect——无边框透明窗口上效果残留
+        # 会导致整体渲染偏移（v0.8.6 修复；此处曾漏网，v0.8.9 移除）
+        # 层次感由 1px 边框 + 渐变底色实现（apply_theme）
 
         v = QVBoxLayout(self)
         v.setContentsMargins(16, 10, 16, 14)
@@ -224,9 +221,11 @@ class Dashboard(QWidget):
         for n in getattr(self, '_chip_names', []):
             n.setStyleSheet(f'color:{P.muted}; font-size:10px;')
         for cell in self._chip_cards:
+            # cell 是普通 QWidget，QSS 选择器必须为空（作用于自身），
+            # 写 'QFrame {...}' 不会匹配 QWidget（曾导致 chips 无卡片背景）
             cell.setStyleSheet(
-                f'QFrame {{ background:{P.card_bg}; border-radius:12px;'
-                f' border:1px solid {P.card_border}; }}')
+                f'background:{P.card_bg}; border-radius:12px;'
+                f' border:1px solid {P.card_border};')
         for key, card in self._heroes.items():
             card.apply_theme()
         self._life_bar.setStyleSheet(
@@ -239,6 +238,10 @@ class Dashboard(QWidget):
         self._mini_curve.setPen(pg.mkPen(P.accent, width=2))
 
     # ---------- 钩子状态 ----------
+    def resume_animations(self, on: bool) -> None:
+        """窗口可见性变化时暂停/恢复扫光动画（托盘驻留时省电）。"""
+        self._level_bar.set_visible_anim(on)
+
     def set_hook_status(self, ok: bool):
         self._hook_status.setText('🟢 统计中（键盘钩子正常）' if ok
                                   else '🔴 键盘钩子未运行，不会统计打字——请重启应用')

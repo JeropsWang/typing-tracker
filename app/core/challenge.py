@@ -63,8 +63,11 @@ def score(input_text: str, reference: str, elapsed_seconds: float, balance=None)
     """
     correct, errors = compare(input_text, reference)
     total = len(reference) or 1
-    accuracy = correct / total
-    completion = len(input_text) / total if total else 0.0
+    # 正确率分母取 max(输入, 参考)：超长输入（粘贴作弊）会被多余字符稀释，
+    # 不会出现"参考全文都对 + 尾巴垃圾也 100%"的刷分漏洞
+    accuracy = correct / max(len(input_text), total)
+    # 完成率封顶 1.0：超长输入只按完整完成计，不产生 >1 的加成系数
+    completion = min(1.0, len(input_text) / total) if total else 0.0
     tw = text_tw(input_text, balance)
     speed = tw / (elapsed_seconds / 60.0) if elapsed_seconds > 0 else 0.0
     base = speed * 0.6 + correct * 0.1 + accuracy * 100 * 0.5

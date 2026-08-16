@@ -123,6 +123,10 @@ class ThemeManager:
         text = path.read_text(encoding='utf-8')
 
         def repl(mo):
+            # {{arrow}} 是程序生成的 PNG 路径占位符（QSS 不支持 data URI），
+            # 不由 manifest 提供：原样保留，交给 apply() 里的 replace 注入
+            if mo.group(1) == 'arrow':
+                return mo.group(0)
             node = manifest
             for part in mo.group(1).split('.'):
                 if isinstance(node, dict) and part in node:
@@ -179,6 +183,8 @@ class ThemeManager:
                 tid = manifest.get('id')
                 if not tid or not manifest.get('name'):
                     return False, 'manifest.json 缺少 id / name 字段'
+                if not re.fullmatch(r'[A-Za-z0-9_-]+', str(tid)):
+                    return False, '主题 id 只能包含字母、数字、下划线、连字符'
                 if tid in self._registry and self._registry[tid]['_builtin']:
                     return False, f'主题 id 与内置主题冲突：{tid}'
                 if not any(n.endswith('.qss') for n in names):
@@ -190,10 +196,14 @@ class ThemeManager:
                 for n in names:
                     if n.endswith('/'):
                         continue
-                    rel = n[len(root):].lstrip('/')
-                    if not rel:
-                        continue
-                    dest = target / rel
+                    # Zip Slip 防护：拒绝路径穿越 / 绝对路径 / Windows 反斜杠
+                    rel = n[len(root):].lstrip('/').replace('\\', '/')
+                    if not rel or rel.startswith('../') or '/../' in rel \
+                            or rel == '..' or rel.startswith('/'):
+                        raise OSError(f'主题包含非法路径条目：{n}')
+                    dest = (target / rel).resolve()
+                    if not str(dest).startswith(str(target.resolve())):
+                        raise OSError(f'主题包条目越界：{n}')
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     dest.write_bytes(z.read(n))
                 self._registry = self._scan()

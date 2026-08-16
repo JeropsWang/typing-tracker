@@ -26,6 +26,13 @@ class LevelBar(QWidget):
         self._timer.timeout.connect(self._tick)
         self._timer.start(33)
 
+    def set_visible_anim(self, on: bool) -> None:
+        """页面/窗口不可见时暂停扫光动画（避免 30fps 空转）。"""
+        if on and not self._timer.isActive():
+            self._timer.start(33)
+        elif not on:
+            self._timer.stop()
+
     # ---------- 配置 ----------
     def set_progress(self, value: float) -> None:
         self._progress = max(0.0, min(1.0, float(value)))

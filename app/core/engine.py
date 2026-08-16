@@ -51,7 +51,13 @@ class StatsEngine:
         self.check_rollover()
 
     def _reset_day(self):
-        self._day = self.current_day()
+        """主线程日常重置（flush 后调用，独立取锁）。"""
+        with self._lock:
+            self._reset_day_locked(self.current_day())
+
+    def _reset_day_locked(self, day_iso):
+        """持锁重置当日计数（钩子线程阻塞至多毫秒级，可接受）。"""
+        self._day = day_iso
         self._typed = 0
         self._deleted = 0
         self._tw = 0
@@ -59,6 +65,14 @@ class StatsEngine:
         self._min_flushed = set()
         self._exp_baseline = 0      # 当日已结算的千字块数
         self._daily_typing_exp = 0  # 当日已发打字经验（受每日上限约束）
+        # 每日上限持久化到 settings：重启后从上次计数继续（曾仅存内存，
+        # 重启 N 次可刷 N 倍经验，v0.8.9 修复）
+        if self.repo.get_setting('typing_exp_date') != self._day:
+            self.repo.set_setting('typing_exp_date', self._day)
+            self.repo.set_setting('typing_exp_today', '0')
+        else:
+            self._daily_typing_exp = int(
+                self.repo.get_setting('typing_exp_today', '0') or 0)
 
     # ---------- 事件入口（来自钩子线程） ----------
     def handle_char(self, kind):
@@ -137,25 +151,41 @@ class StatsEngine:
 
     # ---------- 落盘 ----------
     def flush(self):
+        """把未落盘的分钟/日/终身数据写入 SQLite（主线程定时调用）。
+
+        分钟行每次全量 upsert（含进行中的分钟）：曾用 _min_flushed 跳过
+        已写分钟，导致分钟内后续输入永不落库（欠计 ~90%，min_acc 成就
+        与时段报表失真，v0.8.9 修复）。
+        """
         with self._lock:
-            rows = []
-            for key, rec in self._minutes.items():
-                if key not in self._min_flushed:
-                    self._min_flushed.add(key)
-                    rows.append((key[0], key[1], rec[0], rec[1], rec[2]))
-            self._lifetime['total_active_minutes'] += len(rows)
-            daily = {
-                'date': self._day,
-                'typed_chars': self._typed,
-                'deleted_chars': self._deleted,
-                'valid_chars': self.valid_chars(),
-                'total_tw': self._tw,
-                'active_minutes': len(self._minutes),
-                'avg_tw': self.avg_tw(),
-                'accuracy': self.accuracy(),
-            }
-            life = dict(self._lifetime)
-            typing_exp = self._grant_typing_exp_locked()
+            daily, life, rows, new_minutes = self._flush_snapshot_locked()
+        self._write_flush(daily, life, rows, new_minutes)
+
+    def _flush_snapshot_locked(self):
+        """持锁构建落盘快照；返回 (daily, life, minute_rows, 新增活跃分钟数)。"""
+        rows = []
+        new_minutes = 0
+        for key, rec in self._minutes.items():
+            rows.append((key[0], key[1], rec[0], rec[1], rec[2]))
+            if key not in self._min_flushed:
+                new_minutes += 1
+        self._min_flushed.update(self._minutes.keys())
+        self._lifetime['total_active_minutes'] += new_minutes
+        daily = {
+            'date': self._day,
+            'typed_chars': self._typed,
+            'deleted_chars': self._deleted,
+            'valid_chars': self.valid_chars(),
+            'total_tw': self._tw,
+            'active_minutes': len(self._minutes),
+            'avg_tw': self.avg_tw(),
+            'accuracy': self.accuracy(),
+        }
+        life = dict(self._lifetime)
+        typing_exp = self._grant_typing_exp_locked()
+        return daily, life, rows, new_minutes
+
+    def _write_flush(self, daily, life, rows, new_minutes):
         self.repo.upsert_daily(daily)
         self.repo.upsert_lifetime(life)
         if rows:
@@ -184,6 +214,7 @@ class StatsEngine:
             self._daily_typing_exp += granted
             self.repo.add_exp(granted)
             self.repo.add_exp_to_daily(self._day, granted)
+            self.repo.set_setting('typing_exp_today', str(self._daily_typing_exp))
         return granted
 
     def _boost_active(self) -> bool:
@@ -196,10 +227,16 @@ class StatsEngine:
             return False
 
     def check_rollover(self) -> bool:
-        """日切：日期归属变化时归档并重置当日计数。"""
+        """日切：日期归属变化时归档并重置当日计数。
+
+        归档与重置在同一把锁内完成：曾先释放锁写库再重新取锁重置，
+        窗口期击键会计入旧日计数器后被清空（4 点附近丢键，v0.8.9 修复）。
+        """
         d = self.current_day()
         if d != self._day:
-            self.flush()
-            self._reset_day()
+            with self._lock:
+                daily, life, rows, new_minutes = self._flush_snapshot_locked()
+                self._reset_day_locked(d)
+            self._write_flush(daily, life, rows, new_minutes)
             return True
         return False

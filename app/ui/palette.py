@@ -35,7 +35,9 @@ class _Palette:
         colors = colors or {}
         self.text = colors.get('text', '#111827')
         self.muted = colors.get('muted', '#6b7280')
-        self.faint = colors.get('muted', '#9ca3af')
+        # faint 单独读 faint 键；主题只定义 muted 时沿用 muted（曾误读 muted 导致
+        # 主题定义的 faint 永远失效，且浅色兜底 #9ca3af 对比度仅 2.54:1）
+        self.faint = colors.get('faint', colors.get('muted', '#6b7280'))
         self.accent = effects.get('accent', colors.get('primary', '#3b82f6'))
         if self.dark:
             # 深色背景：亮色即可读

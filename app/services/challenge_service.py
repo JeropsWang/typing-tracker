@@ -1,12 +1,18 @@
 """打字竞速挑战服务：记录成绩 / 查询最佳 / 经验奖励（挑战分 → 等级经验）。"""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 
 class ChallengeService:
     def __init__(self, repo):
         self._repo = repo
+
+    def _app_day(self) -> str:
+        """按应用的日切起点归属日期（曾用 date.today()，00:00-04:00 窗口
+        上限提前重置、经验归错日，v0.8.9 修复）。"""
+        h = int(self._repo.get_setting('day_start_hour', '4') or 4)
+        return (datetime.now() - timedelta(hours=h)).date().isoformat()
 
     def record(self, text_id: str, result: dict, balance=None) -> dict:
         """记录一次成绩；按基础分发放挑战经验（每日上限）。
@@ -26,12 +32,12 @@ class ChallengeService:
             result.get('elapsed_seconds', 0), result['tw'],
             result['accuracy'], best, points)
 
-        # 挑战经验：基础分 × 系数，每日上限（与打字/签到经验同入 lifetime）
+        # 挑战经验：基础分 × 系数，每日上限（按应用日）
         cfg = (balance or {}).get('challenge_exp', {})
         per = cfg.get('per_base_point', 1)
         cap = int(cfg.get('daily_cap', 200))
         exp = int(result.get('base', 0) * per)
-        today = date.today().isoformat()
+        today = self._app_day()
         if self._repo.get_setting('challenge_exp_date') != today:
             self._repo.set_setting('challenge_exp_date', today)
             self._repo.set_setting('challenge_exp_today', '0')

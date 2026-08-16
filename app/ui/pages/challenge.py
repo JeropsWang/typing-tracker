@@ -20,6 +20,15 @@ from ...services.exp_service import level_and_progress
 from ..palette import P
 
 
+class _ChallengeInput(QPlainTextEdit):
+    """挑战输入框：运行中禁止粘贴（防刷分；IME 整句上屏不受影响）。"""
+
+    paste_blocked = Signal()
+
+    def insertFromMimeData(self, source):
+        self.paste_blocked.emit()
+
+
 class _GenThread(QThread):
     """AI 范文生成线程：done(ok, text, err)"""
 
@@ -111,9 +120,10 @@ class ChallengePage(QWidget):
             f'border:1px solid {P.card_border};')
         root.addWidget(self._ref_label)
 
-        # 输入区
-        self._input = QPlainTextEdit()
-        self._input.setPlaceholderText('点击「开始挑战」后在此输入…')
+        # 输入区（挑战中禁粘贴，防刷分）
+        self._input = _ChallengeInput()
+        self._input.paste_blocked.connect(self._on_paste_blocked)
+        self._input.setPlaceholderText('点击「开始挑战」后在此输入…（挑战中禁止粘贴）')
         self._input.setEnabled(False)
         self._input.textChanged.connect(self._on_text_changed)
         self._input.setStyleSheet(
@@ -241,6 +251,14 @@ class ChallengePage(QWidget):
         if not topic:
             self._ai_status.setText('请先输入主题 ✍️')
             return
+        # 生成前预检库存：曾等生成成功后才扣券，券不足时 API 已计费而文本
+        # 被丢弃（v0.8.9 修复）
+        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
+        unlock = self._balance.get('ai', {}).get('unlock_level', 45)
+        if level < unlock and self._repo.count_ai_passes() <= 0:
+            self._ai_status.setText('❌ AI 训练券不足（速度跃升可获得训练券）')
+            self._ai_status.setStyleSheet('color:#ef4444; font-size:11px;')
+            return
         self._ai_btn.setEnabled(False)
         self._ai_status.setText('生成中…（本地模型可能较慢）')
         self._gen_thread = _GenThread(self._ai, topic,
@@ -319,6 +337,10 @@ class ChallengePage(QWidget):
         self._score_target = 0
         self._render_reference('')
         self._refresh_recent()
+
+    def _on_paste_blocked(self):
+        if self._running:
+            self._hint_label.setText('❌ 挑战中禁止粘贴——请手动输入！')
 
     def _tick(self):
         if self._running:

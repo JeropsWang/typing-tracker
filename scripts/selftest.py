@@ -64,8 +64,12 @@ def main() -> int:
           and cumulative_cost(2, BALANCE) == 86)
     check('满级累计≈13,860', cumulative_cost(99, BALANCE) == 13860)
     check('0 经验 → Lv.1', level_from_exp(0, BALANCE) == 1)
+    check('42 exp → Lv.2（off-by-one 回归）', level_from_exp(42, BALANCE) == 2)
+    check('86 exp → Lv.3', level_from_exp(86, BALANCE) == 3)
+    check('13,860 exp → Lv.100（满级）', level_from_exp(13860, BALANCE) == 100)
+    check('3,740 exp → Lv.45（AI 解锁门槛）', level_from_exp(3740, BALANCE) == 45)
     lv, prog, remain = level_and_progress(200, BALANCE)
-    check('200 exp → 等级与进度合理', lv >= 3 and 0 <= prog <= 1 and remain is not None)
+    check('200 exp → 等级与进度合理', lv == 5 and 0 <= prog <= 1 and remain >= 0)
 
     print('== 存储与统计引擎 ==')
     td = make_temp_dir()
@@ -206,8 +210,12 @@ def main() -> int:
         # 补签卡：06-09 连签 5，06-10 断，补签后连签恢复
         # 补签卡：06-20 连签 5，06-21 断，补签后连签恢复
         repo.add_checkin('2026-06-20', 5, 20, 0)
-        r = cs.apply_makeup_card('2026-06-21')
+        r = cs.apply_makeup_card('2026-06-21', today_iso='2026-06-22')
         check('补签恢复连签', r is not None and r['streak'] == 6)
+        check('未来日期补签被拒', cs.apply_makeup_card('2026-06-30',
+                                                   today_iso='2026-06-22') is None)
+        check('非昨天日期补签被拒', cs.apply_makeup_card('2026-06-01',
+                                                    today_iso='2026-06-22') is None)
         r2 = CheckinService(repo, BALANCE).checkin_if_needed('2026-06-22')
         check('补签后次日连签延续', r2['streak'] == 7)
 

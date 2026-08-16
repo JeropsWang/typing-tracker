@@ -73,7 +73,13 @@ class AchievementsPage(QWidget):
             f'🏆 成就墙　已解锁 {len(unlocked)} / {len(items)}'
             + (f'　·　待领取 {len(pending)} 项（红点提示）' if pending else ''))
 
-        self._tabs.clear()
+        # QTabWidget.clear() 只移除页签、不删除页面 widget；
+        # 先逐个 deleteLater，避免每次刷新泄漏整棵控件树
+        while self._tabs.count():
+            w = self._tabs.widget(0)
+            self._tabs.removeTab(0)
+            if w is not None:
+                w.deleteLater()
         for cat in ['speed', 'chars', 'min_acc', 'total_acc']:
             page = QWidget()
             lay = QVBoxLayout(page)
@@ -113,10 +119,8 @@ class AchievementsPage(QWidget):
         v.setSpacing(2)
 
         top = QHBoxLayout()
-        icon = QLabel(item.get('icon', '🎯'))
-        icon.setStyleSheet('font-size:34px;')
-        if not unlocked:
-            icon.setGraphicsEffect(_gray_effect())
+        icon = QLabel()
+        icon.setPixmap(_icon_pixmap(item.get('icon', '🎯'), unlocked))
         top.addWidget(icon)
         top.addStretch(1)
         if unlocked and not claimed:
@@ -166,9 +170,22 @@ class AchievementsPage(QWidget):
             self.refresh()
 
 
-def _gray_effect():
-    from PySide6.QtWidgets import QGraphicsColorizeEffect
-    eff = QGraphicsColorizeEffect()
-    eff.setColor(Qt.gray)
-    eff.setStrength(0.85)
-    return eff
+def _icon_pixmap(emoji: str, unlocked: bool):
+    """把成就 emoji 绘制为 QPixmap；未解锁时用 QPainter 半透明绘制模拟"灰掉"。
+
+    注意：不使用 QGraphicsColorizeEffect——无边框透明窗口上效果残留会
+    导致整体渲染偏移（v0.8.6 修复；此处曾漏网，v0.8.9 移除）。
+    """
+    from PySide6.QtCore import QRectF, QSize, Qt
+    from PySide6.QtGui import QFont, QPixmap, QPainter
+    pm = QPixmap(QSize(40, 40))
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setOpacity(0.42 if not unlocked else 1.0)
+    f = QFont()
+    f.setPixelSize(34)
+    p.setFont(f)
+    p.drawText(QRectF(0, 0, 40, 40), Qt.AlignCenter, emoji)
+    p.end()
+    return pm
