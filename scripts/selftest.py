@@ -266,6 +266,30 @@ def main() -> int:
         check('未破纪录不标新', not r3['is_best'])
         check('近期记录 3 条', len(csvc.recent(10)) == 3)
 
+        print('== AI 定制训练（45 级解锁 / 训练券）==')
+        from app.core.challenge import ai_access_state
+        allowed, hint = ai_access_state(30, 0, 45)
+        check('低等级未解锁', not allowed and 'Lv.45' in hint)
+        allowed, _ = ai_access_state(30, 2, 45)
+        check('训练券提前体验', allowed)
+        allowed, _ = ai_access_state(45, 0, 45)
+        check('45 级解锁', allowed)
+        allowed, _ = ai_access_state(99, 0, 45)
+        check('高等级解锁', allowed)
+        # 券的发放与消耗（先清空，保证确定性）
+        while repo.use_reward('ai_pass'):
+            pass
+        repo.add_reward('ai_pass', 1, 'encourage')
+        check('训练券入库', repo.count_ai_passes() == 1)
+        check('训练券消耗', repo.use_reward('ai_pass') and repo.count_ai_passes() == 0)
+        check('无券不可消耗', not repo.use_reward('ai_pass'))
+        # 鼓励奖励池包含训练券（真实触发一次看池成员）
+        repo.set_setting('last_encourage_at',
+                         (datetime.now() - timedelta(days=10)).isoformat(timespec='seconds'))
+        ev = EncourageService(repo, BALANCE).check(eng)
+        check('鼓励池含 ai_pass 或常规奖励', ev is None or ev['reward'][0]
+              in ('makeup_card', 'exp_boost', 'exp', 'ai_pass'))
+
         print('== AI 范文生成（mock OpenAI 兼容端点）==')
         import threading as _th
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

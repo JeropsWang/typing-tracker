@@ -239,7 +239,14 @@ class MainWindow(QMainWindow):
             self.show_toast('🎉 升级！',
                             f'Lv.{self._last_level} → Lv.{level}　称号「{title}」',
                             kind='level')
+            ai_unlock = self._balance.get('ai', {}).get('unlock_level', 45)
+            if self._last_level < ai_unlock <= level and hasattr(self, '_challenge_page'):
+                self.show_toast('🎉 解锁 AI 定制训练！',
+                                '前往「竞速」页，生成你的专属训练文本 ✨',
+                                kind='level')
         self._last_level = level
+        if hasattr(self, '_challenge_page'):
+            self._challenge_page.update_ai_access()
 
         if self._hook is not None:
             self._dashboard.set_hook_info(

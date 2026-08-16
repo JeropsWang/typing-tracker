@@ -182,6 +182,9 @@ def main() -> int:
 
     roll_timer = QTimer()
 
+    _REWARD_CN = {'makeup_card': '补签卡', 'exp_boost': '经验加成卡',
+                  'exp': '经验', 'ai_pass': 'AI 训练券'}
+
     def on_roll():
         if engine.check_rollover():
             r = checkin.checkin_if_needed(engine.current_day())
@@ -196,7 +199,9 @@ def main() -> int:
             ev = encourage.check(engine)
             if ev:
                 kind, qty = ev['reward']
-                toast('鼓励', f'速度跃升 {ev["ratio"]:.0%}！奖励 {kind}×{qty}，继续保持！',
+                toast('鼓励',
+                      f'速度跃升 {ev["ratio"]:.0%}！奖励 {_REWARD_CN.get(kind, kind)}×{qty}'
+                      + ('，可用于提前体验 AI 定制训练！' if kind == 'ai_pass' else '，继续保持！'),
                       'encourage')
 
     roll_timer.timeout.connect(on_roll)

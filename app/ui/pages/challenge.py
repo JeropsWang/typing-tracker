@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
     QPushButton, QVBoxLayout, QWidget,
 )
 
-from ...core.challenge import TEXTS, score
+from ...core.challenge import TEXTS, ai_access_state, score
+from ...services.exp_service import level_and_progress
 from ..palette import P
 
 
@@ -68,11 +69,11 @@ class ChallengePage(QWidget):
         top.addWidget(self._reset_btn)
         root.addLayout(top)
 
-        # AI 生成行
+        # AI 定制训练行（Lv.45 解锁 / AI 训练券提前体验）
         if self._ai is not None:
             ai_row = QHBoxLayout()
             self._topic_edit = QLineEdit()
-            self._topic_edit.setPlaceholderText('AI 生成主题（如：星空 / 未来城市 / 美食）')
+            self._topic_edit.setPlaceholderText('AI 定制训练主题（如：星空 / 未来城市 / 美食）')
             self._topic_edit.returnPressed.connect(self._ai_generate)
             ai_row.addWidget(self._topic_edit, 1)
             self._lang_combo = QComboBox()
@@ -86,8 +87,7 @@ class ChallengePage(QWidget):
             self._ai_status.setStyleSheet(f'color:{P.faint}; font-size:11px;')
             ai_row.addWidget(self._ai_status)
             root.addLayout(ai_row)
-            if not self._ai.enabled():
-                self._ai_status.setText('AI 未启用：设置 → AI 配置（支持 OpenAI 兼容 / Ollama）')
+            self.update_ai_access()
 
         # 参考文本（逐字高亮）
         ref_head = QHBoxLayout()
@@ -194,7 +194,27 @@ class ChallengePage(QWidget):
                 return t['name']
         return tid
 
-    # ---------- AI 生成 ----------
+    # ---------- AI 定制训练 ----------
+    def update_ai_access(self):
+        """等级/训练券访问控制（升级后由主窗口调用刷新）。"""
+        if self._ai is None:
+            return
+        if not self._ai.enabled():
+            self._ai_btn.setEnabled(False)
+            self._topic_edit.setEnabled(False)
+            self._ai_status.setText('AI 未启用：设置 → AI 配置（支持 OpenAI 兼容 / Ollama）')
+            self._ai_status.setStyleSheet('color:#ef4444; font-size:11px;')
+            return
+        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
+        passes = self._repo.count_ai_passes()
+        unlock = self._balance.get('ai', {}).get('unlock_level', 45)
+        allowed, hint = ai_access_state(level, passes, unlock)
+        self._ai_btn.setEnabled(allowed)
+        self._topic_edit.setEnabled(allowed)
+        self._ai_status.setText(hint)
+        self._ai_status.setStyleSheet(
+            f'color:{P.success if allowed else P.warn}; font-size:11px;')
+
     def _ai_generate(self):
         if self._gen_thread is not None and self._gen_thread.isRunning():
             return
@@ -215,12 +235,20 @@ class ChallengePage(QWidget):
             self._ai_status.setText(f'❌ {err}')
             self._ai_status.setStyleSheet('color:#ef4444; font-size:11px;')
             return
+        # 未满 45 级时消耗 AI 训练券（满级后无限生成）
+        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
+        unlock = self._balance.get('ai', {}).get('unlock_level', 45)
+        if level < unlock and not self._repo.use_reward('ai_pass'):
+            self._ai_status.setText('❌ 训练券不足，无法生成')
+            self._ai_status.setStyleSheet('color:#ef4444; font-size:11px;')
+            return
         topic = self._topic_edit.text().strip()
         lang = self._lang_combo.currentData()
         self._repo.add_ai_text(lang, topic, text)
         self._ai_status.setText(f'✅ 已生成并加入文本库：{topic}')
         self._ai_status.setStyleSheet(f'color:{P.success}; font-size:11px;')
         self._reload_texts()
+        self.update_ai_access()
         # 选中刚生成的文本
         for i, t in enumerate(self._texts):
             if t['id'].startswith('ai:') and t['name'].endswith(topic):

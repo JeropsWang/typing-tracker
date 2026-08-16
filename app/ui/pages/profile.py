@@ -100,7 +100,8 @@ class ProfilePage(QWidget):
             ('累计输入', 'total_typed'), ('累计有效', 'total_valid'),
             ('累计 tw', 'total_tw'), ('累计活跃', 'total_minutes'),
             ('打卡总天数', 'checkin_days'), ('补签卡', 'makeup_cards'),
-            ('经验加成卡', 'boost_cards'), ('已获称号', 'titles_count'),
+            ('经验加成卡', 'boost_cards'), ('AI 训练券', 'ai_passes'),
+            ('已获称号', 'titles_count'),
         ]
         for i, (name, key) in enumerate(stats):
             val = QLabel('—')
@@ -172,6 +173,7 @@ class ProfilePage(QWidget):
         self._stat_values['checkin_days'].setText(str(len(checkin_days)))
         self._stat_values['makeup_cards'].setText(str(self._rewards.count('makeup_card')))
         self._stat_values['boost_cards'].setText(str(self._rewards.count('exp_boost')))
+        self._stat_values['ai_passes'].setText(str(self._rewards.count('ai_pass')))
         titles = self._rewards.titles()
         self._stat_values['titles_count'].setText(str(len(titles)))
 

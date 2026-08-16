@@ -24,6 +24,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.core.engine import StatsEngine  # noqa: E402
 from app.services.achievement_service import AchievementService  # noqa: E402
+from app.services.ai_service import AIService  # noqa: E402
 from app.services.challenge_service import ChallengeService  # noqa: E402
 from app.services.checkin_service import CheckinService  # noqa: E402
 from app.services.reward_service import RewardService  # noqa: E402
@@ -71,7 +72,8 @@ def main() -> int:
 
         win = MainWindow(engine, repo, BALANCE, tray=None,
                          checkin=checkin, rewards=rewards, achievements=ach,
-                         challenge=ChallengeService(repo))
+                         challenge=ChallengeService(repo),
+                         ai_service=AIService(repo))
         win.show()
         app.processEvents()
 
@@ -200,6 +202,13 @@ def main() -> int:
         app.processEvents()
         assert cp._result.isVisible(), '挑战未自动结算'
         print('竞速挑战冒烟通过：开始→输入→结算→记录')
+
+        # AI 定制训练访问控制（默认 AI 关闭 → 按钮禁用 + 提示）
+        cp2 = win._challenge_page
+        assert not cp2._ai_btn.isEnabled(), 'AI 关闭时应禁用生成按钮'
+        assert '未启用' in cp2._ai_status.text() or '解锁' in cp2._ai_status.text(), \
+            f'AI 状态提示异常: {cp2._ai_status.text()}'
+        print('AI 访问控制冒烟通过：未配置时禁用并提示')
 
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')

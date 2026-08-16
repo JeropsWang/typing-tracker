@@ -38,6 +38,9 @@
     "min_minutes_7d": 30,
     "cooldown_hours": 72
   },
+  "ai": {
+    "unlock_level": 45
+  },
   "day_start_hour": 4,
   "unit": {
     "name": "tw",

@@ -53,6 +53,7 @@ class EncourageService:
             ('makeup_card', 1),
             ('exp_boost', 1),
             ('exp', random.randint(20, 80)),
+            ('ai_pass', 1),        # AI 训练券：Lv.45 前可提前体验 AI 定制训练
         ]
         kind, qty = random.choice(pool)
         self._repo.add_reward(kind, qty, 'encourage')

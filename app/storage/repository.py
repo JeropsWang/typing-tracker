@@ -176,6 +176,11 @@ class Repository:
         self._conn.commit()
         return True
 
+    def count_ai_passes(self) -> int:
+        """AI 训练券数量（未使用）。"""
+        return sum(r['qty'] for r in self.list_rewards(unused_only=True)
+                   if r['kind'] == 'ai_pass')
+
     # ---------- 打字竞速挑战（0.7） ----------
     def add_challenge(self, started_at, text_id, typed_chars, errors,
                       elapsed_seconds, tw, accuracy, best) -> None:
