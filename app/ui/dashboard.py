@@ -6,8 +6,10 @@ from __future__ import annotations
 
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
+    QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel,
+    QVBoxLayout, QWidget,
 )
 
 from ..core.classifier import tw_to_hanzi_per_min, tw_to_letters_per_min
@@ -62,14 +64,14 @@ class Dashboard(QWidget):
         self._name_labels = []
         self._card_frames = []
         cards = [
-            ('今日', [
+            ('📊 今日', [
                 ('输入字数', 'typed'), ('删除字数', 'deleted'),
                 ('有效字数', 'valid'), ('今日 tw', 'tw'),
                 ('平均速度', 'avg_tw'), ('正确率', 'accuracy'),
                 ('预测汉字/分', 'pred_hanzi'), ('预测字母/分', 'pred_letters'),
                 ('活跃时长', 'minutes'),
             ]),
-            ('终身总计', [
+            ('🏅 终身总计', [
                 ('累计输入', 'lifetime_typed'), ('累计有效', 'lifetime_valid'),
                 ('累计 tw', 'lifetime_tw'), ('累计活跃', 'lifetime_minutes'),
             ]),
@@ -77,15 +79,21 @@ class Dashboard(QWidget):
         for c, (title, fields) in enumerate(cards):
             card = QFrame()
             card.setFrameShape(QFrame.StyledPanel)
+            # 柔和投影（高级感）
+            shadow = QGraphicsDropShadowEffect(self)
+            shadow.setBlurRadius(22)
+            shadow.setOffset(0, 5)
+            shadow.setColor(QColor(P.shadow_color))
+            card.setGraphicsEffect(shadow)
             v = QVBoxLayout(card)
             t = QLabel(f'<b>{title}</b>')
-            t.setStyleSheet('font-size:14px;')
+            t.setStyleSheet('font-size:15px;')
             v.addWidget(t)
             self._name_labels.append(t)
             inner = QGridLayout()
             for i, (name, key) in enumerate(fields):
                 val = QLabel('—')
-                val.setStyleSheet('font-size:16px; font-weight:600;')
+                val.setStyleSheet('font-size:19px; font-weight:700;')
                 n = QLabel(name)
                 n.setStyleSheet('font-size:11px;')
                 inner.addWidget(n, i, 0)
@@ -137,8 +145,11 @@ class Dashboard(QWidget):
             lab.setStyleSheet(f'color:{P.muted}; font-size:11px;')
         for card in self._card_frames:
             card.setStyleSheet(
-                f'QFrame {{ background:{P.card_bg}; border-radius:12px;'
+                f'QFrame {{ background:{P.card_bg}; border-radius:16px;'
                 f' border:1px solid {P.card_border}; }}')
+            eff = card.graphicsEffect()
+            if isinstance(eff, QGraphicsDropShadowEffect):
+                eff.setColor(QColor(P.shadow_color))
         self._mini_title.setStyleSheet(f'color:{P.muted}; margin-top:6px;')
         self._hint.setStyleSheet(f'color:{P.faint}; font-size:11px;')
         self._mini_plot.setBackground(P.mini_bg)

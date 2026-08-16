@@ -1,50 +1,90 @@
-/* 默认深色主题（占位符由 ThemeManager 按 manifest.json 替换）
-   注意：不设全局 QWidget 背景，页面控件背景由各自规则控制，
-   星空模式下页面透明、星星透出；文字色显式指定保证可读。 */
+/* 默认深色 v3 —— 现代 Web 风格（渐变背景 / 毛玻璃卡片 / 胶囊 Tab / 细腻滚动条） */
 QMainWindow {
-  background-color: {{colors.background}};
-  color: {{colors.text}};
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #0F172A, stop:0.55 #1E1B4B, stop:1 #0F172A);
+  color: #E5E7EB;
 }
-QLabel { color: {{colors.text}}; }
+QLabel { color: #E5E7EB; }
 QToolBar {
-  background: {{colors.card}};
-  border-bottom: 1px solid {{colors.border}};
+  background: rgba(30, 41, 59, 210);
+  border-bottom: 1px solid #334155;
 }
+QTabWidget::pane { border: none; }
 QTabBar::tab {
-  background: {{colors.card}};
-  color: {{colors.muted}};
-  padding: 6px 14px;
-  border: 1px solid {{colors.border}};
-  border-bottom: none;
+  background: transparent;
+  color: #94A3B8;
+  padding: 8px 20px;
+  margin: 2px 3px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 600;
 }
+QTabBar::tab:hover { background: rgba(255, 255, 255, 26); color: #E2E8F0; }
 QTabBar::tab:selected {
-  background: {{colors.primary}};
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #3B82F6, stop:1 #8B5CF6);
   color: white;
+  font-weight: 700;
 }
 QPushButton {
-  background: {{colors.card}};
-  color: {{colors.text}};
-  border: 1px solid {{colors.border}};
-  border-radius: 4px;
-  padding: 4px 12px;
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #334155, stop:1 #1E293B);
+  color: #E5E7EB;
+  border: 1px solid #475569;
+  border-radius: 10px;
+  padding: 6px 16px;
+  font-weight: 600;
 }
-QPushButton:hover { background: {{colors.primary}}; color: white; }
-QPushButton:disabled { color: {{colors.muted}}; background: {{colors.card}}; }
+QPushButton:hover {
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #3B82F6, stop:1 #8B5CF6);
+  color: white;
+  border: 1px solid #3B82F6;
+}
+QPushButton:pressed { background: #1E3A8A; }
+QPushButton:disabled { color: #64748B; background: #1E293B; }
 QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
-  background: {{colors.card}};
-  color: {{colors.text}};
-  border: 1px solid {{colors.border}};
-  border-radius: 4px;
-  padding: 3px 6px;
+  background: #1E293B;
+  color: #E5E7EB;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 5px 10px;
+}
+QComboBox:hover, QSpinBox:hover, QLineEdit:hover, QPlainTextEdit:hover {
+  border: 1px solid #3B82F6;
+}
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox QAbstractItemView {
+  background: #1E293B;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  selection-background-color: #3B82F6;
+  selection-color: white;
+  outline: none;
 }
 QScrollArea { border: none; }
-QFrame[frameShape="6"] {
-  background: rgba(31, 41, 55, 220);
-  border: 1px solid {{colors.border}};
-  border-radius: 12px;
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+  background: rgba(255, 255, 255, 44);
+  border-radius: 5px;
+  min-height: 30px;
 }
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+  background: rgba(255, 255, 255, 90);
+}
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+QFrame[frameShape="6"] {
+  background: rgba(30, 41, 59, 215);
+  border: 1px solid rgba(148, 163, 184, 60);
+  border-radius: 16px;
+}
+QFrame[frameShape="6"]:hover { border: 1px solid rgba(59, 130, 246, 170); }
 QToolTip {
-  background: {{colors.card}};
-  color: {{colors.text}};
-  border: 1px solid {{colors.border}};
+  background: #0F172A;
+  color: #E5E7EB;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 5px 8px;
 }

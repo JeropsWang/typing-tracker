@@ -1,61 +1,92 @@
-/* 明日方舟：终末地 · 梨诺 v2 —— 偶像舞台 · 星空紫
-   要素：深紫星空渐变 / 金色星星 / 舞台聚光灯 / 粉色偶像感 accent
-   注意：不设全局 QWidget 背景，星空模式下页面透明、星星透出；
-   文字色显式指定保证深色背景下可读。 */
+/* 明日方舟：终末地 · 梨诺 v3 —— 偶像舞台 · 星空紫（高级版）
+   要素：深紫星空渐变 / 金色星星 / 舞台聚光灯 / 粉色偶像感 accent /
+   胶囊 Tab / 毛玻璃卡片 / 细腻滚动条 */
 QMainWindow {
-  background-color: {{colors.background}};
+  background: qlineargradient(x1:0, y1:0, x2:0.6, y2:1,
+    stop:0 #1A1240, stop:0.45 #241B52, stop:1 #160F33);
   color: {{colors.text}};
 }
 QLabel { color: {{colors.text}}; }
 QToolBar {
-  background: {{colors.card}};
+  background: rgba(38, 28, 82, 215);
   border-bottom: 1px solid {{colors.border}};
 }
+QTabWidget::pane { border: none; }
 QTabBar::tab {
-  background: {{colors.card}};
+  background: transparent;
   color: {{colors.muted}};
-  padding: 7px 16px;
-  border: 1px solid {{colors.border}};
-  border-bottom: none;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
+  padding: 8px 20px;
+  margin: 2px 3px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 600;
 }
-QTabBar::tab:hover { color: {{colors.star}}; }
+QTabBar::tab:hover { background: rgba(255, 233, 168, 26); color: {{colors.star}}; }
 QTabBar::tab:selected {
-  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-    stop:0 {{colors.primary}}, stop:1 {{colors.accent}});
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 {{colors.primary}}, stop:0.55 {{colors.accent}}, stop:1 {{colors.stage}});
   color: white;
   font-weight: 700;
 }
 QPushButton {
   background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-    stop:0 #2A2160, stop:1 {{colors.card}});
+    stop:0 #2F2666, stop:1 {{colors.card}});
   color: {{colors.text}};
   border: 1px solid {{colors.border}};
-  border-radius: 8px;
-  padding: 5px 14px;
+  border-radius: 10px;
+  padding: 6px 16px;
+  font-weight: 600;
 }
 QPushButton:hover {
   background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-    stop:0 {{colors.primary}}, stop:1 {{colors.accent}});
+    stop:0 {{colors.primary}}, stop:1 {{colors.stage}});
   color: white;
+  border: 1px solid {{colors.primary}};
 }
+QPushButton:pressed { background: #3A2F6E; }
 QPushButton:disabled { color: {{colors.muted}}; background: {{colors.card}}; }
 QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
   background: {{colors.card}};
   color: {{colors.text}};
   border: 1px solid {{colors.border}};
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 10px;
+  padding: 5px 10px;
+}
+QComboBox:hover, QSpinBox:hover, QLineEdit:hover, QPlainTextEdit:hover {
+  border: 1px solid {{colors.primary}};
+}
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox QAbstractItemView {
+  background: {{colors.card}};
+  border: 1px solid {{colors.border}};
+  border-radius: 10px;
+  selection-background-color: {{colors.accent}};
+  selection-color: white;
+  outline: none;
 }
 QScrollArea { border: none; }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+  background: rgba(255, 233, 168, 46);
+  border-radius: 5px;
+  min-height: 30px;
+}
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+  background: rgba(255, 233, 168, 100);
+}
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 QFrame[frameShape="6"] {
   background: rgba(36, 27, 78, 210);
-  border: 1px solid rgba(179, 157, 219, 90);
-  border-radius: 14px;
+  border: 1px solid rgba(179, 157, 219, 70);
+  border-radius: 16px;
 }
+QFrame[frameShape="6"]:hover { border: 1px solid rgba(255, 158, 207, 180); }
 QToolTip {
   background: {{colors.card}};
   color: {{colors.text}};
   border: 1px solid {{colors.border}};
+  border-radius: 6px;
+  padding: 5px 8px;
 }

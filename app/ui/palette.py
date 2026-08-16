@@ -19,8 +19,9 @@ class _Palette:
         self.accent = '#3b82f6'
         self.success = '#10b981'
         self.warn = '#f59e0b'
-        self.card_bg = 'rgba(255, 255, 255, 0.62)'
-        self.card_border = 'rgba(255, 255, 255, 0.75)'
+        self.card_bg = 'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255,255,255,242), stop:1 rgba(255,255,255,196))'
+        self.card_border = 'rgba(255, 255, 255, 235)'
+        self.shadow_color = '#6366F12E'   # #AARRGGBB，QGraphicsDropShadowEffect 用
         self.badge_bg = 'rgba(255, 255, 255, 0.62)'
         self.badge_border = '#fbbf24'
         self.badge_text = '#b45309'
@@ -38,8 +39,9 @@ class _Palette:
         self.success = colors.get('success', '#10b981')
         self.warn = colors.get('warn', '#f59e0b')
         if self.dark:
-            self.card_bg = 'rgba(36, 27, 78, 210)'
-            self.card_border = 'rgba(179, 157, 219, 90)'
+            self.card_bg = 'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(43,32,92,230), stop:1 rgba(30,23,66,215))'
+            self.card_border = 'rgba(179, 157, 219, 70)'
+            self.shadow_color = '#0000006E'
             self.badge_bg = 'rgba(41, 33, 96, 220)'
             self.badge_border = self.accent
             self.badge_text = self.text
@@ -47,8 +49,9 @@ class _Palette:
             self.cal_missed = 'rgba(255, 255, 255, 0.07)'
             self.cal_future = 'rgba(255, 255, 255, 0.04)'
         else:
-            self.card_bg = 'rgba(255, 255, 255, 0.62)'
-            self.card_border = 'rgba(255, 255, 255, 0.75)'
+            self.card_bg = 'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255,255,255,242), stop:1 rgba(255,255,255,196))'
+            self.card_border = 'rgba(255, 255, 255, 235)'
+            self.shadow_color = '#6366F12E'
             self.badge_bg = 'rgba(255, 255, 255, 0.62)'
             self.badge_border = '#fbbf24'
             self.badge_text = '#b45309'
