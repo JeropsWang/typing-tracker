@@ -1,6 +1,9 @@
 """设置对话框：个人信息 / 单位 / 日切 / 无限等级 / 排除程序 / AI 配置 / 主题 / 导出。"""
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
@@ -19,12 +22,14 @@ _AI_PLACEHOLDERS = {
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, repo, balance, parent=None, theme_manager=None):
+    def __init__(self, repo, balance, parent=None, theme_manager=None,
+                 data_dir=None):
         super().__init__(parent)
         self.setWindowTitle('设置')
         self._repo = repo
         self._balance = balance
         self._theme_mgr = theme_manager
+        self._data_dir = Path(data_dir) if data_dir else None
 
         form = QFormLayout()
 
@@ -41,7 +46,15 @@ class SettingsDialog(QDialog):
         cur = repo.get_setting('avatar_emoji', '🐱')
         idx = self._avatar_combo.findText(cur)
         self._avatar_combo.setCurrentIndex(max(0, idx))
-        form.addRow('头像', self._avatar_combo)
+        avatar_row = QHBoxLayout()
+        avatar_row.addWidget(self._avatar_combo, 1)
+        btn_up = QPushButton('上传图片…')
+        btn_up.clicked.connect(self._upload_avatar)
+        avatar_row.addWidget(btn_up)
+        btn_clear = QPushButton('清除图片')
+        btn_clear.clicked.connect(self._clear_avatar)
+        avatar_row.addWidget(btn_clear)
+        form.addRow('头像', avatar_row)
 
         self._unit_edit = QLineEdit(repo.get_setting('unit_name', balance['unit']['name']))
         self._unit_edit.setPlaceholderText('如 tw / 字')
@@ -118,6 +131,38 @@ class SettingsDialog(QDialog):
         lay.addLayout(form)
         lay.addWidget(hint)
         lay.addWidget(btns)
+
+    # ---------- 头像 ----------
+    def _avatar_file(self) -> Path:
+        if self._data_dir is None:
+            return None
+        d = self._data_dir / 'avatars'
+        d.mkdir(parents=True, exist_ok=True)
+        return d / 'avatar.png'
+
+    def _upload_avatar(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, '选择头像图片', '',
+            '图片 (*.png *.jpg *.jpeg *.bmp *.webp)')
+        if not path:
+            return
+        target = self._avatar_file()
+        if target is None:
+            QMessageBox.warning(self, '头像', '数据目录不可用，无法保存头像。')
+            return
+        try:
+            shutil.copyfile(path, target)
+            self._repo.set_setting('avatar_image', '1')
+            QMessageBox.information(self, '头像', '头像已更新 ✓')
+        except OSError as e:
+            QMessageBox.warning(self, '上传失败', str(e))
+
+    def _clear_avatar(self):
+        target = self._avatar_file()
+        if target is not None:
+            target.unlink(missing_ok=True)
+        self._repo.set_setting('avatar_image', '')
+        QMessageBox.information(self, '头像', '已恢复 emoji 头像')
 
     # ---------- AI ----------
     def _ai_placeholder(self):

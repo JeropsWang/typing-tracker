@@ -332,15 +332,16 @@ class ChallengePage(QWidget):
         if r['is_best']:
             self._result_title.setText('🎉 新纪录！')
             self._result_title.setStyleSheet(
-                f'font-size:20px; font-weight:900; color:{P.warn};')
+                f'font-size:22px; font-weight:900; color:{P.warn};')
         else:
             self._result_title.setText('挑战完成！')
             self._result_title.setStyleSheet('font-size:20px; font-weight:800;')
         self._result_detail.setText(
-            f'{name}　·　用时 {self._elapsed:.1f}s　·　'
-            f'速度 {s["speed"]:.1f} tw/分　·　正确率 {s["accuracy"] * 100:.1f}%\n'
-            f'历史最佳 {r["prev_best"]:.0f} tw/分'
-            + ('　← 就是你！' if r['is_best'] else ''))
+            f'总分 <b style="font-size:26px;color:{P.accent};">{s["score_points"]}</b>　'
+            f'·　历史最佳 {r["prev_best"]:.0f} 分\n'
+            f'速度 {s["speed"]:.1f} tw/分　·　正确率 {s["accuracy"] * 100:.1f}%　·　'
+            f'用时 {self._elapsed:.1f}s　·　有效 {s["typed_chars"] - s["errors"]} 字\n'
+            f'公式：速度×0.6 + 字数×0.1 + 正确率%×0.5，再乘完成系数')
         self._result.setVisible(True)
         self._input.setEnabled(False)
         self._hint_label.setText('点「重来」再战一次')
@@ -370,6 +371,6 @@ class ChallengePage(QWidget):
         for r in rows:
             mark = ' 👑' if r['best'] else ''
             lines.append(
-                f'{self._text_name(r["text_id"])} · {r["elapsed_seconds"]:.1f}s · '
-                f'{r["tw"]:.0f} tw · {r["accuracy"] * 100:.0f}%{mark}')
+                f'{self._text_name(r["text_id"])} · {r["score"]:.0f}分 · '
+                f'{r["elapsed_seconds"]:.1f}s · {r["accuracy"] * 100:.0f}%{mark}')
         self._recent_label.setText('🕘 近期挑战：' + '　|　'.join(lines))

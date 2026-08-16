@@ -183,18 +183,18 @@ class Repository:
 
     # ---------- 打字竞速挑战（0.7） ----------
     def add_challenge(self, started_at, text_id, typed_chars, errors,
-                      elapsed_seconds, tw, accuracy, best) -> None:
+                      elapsed_seconds, tw, accuracy, best, score_points=0) -> None:
         self._conn.execute(
             'INSERT INTO challenge_history(started_at,text_id,typed_chars,errors,'
-            'elapsed_seconds,tw,accuracy,best) VALUES(?,?,?,?,?,?,?,?)',
+            'elapsed_seconds,tw,accuracy,best,score) VALUES(?,?,?,?,?,?,?,?,?)',
             (started_at, text_id, typed_chars, errors,
-             elapsed_seconds, tw, accuracy, int(best)))
+             elapsed_seconds, tw, accuracy, int(best), float(score_points)))
         self._conn.commit()
 
     def get_best_challenge(self, text_id):
         row = self._conn.execute(
             'SELECT * FROM challenge_history WHERE text_id=? '
-            'ORDER BY tw DESC, accuracy DESC LIMIT 1', (text_id,)).fetchone()
+            'ORDER BY best DESC, accuracy DESC LIMIT 1', (text_id,)).fetchone()
         return dict(row) if row else None
 
     def get_recent_challenges(self, n=10):

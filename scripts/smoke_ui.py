@@ -210,6 +210,13 @@ def main() -> int:
             f'AI 状态提示异常: {cp2._ai_status.text()}'
         print('AI 访问控制冒烟通过：未配置时禁用并提示')
 
+        # 设置入口（悬浮按钮 + 个人中心入口）与结算分显示
+        assert win._floating_settings.isVisible(), '悬浮设置按钮不可见'
+        assert win._profile_page._settings_btn is not None, '个人中心设置入口缺失'
+        assert cp._result_detail.text(), '结算明细为空'
+        assert '总分' in cp._result_detail.text(), '结算未显示综合分'
+        print('设置入口 / 结算分冒烟通过')
+
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')
     finally:

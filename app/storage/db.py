@@ -52,3 +52,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
               topic      TEXT NOT NULL,
               text       TEXT NOT NULL
             );""")
+    if 'challenge_history' in tables:
+        cols = {r['name'] for r in conn.execute('PRAGMA table_info(challenge_history)')}
+        if 'score' not in cols:
+            conn.execute('ALTER TABLE challenge_history ADD COLUMN score REAL NOT NULL DEFAULT 0')

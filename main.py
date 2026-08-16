@@ -128,7 +128,8 @@ def main() -> int:
                         theme_manager=ThemeManager(
                             app, data_dir, get_setting, repo.set_setting),
                         challenge=ChallengeService(repo),
-                        ai_service=AIService(repo))
+                        ai_service=AIService(repo),
+                        data_dir=data_dir)
     theme_manager = window._theme_mgr
     theme_manager.register_reports(window._reports)
     theme_manager.register_window(window)

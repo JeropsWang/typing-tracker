@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS rewards (
 -- 设置（单位名、日切起点、无限等级、排除程序、等级段名、主题等）
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 
--- 打字竞速挑战历史（0.7）
+-- 打字竞速挑战历史（0.7；score 列 0.8.2 加入）
 CREATE TABLE IF NOT EXISTS challenge_history (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   started_at     TEXT NOT NULL,
@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS challenge_history (
   elapsed_seconds REAL NOT NULL DEFAULT 0,
   tw             REAL NOT NULL DEFAULT 0,
   accuracy       REAL NOT NULL DEFAULT 0,
-  best           INTEGER NOT NULL DEFAULT 0
+  best           INTEGER NOT NULL DEFAULT 0,
+  score          REAL NOT NULL DEFAULT 0
 );
 
 -- AI 生成的范文（0.8，本地持久化，重启可用）

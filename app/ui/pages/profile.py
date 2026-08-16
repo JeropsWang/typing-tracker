@@ -1,10 +1,12 @@
-"""个人中心：头像 / 昵称 / 签名 / 等级徽章 / 称号收藏（可佩戴）/ 终身统计 / 道具。"""
+"""个人中心：头像（emoji 或上传图片）/ 昵称 / 签名 / 等级徽章 / 称号 / 统计 / 道具。"""
 from __future__ import annotations
 
 from datetime import date, timedelta
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPixmap
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import (
+    QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
+)
 from PySide6.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QVBoxLayout, QWidget,
@@ -14,47 +16,76 @@ from ..palette import P
 
 
 class _Avatar(QFrame):
-    """圆形渐变头像 + emoji。"""
+    """圆形头像：上传图片（圆形裁剪）或 emoji 渐变底。"""
 
     def __init__(self, size: int = 96, parent=None):
         super().__init__(parent)
         self._size = size
         self._emoji = '🐱'
+        self._image = None
         self.setFixedSize(size, size)
 
     def set_emoji(self, emoji: str) -> None:
         self._emoji = emoji
         self.update()
 
+    def set_image(self, path) -> None:
+        if path:
+            pm = QPixmap(str(path))
+            self._image = pm if not pm.isNull() else None
+        else:
+            self._image = None
+        self.update()
+
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        grad = QLinearGradient(0, 0, self._size, self._size)
-        if P.dark:
-            grad.setColorAt(0, QColor('#4FC3F7'))
-            grad.setColorAt(1, QColor('#B39DDB'))
+        size = self._size - 4
+        if self._image is not None:
+            # 居中裁剪为正方形再圆形绘制
+            scaled = self._image.scaled(
+                size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+            x = (scaled.width() - size) // 2
+            y = (scaled.height() - size) // 2
+            sq = scaled.copy(x, y, size, size)
+            path = QPainterPath()
+            path.addEllipse(2, 2, size, size)
+            p.setClipPath(path)
+            p.drawPixmap(2, 2, sq)
+            p.setClipping(False)
+            p.setPen(QPen(QColor(P.accent), 2))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(2, 2, size, size)
         else:
-            grad.setColorAt(0, QColor('#FBC2EB'))
-            grad.setColorAt(1, QColor('#A6C1EE'))
-        p.setPen(Qt.NoPen)
-        p.setBrush(grad)
-        p.drawEllipse(2, 2, self._size - 4, self._size - 4)
-        f = QFont()
-        f.setPixelSize(int(self._size * 0.52))
-        p.setFont(f)
-        p.drawText(self.rect(), Qt.AlignCenter, self._emoji)
+            grad = QLinearGradient(0, 0, self._size, self._size)
+            if P.dark:
+                grad.setColorAt(0, QColor('#4FC3F7'))
+                grad.setColorAt(1, QColor('#B39DDB'))
+            else:
+                grad.setColorAt(0, QColor('#FBC2EB'))
+                grad.setColorAt(1, QColor('#A6C1EE'))
+            p.setPen(Qt.NoPen)
+            p.setBrush(grad)
+            p.drawEllipse(2, 2, size, size)
+            f = QFont()
+            f.setPixelSize(int(self._size * 0.52))
+            p.setFont(f)
+            p.drawText(self.rect(), Qt.AlignCenter, self._emoji)
         p.end()
 
 
 class ProfilePage(QWidget):
+    settings_requested = Signal()
+
     def __init__(self, repo, balance, engine, ach_service, reward_service,
-                 parent=None):
+                 avatar_dir=None, parent=None):
         super().__init__(parent)
         self._repo = repo
         self._balance = balance
         self._engine = engine
         self._ach = ach_service
         self._rewards = reward_service
+        self._avatar_dir = avatar_dir
 
         root = QVBoxLayout(self)
 
@@ -128,11 +159,14 @@ class ProfilePage(QWidget):
         tv.addWidget(self._active_title_label)
         lay.addWidget(title_card)
 
-        # ---- 简介 ----
+        # ---- 简介 + 设置入口 ----
         self._intro = QLabel('')
         self._intro.setWordWrap(True)
         self._intro.setStyleSheet('font-size:12px;')
         lay.addWidget(self._intro)
+        self._settings_btn = QPushButton('⚙️ 打开设置（AI 配置 / 主题 / 排除程序…）')
+        self._settings_btn.clicked.connect(self.settings_requested)
+        lay.addWidget(self._settings_btn)
         lay.addStretch(1)
 
         scroll.setWidget(body)
@@ -149,6 +183,9 @@ class ProfilePage(QWidget):
         signature = self._repo.get_setting('signature', '键盘上的舞者 ✨')
         emoji = self._repo.get_setting('avatar_emoji', '🐱')
         self._avatar.set_emoji(emoji)
+        if self._avatar_dir is not None:
+            img = self._avatar_dir / 'avatar.png'
+            self._avatar.set_image(img if img.exists() else None)
         self._nick_label.setText(nickname)
         self._sig_label.setText(signature)
 

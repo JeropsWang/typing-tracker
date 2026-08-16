@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import json
 from datetime import date, timedelta
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QEasingCurve, QPropertyAnimation, QTimer
 from PySide6.QtWidgets import (
-    QGraphicsOpacityEffect, QLabel, QMainWindow, QSystemTrayIcon, QTabWidget,
-    QToolBar,
+    QGraphicsOpacityEffect, QLabel, QMainWindow, QPushButton, QSystemTrayIcon,
+    QTabWidget, QToolBar,
 )
 
 from .. import __version__
@@ -50,13 +51,15 @@ def current_streak(repo, day_iso) -> int:
 class MainWindow(QMainWindow):
     def __init__(self, engine, repo, balance, tray=None,
                  checkin=None, rewards=None, achievements=None,
-                 theme_manager=None, challenge=None, ai_service=None):
+                 theme_manager=None, challenge=None, ai_service=None,
+                 data_dir=None):
         super().__init__()
         self._engine = engine
         self._repo = repo
         self._balance = balance
         self._tray = tray
         self._theme_mgr = theme_manager
+        self._data_dir = data_dir
         self._effects = {}
         self._accent = '#60a5fa'
         self._dark = True
@@ -91,8 +94,10 @@ class MainWindow(QMainWindow):
             self._tabs.addTab(self._ach_page, '成就')
             self._tabs.setTabIcon(3, svg_icon('trophy', '#94A3B8'))
         if achievements is not None and rewards is not None:
-            self._profile_page = ProfilePage(repo, balance, engine,
-                                             achievements, rewards)
+            self._profile_page = ProfilePage(
+                repo, balance, engine, achievements, rewards,
+                avatar_dir=Path(data_dir) / 'avatars' if data_dir else None)
+            self._profile_page.settings_requested.connect(self.open_settings)
             self._tabs.addTab(self._profile_page, '个人中心')
             self._tabs.setTabIcon(4, svg_icon('user', '#94A3B8'))
         if challenge is not None:
@@ -108,6 +113,18 @@ class MainWindow(QMainWindow):
         act_settings = tb.addAction('设置…')
         act_settings.triggered.connect(self.open_settings)
         self.addToolBar(tb)
+
+        # 悬浮设置按钮（右下角，永远可见）
+        self._floating_settings = QPushButton(self)
+        self._floating_settings.setIcon(svg_icon('settings', '#ffffff', 17))
+        self._floating_settings.setFixedSize(42, 42)
+        self._floating_settings.setToolTip('设置（AI 配置 / 主题 / 头像…）')
+        self._floating_settings.setStyleSheet(
+            'QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1,'
+            ' stop:0 #6366F1, stop:1 #EC4899); border: none; border-radius: 21px; }'
+            'QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:1,y2:1,'
+            ' stop:0 #4F46E5, stop:1 #DB2777); }')
+        self._floating_settings.clicked.connect(self.open_settings)
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
@@ -152,6 +169,7 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         self._starfield.setGeometry(self.rect())
         self._starfield.lower()
+        self._floating_settings.move(self.width() - 58, self.height() - 66)
         super().resizeEvent(event)
 
     # ---------- 弹窗 ----------
@@ -282,11 +300,14 @@ class MainWindow(QMainWindow):
 
     def open_settings(self):
         dlg = SettingsDialog(self._repo, self._balance, self,
-                             theme_manager=self._theme_mgr)
+                             theme_manager=self._theme_mgr,
+                             data_dir=self._data_dir)
         if dlg.exec():
             self._engine.update_day_start()   # 日切起点设置即时生效
             if self._hook is not None:
                 self._hook.set_excluded_apps(self.load_excluded_apps())
+            if hasattr(self, '_profile_page'):
+                self._profile_page.refresh()
             self.refresh()
 
     def closeEvent(self, event):

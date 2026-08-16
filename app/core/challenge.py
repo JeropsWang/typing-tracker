@@ -53,16 +53,27 @@ def compare(input_text: str, reference: str):
 
 
 def score(input_text: str, reference: str, elapsed_seconds: float, balance=None):
-    """计算挑战成绩。tw 用全局口径（汉字 2tw、字母 1tw）。"""
+    """计算挑战成绩。tw 用全局口径（汉字 2tw、字母 1tw）。
+
+    综合结算分（打字时间 / 打字字数 / 正确率 混合）：
+        基础分 = 速度(tw/分)×0.6 + 有效字数×0.1 + 正确率(%)×0.5
+        总分   = 基础分 × (0.5 + 0.5×完成率)
+    完成率 = 输入长度/参考长度；正确率以逐字对比为准。
+    """
     correct, errors = compare(input_text, reference)
     total = len(reference) or 1
     accuracy = correct / total
+    completion = len(input_text) / total if total else 0.0
     tw = text_tw(input_text, balance)
     speed = tw / (elapsed_seconds / 60.0) if elapsed_seconds > 0 else 0.0
+    base = speed * 0.6 + correct * 0.1 + accuracy * 100 * 0.5
+    points = round(base * (0.5 + 0.5 * completion))
     return {
         'typed_chars': len(input_text),
         'errors': errors,
         'accuracy': accuracy,
         'tw': tw,
         'speed': speed,
+        'completion': completion,
+        'score_points': points,
     }
