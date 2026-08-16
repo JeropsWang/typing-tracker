@@ -15,6 +15,7 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed `
     --name TypingTracker `
     --paths "$Root\.deps" `
     --exclude-module pygame `
+    --icon "$Root\app.ico" `
     --add-data "config;config" `
     --add-data "app/theme/themes;app/theme/themes" `
     --add-data "app/storage/schema.sql;app/storage" `

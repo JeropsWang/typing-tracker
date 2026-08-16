@@ -1,9 +1,10 @@
 """系统托盘：驻留后台、快捷菜单、今日速览。"""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+
+from .assets.app_icon import tray_icon
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -13,7 +14,7 @@ class TrayIcon(QSystemTrayIcon):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setIcon(self._make_icon())
+        self.setIcon(tray_icon())
         self.setToolTip('打字管家')
 
         menu = QMenu()
@@ -36,21 +37,3 @@ class TrayIcon(QSystemTrayIcon):
     def update_summary(self, text: str):
         self._act_summary.setText(f'今日：{text}')
         self.setToolTip(f'打字管家\n今日：{text}')
-
-    @staticmethod
-    def _make_icon() -> QIcon:
-        pm = QPixmap(64, 64)
-        pm.fill(Qt.transparent)
-        p = QPainter(pm)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setBrush(QColor('#3b82f6'))
-        p.setPen(Qt.NoPen)
-        p.drawRoundedRect(4, 4, 56, 56, 14, 14)
-        p.setPen(QColor('white'))
-        f = p.font()
-        f.setBold(True)
-        f.setPixelSize(22)
-        p.setFont(f)
-        p.drawText(pm.rect(), Qt.AlignCenter, 'TW')
-        p.end()
-        return QIcon(pm)
