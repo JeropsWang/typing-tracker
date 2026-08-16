@@ -1,0 +1,36 @@
+{
+  "id": "arknights_endfield_lino",
+  "name": "明日方舟：终末地 · 梨诺",
+  "version": "2.0.0",
+  "author": "打字管家",
+  "base": "dark",
+  "colors": {
+    "primary": "#4FC3F7",
+    "accent": "#B39DDB",
+    "background": "#171233",
+    "card": "#241B4E",
+    "text": "#F1E9FF",
+    "muted": "#9C8FC9",
+    "border": "#3A2F6E",
+    "success": "#66BB6A",
+    "danger": "#EF5350",
+    "star": "#FFE9A8",
+    "stage": "#FF9ECF"
+  },
+  "fonts": { "family": "Microsoft YaHei" },
+  "effects": {
+    "dark": true,
+    "background": "stars",
+    "accent": "#FF9ECF",
+    "levelbar": {
+      "colors": ["#4FC3F7", "#B39DDB", "#FF9ECF", "#FFE9A8"]
+    },
+    "stars": {
+      "enabled": true,
+      "color": "#FFE9A8",
+      "density": 0.0016,
+      "speed": 1.4,
+      "sparkle": true
+    }
+  }
+}

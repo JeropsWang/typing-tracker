@@ -1,0 +1,25 @@
+{
+  "id": "default_light",
+  "name": "默认浅色",
+  "version": "1.0.0",
+  "author": "打字管家",
+  "base": "light",
+  "colors": {
+    "background": "#f5f6f8",
+    "card": "#ffffff",
+    "text": "#111827",
+    "muted": "#6b7280",
+    "border": "#e5e7eb",
+    "primary": "#3b82f6"
+  },
+  "fonts": { "family": "Microsoft YaHei" },
+  "effects": {
+    "dark": false,
+    "background": "solid",
+    "accent": "#3b82f6",
+    "levelbar": {
+      "colors": ["#60a5fa", "#a78bfa", "#f472b6"]
+    },
+    "stars": { "enabled": false }
+  }
+}

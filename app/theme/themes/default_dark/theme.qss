@@ -1,0 +1,50 @@
+/* 默认深色主题（占位符由 ThemeManager 按 manifest.json 替换）
+   注意：不设全局 QWidget 背景，页面控件背景由各自规则控制，
+   星空模式下页面透明、星星透出；文字色显式指定保证可读。 */
+QMainWindow {
+  background-color: {{colors.background}};
+  color: {{colors.text}};
+}
+QLabel { color: {{colors.text}}; }
+QToolBar {
+  background: {{colors.card}};
+  border-bottom: 1px solid {{colors.border}};
+}
+QTabBar::tab {
+  background: {{colors.card}};
+  color: {{colors.muted}};
+  padding: 6px 14px;
+  border: 1px solid {{colors.border}};
+  border-bottom: none;
+}
+QTabBar::tab:selected {
+  background: {{colors.primary}};
+  color: white;
+}
+QPushButton {
+  background: {{colors.card}};
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+  border-radius: 4px;
+  padding: 4px 12px;
+}
+QPushButton:hover { background: {{colors.primary}}; color: white; }
+QPushButton:disabled { color: {{colors.muted}}; background: {{colors.card}}; }
+QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
+  background: {{colors.card}};
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+QScrollArea { border: none; }
+QFrame[frameShape="6"] {
+  background: rgba(31, 41, 55, 220);
+  border: 1px solid {{colors.border}};
+  border-radius: 12px;
+}
+QToolTip {
+  background: {{colors.card}};
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+}

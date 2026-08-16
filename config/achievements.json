@@ -1,0 +1,47 @@
+{
+  "speed": [
+    {"code": "speed_50", "name": "初窥门径", "desc": "近 7 日平均速度达到 50 tw/分", "target": 50, "rewards": [{"kind": "exp", "qty": 20}]},
+    {"code": "speed_100", "name": "渐入佳境", "desc": "近 7 日平均速度达到 100 tw/分", "target": 100, "rewards": [{"kind": "exp", "qty": 30}]},
+    {"code": "speed_150", "name": "轻车熟路", "desc": "近 7 日平均速度达到 150 tw/分", "target": 150, "rewards": [{"kind": "exp", "qty": 40}]},
+    {"code": "speed_200", "name": "快人一步", "desc": "近 7 日平均速度达到 200 tw/分", "target": 200, "rewards": [{"kind": "exp", "qty": 50}]},
+    {"code": "speed_250", "name": "手随心动", "desc": "近 7 日平均速度达到 250 tw/分", "target": 250, "rewards": [{"kind": "exp", "qty": 60}]},
+    {"code": "speed_300", "name": "指尖疾风", "desc": "近 7 日平均速度达到 300 tw/分", "target": 300, "rewards": [{"kind": "exp", "qty": 80}]},
+    {"code": "speed_350", "name": "电光石火", "desc": "近 7 日平均速度达到 350 tw/分", "target": 350, "rewards": [{"kind": "exp", "qty": 100}]},
+    {"code": "speed_400", "name": "疾如闪电", "desc": "近 7 日平均速度达到 400 tw/分", "target": 400, "rewards": [{"kind": "exp", "qty": 120}]},
+    {"code": "speed_500", "name": "风驰电掣", "desc": "近 7 日平均速度达到 500 tw/分", "target": 500, "rewards": [{"kind": "exp", "qty": 150}, {"kind": "makeup_card", "qty": 1}]},
+    {"code": "speed_600", "name": "追风逐电", "desc": "近 7 日平均速度达到 600 tw/分", "target": 600, "rewards": [{"kind": "exp", "qty": 180}]},
+    {"code": "speed_800", "name": "一瞬千击", "desc": "近 7 日平均速度达到 800 tw/分", "target": 800, "rewards": [{"kind": "exp", "qty": 200}, {"kind": "exp_boost", "qty": 1}]},
+    {"code": "speed_1000", "name": "键舞飞仙", "desc": "近 7 日平均速度达到 1000 tw/分", "target": 1000, "rewards": [{"kind": "exp", "qty": 300}, {"kind": "title", "qty": 1, "value": "键仙"}]}
+  ],
+  "chars": [
+    {"code": "chars_10k", "name": "万字初成", "desc": "累计有效字数达到 10,000 字", "target": 10000, "rewards": [{"kind": "exp", "qty": 30}]},
+    {"code": "chars_50k", "name": "五万小成", "desc": "累计有效字数达到 50,000 字", "target": 50000, "rewards": [{"kind": "exp", "qty": 50}]},
+    {"code": "chars_100k", "name": "十万征程", "desc": "累计有效字数达到 100,000 字", "target": 100000, "rewards": [{"kind": "exp", "qty": 80}]},
+    {"code": "chars_500k", "name": "半百之巅", "desc": "累计有效字数达到 500,000 字", "target": 500000, "rewards": [{"kind": "exp", "qty": 120}]},
+    {"code": "chars_1m", "name": "百万雄师", "desc": "累计有效字数达到 1,000,000 字", "target": 1000000, "rewards": [{"kind": "exp", "qty": 200}, {"kind": "makeup_card", "qty": 1}]},
+    {"code": "chars_3m", "name": "三百万里", "desc": "累计有效字数达到 3,000,000 字", "target": 3000000, "rewards": [{"kind": "exp", "qty": 300}]},
+    {"code": "chars_5m", "name": "五百万言", "desc": "累计有效字数达到 5,000,000 字", "target": 5000000, "rewards": [{"kind": "exp", "qty": 400}, {"kind": "exp_boost", "qty": 1}]},
+    {"code": "chars_10m", "name": "千万铸就", "desc": "累计有效字数达到 10,000,000 字", "target": 10000000, "rewards": [{"kind": "exp", "qty": 500}, {"kind": "title", "qty": 1, "value": "千锤百炼"}]}
+  ],
+  "min_acc": [
+    {"code": "min_acc_85", "name": "稳扎稳打", "desc": "单分钟有效样本（≥30 字）正确率达到 85%", "target": 0.85, "rewards": [{"kind": "exp", "qty": 20}]},
+    {"code": "min_acc_88", "name": "精准之基", "desc": "单分钟有效样本（≥30 字）正确率达到 88%", "target": 0.88, "rewards": [{"kind": "exp", "qty": 30}]},
+    {"code": "min_acc_90", "name": "十拿九稳", "desc": "单分钟有效样本（≥30 字）正确率达到 90%", "target": 0.90, "rewards": [{"kind": "exp", "qty": 40}]},
+    {"code": "min_acc_92", "name": "精益求精", "desc": "单分钟有效样本（≥30 字）正确率达到 92%", "target": 0.92, "rewards": [{"kind": "exp", "qty": 50}]},
+    {"code": "min_acc_94", "name": "明察秋毫", "desc": "单分钟有效样本（≥30 字）正确率达到 94%", "target": 0.94, "rewards": [{"kind": "exp", "qty": 60}]},
+    {"code": "min_acc_96", "name": "百不失一", "desc": "单分钟有效样本（≥30 字）正确率达到 96%", "target": 0.96, "rewards": [{"kind": "exp", "qty": 80}]},
+    {"code": "min_acc_98", "name": "近乎完美", "desc": "单分钟有效样本（≥30 字）正确率达到 98%", "target": 0.98, "rewards": [{"kind": "exp", "qty": 100}, {"kind": "makeup_card", "qty": 1}]},
+    {"code": "min_acc_99", "name": "登峰造极", "desc": "单分钟有效样本（≥30 字）正确率达到 99%", "target": 0.99, "rewards": [{"kind": "exp", "qty": 120}]},
+    {"code": "min_acc_995", "name": "完美无瑕", "desc": "单分钟有效样本（≥30 字）正确率达到 99.5%", "target": 0.995, "rewards": [{"kind": "exp", "qty": 150}, {"kind": "title", "qty": 1, "value": "完美主义"}]}
+  ],
+  "total_acc": [
+    {"code": "total_acc_80", "name": "基础扎实", "desc": "终身累计正确率达到 80%", "target": 0.80, "rewards": [{"kind": "exp", "qty": 20}]},
+    {"code": "total_acc_85", "name": "稳健如山", "desc": "终身累计正确率达到 85%", "target": 0.85, "rewards": [{"kind": "exp", "qty": 30}]},
+    {"code": "total_acc_88", "name": "行云流水", "desc": "终身累计正确率达到 88%", "target": 0.88, "rewards": [{"kind": "exp", "qty": 40}]},
+    {"code": "total_acc_90", "name": "字字珠玑", "desc": "终身累计正确率达到 90%", "target": 0.90, "rewards": [{"kind": "exp", "qty": 50}]},
+    {"code": "total_acc_92", "name": "心手合一", "desc": "终身累计正确率达到 92%", "target": 0.92, "rewards": [{"kind": "exp", "qty": 60}]},
+    {"code": "total_acc_95", "name": "弹无虚发", "desc": "终身累计正确率达到 95%", "target": 0.95, "rewards": [{"kind": "exp", "qty": 80}]},
+    {"code": "total_acc_97", "name": "炉火纯青", "desc": "终身累计正确率达到 97%", "target": 0.97, "rewards": [{"kind": "exp", "qty": 100}]},
+    {"code": "total_acc_99", "name": "万无一失", "desc": "终身累计正确率达到 99%", "target": 0.99, "rewards": [{"kind": "exp", "qty": 150}, {"kind": "title", "qty": 1, "value": "万无一失"}]}
+  ]
+}

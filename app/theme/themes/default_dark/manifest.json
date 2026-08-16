@@ -1,0 +1,33 @@
+{
+  "id": "default_dark",
+  "name": "默认深色",
+  "version": "1.0.0",
+  "author": "打字管家",
+  "base": "dark",
+  "colors": {
+    "background": "#111827",
+    "card": "#1f2937",
+    "text": "#e5e7eb",
+    "muted": "#9ca3af",
+    "border": "#374151",
+    "primary": "#3b82f6",
+    "success": "#10b981",
+    "danger": "#ef4444"
+  },
+  "fonts": { "family": "Microsoft YaHei" },
+  "effects": {
+    "dark": true,
+    "background": "stars",
+    "accent": "#60a5fa",
+    "levelbar": {
+      "colors": ["#60a5fa", "#a78bfa", "#f472b6"]
+    },
+    "stars": {
+      "enabled": true,
+      "color": "#fcd34d",
+      "density": 0.0012,
+      "speed": 1.0,
+      "sparkle": true
+    }
+  }
+}

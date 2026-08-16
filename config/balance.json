@@ -1,0 +1,48 @@
+{
+  "level": {
+    "max_level": 100,
+    "cost_base": 40,
+    "cost_growth": 2,
+    "infinite_levels": false,
+    "infinite_title": "无限之路",
+    "bands": [
+      {"from": 1, "to": 20, "title": "小试牛刀"},
+      {"from": 21, "to": 40, "title": "初露锋芒"},
+      {"from": 41, "to": 60, "title": "渐入佳境"},
+      {"from": 61, "to": 80, "title": "炉火纯青"},
+      {"from": 81, "to": 100, "title": "登峰造极"}
+    ]
+  },
+  "checkin": {
+    "base_exp": 20,
+    "streak_bonus_cap": 150,
+    "streak_bonus_factor": 0.25,
+    "milestones": [3, 7, 14, 30, 60, 100, 200, 300],
+    "milestone_rewards": {
+      "3": {"exp": 15},
+      "7": {"exp": 25, "makeup_card": 1},
+      "14": {"exp": 40, "exp_boost": 1},
+      "30": {"exp": 60, "makeup_card": 1},
+      "60": {"exp": 100, "exp_boost": 1},
+      "100": {"exp": 150, "makeup_card": 1},
+      "200": {"exp": 300, "exp_boost": 1},
+      "300": {"exp": 500, "makeup_card": 2, "title": "坚持之星"}
+    }
+  },
+  "typing_exp": {
+    "per_1000_valid": 5,
+    "daily_cap": 300
+  },
+  "encourage": {
+    "ratio": 1.15,
+    "min_minutes_7d": 30,
+    "cooldown_hours": 72
+  },
+  "day_start_hour": 4,
+  "unit": {
+    "name": "tw",
+    "hanzi_tw": 2,
+    "letter_tw": 1,
+    "other_tw": 1
+  }
+}

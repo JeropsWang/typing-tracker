@@ -1,0 +1,20 @@
+# 依赖与构建产物
+.deps/
+.dl/
+build/
+dist/
+*.spec
+
+# 测试与临时目录
+.tmptest/
+.shots/
+.exetmp*/
+.e2e*/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# 参考素材（下载失败的占位）
+docs/reference/qss/*.qss

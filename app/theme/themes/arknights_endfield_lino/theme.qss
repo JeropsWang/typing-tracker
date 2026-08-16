@@ -1,0 +1,61 @@
+/* 明日方舟：终末地 · 梨诺 v2 —— 偶像舞台 · 星空紫
+   要素：深紫星空渐变 / 金色星星 / 舞台聚光灯 / 粉色偶像感 accent
+   注意：不设全局 QWidget 背景，星空模式下页面透明、星星透出；
+   文字色显式指定保证深色背景下可读。 */
+QMainWindow {
+  background-color: {{colors.background}};
+  color: {{colors.text}};
+}
+QLabel { color: {{colors.text}}; }
+QToolBar {
+  background: {{colors.card}};
+  border-bottom: 1px solid {{colors.border}};
+}
+QTabBar::tab {
+  background: {{colors.card}};
+  color: {{colors.muted}};
+  padding: 7px 16px;
+  border: 1px solid {{colors.border}};
+  border-bottom: none;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+QTabBar::tab:hover { color: {{colors.star}}; }
+QTabBar::tab:selected {
+  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+    stop:0 {{colors.primary}}, stop:1 {{colors.accent}});
+  color: white;
+  font-weight: 700;
+}
+QPushButton {
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 #2A2160, stop:1 {{colors.card}});
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+  border-radius: 8px;
+  padding: 5px 14px;
+}
+QPushButton:hover {
+  background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+    stop:0 {{colors.primary}}, stop:1 {{colors.accent}});
+  color: white;
+}
+QPushButton:disabled { color: {{colors.muted}}; background: {{colors.card}}; }
+QComboBox, QSpinBox, QLineEdit, QPlainTextEdit {
+  background: {{colors.card}};
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+QScrollArea { border: none; }
+QFrame[frameShape="6"] {
+  background: rgba(36, 27, 78, 210);
+  border: 1px solid rgba(179, 157, 219, 90);
+  border-radius: 14px;
+}
+QToolTip {
+  background: {{colors.card}};
+  color: {{colors.text}};
+  border: 1px solid {{colors.border}};
+}
