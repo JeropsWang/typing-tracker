@@ -13,6 +13,7 @@
     "primary": "#3b82f6"
   },
   "fonts": { "family": "Microsoft YaHei" },
+  "shell_bg": "qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #EEF2FF, stop:0.5 #F8FAFF, stop:1 #FDF2F8)",
   "effects": {
     "dark": false,
     "background": "solid",

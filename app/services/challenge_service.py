@@ -1,7 +1,7 @@
-"""打字竞速挑战服务：记录成绩 / 查询最佳 / 近期历史。"""
+"""打字竞速挑战服务：记录成绩 / 查询最佳 / 经验奖励（挑战分 → 等级经验）。"""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 
 class ChallengeService:
@@ -9,9 +9,9 @@ class ChallengeService:
         self._repo = repo
 
     def record(self, text_id: str, result: dict, balance=None) -> dict:
-        """记录一次成绩，返回 (记录, 是否新纪录, 更新前最佳分)。
+        """记录一次成绩；按基础分发放挑战经验（每日上限）。
 
-        最佳按**综合结算分**判定（速度+字数+正确率混合）。
+        返回 (记录, 是否新纪录, 更新前最佳分, 本次经验)。
         """
         prev = self._repo.get_best_challenge(text_id)
         best = prev['best'] or 0 if prev else 0
@@ -25,7 +25,25 @@ class ChallengeService:
             text_id, result['typed_chars'], result['errors'],
             result.get('elapsed_seconds', 0), result['tw'],
             result['accuracy'], best, points)
-        return {'record': result, 'is_best': is_best, 'prev_best': prev_best}
+
+        # 挑战经验：基础分 × 系数，每日上限（与打字/签到经验同入 lifetime）
+        cfg = (balance or {}).get('challenge_exp', {})
+        per = cfg.get('per_base_point', 1)
+        cap = int(cfg.get('daily_cap', 200))
+        exp = int(result.get('base', 0) * per)
+        today = date.today().isoformat()
+        if self._repo.get_setting('challenge_exp_date') != today:
+            self._repo.set_setting('challenge_exp_date', today)
+            self._repo.set_setting('challenge_exp_today', '0')
+        used = int(self._repo.get_setting('challenge_exp_today', '0') or 0)
+        grant = max(0, min(exp, cap - used))
+        if grant > 0:
+            self._repo.add_exp(grant)
+            self._repo.add_exp_to_daily(today, grant)
+            self._repo.set_setting('challenge_exp_today', str(used + grant))
+
+        return {'record': result, 'is_best': is_best,
+                'prev_best': prev_best, 'exp_gained': grant}
 
     def best(self, text_id: str):
         return self._repo.get_best_challenge(text_id)

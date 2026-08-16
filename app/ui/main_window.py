@@ -6,9 +6,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QEasingCurve, QPropertyAnimation, QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QGraphicsOpacityEffect, QLabel, QMainWindow, QPushButton, QSystemTrayIcon,
-    QTabWidget, QToolBar, QVBoxLayout, QWidget,
+    QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect, QLabel,
+    QMainWindow, QPushButton, QSystemTrayIcon, QTabWidget, QToolBar,
+    QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -23,6 +25,7 @@ from .pages.profile import ProfilePage
 from .pages.reports import ReportsPage
 from .settings_dialog import SettingsDialog
 from .widgets.checkin_popup import CheckinPopup
+from .widgets.confetti import ConfettiOverlay
 from .widgets.starfield import StarField
 from .widgets.title_bar import TitleBar
 from .widgets.toast_popup import ToastPopup
@@ -70,8 +73,12 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(f'打字管家 v{__version__}')
         self.resize(900, 640)
-        # 无边框窗口 + 自定义标题栏（标题层美化）
+        # 无边框窗口 + 自定义标题栏 + 圆角壳层 + 投影（窗户质感）
         self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._shell_bg = ('qlineargradient(x1:0, y1:0, x2:0.6, y2:1,'
+                          ' stop:0 #1A1240, stop:0.45 #241B52, stop:1 #160F33)')
+        self._was_maximized = False
 
         # 星空背景（主题 effects 控制显隐）
         self._starfield = StarField(self)
@@ -106,22 +113,36 @@ class MainWindow(QMainWindow):
         if challenge is not None:
             self._challenge_page = ChallengePage(repo, balance, challenge,
                                                  ai_service=ai_service)
+            self._challenge_page.confetti_requested.connect(self.play_confetti)
             self._tabs.addTab(self._challenge_page, '竞速')
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
-        # 容器：自定义标题栏 + 页面
-        container = QWidget(self)
-        v = QVBoxLayout(container)
+        # 圆角壳层（窗户质感）+ 标题栏 + 页面
+        self._shell = QFrame(self)
+        self._shell.setObjectName('shellFrame')
+        self._shell_shadow = QGraphicsDropShadowEffect(self._shell)
+        self._shell_shadow.setBlurRadius(30)
+        self._shell_shadow.setOffset(0, 8)
+        self._shell_shadow.setColor(QColor(0, 0, 0, 130))
+        self._shell.setGraphicsEffect(self._shell_shadow)
+        v = QVBoxLayout(self._shell)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
         self._titlebar = TitleBar(self, f'打字管家 v{__version__}')
         v.addWidget(self._titlebar)
         v.addWidget(self._tabs, 1)
-        self.setCentralWidget(container)
+        self.setCentralWidget(self._shell)
+
+        # 彩带庆祝覆盖层
+        self._confetti = ConfettiOverlay(self)
+        self._confetti.setGeometry(self.rect())
+
+        self._update_shell_style()
 
         tb = QToolBar('工具')
         tb.setMovable(False)
+        tb.setVisible(False)   # 冗余：设置入口由悬浮按钮/托盘/个人中心承担
         act_settings = tb.addAction('设置…')
         act_settings.triggered.connect(self.open_settings)
         self.addToolBar(tb)
@@ -179,10 +200,33 @@ class MainWindow(QMainWindow):
         if hasattr(self, '_challenge_page'):
             self._challenge_page.apply_theme()
 
+    def apply_shell_style(self, shell_bg: str) -> None:
+        """主题切换时注入壳层背景渐变（manifest shell_bg）。"""
+        if shell_bg:
+            self._shell_bg = shell_bg
+        self._update_shell_style()
+
+    def _update_shell_style(self) -> None:
+        """最大化时直角无投影；普通状态圆角 + 投影。"""
+        radius = 0 if self.isMaximized() else 16
+        self._shell_shadow.setEnabled(not self.isMaximized())
+        self._shell.setStyleSheet(
+            f'QFrame#shellFrame {{ background: {self._shell_bg};'
+            f' border-radius: {radius}px; border: none; }}')
+        self._titlebar.set_corner_radius(radius)
+
+    def play_confetti(self, tier: int = 1) -> None:
+        self._confetti.setGeometry(self.rect())
+        self._confetti.start(tier)
+
     def resizeEvent(self, event):
         self._starfield.setGeometry(self.rect())
         self._starfield.lower()
+        self._confetti.setGeometry(self.rect())
         self._floating_settings.move(self.width() - 58, self.height() - 66)
+        if self.isMaximized() != self._was_maximized:
+            self._was_maximized = self.isMaximized()
+            self._update_shell_style()
         super().resizeEvent(event)
 
     # ---------- 弹窗 ----------
@@ -263,7 +307,8 @@ class MainWindow(QMainWindow):
             title = active
         unit = self._repo.get_setting('unit_name', self._balance['unit']['name'])
         streak = current_streak(self._repo, self._engine.current_day())
-        self._dashboard.refresh(snap, level, progress, title, streak, unit)
+        self._dashboard.refresh(snap, level, progress, title, streak, unit,
+                                exp=exp)
 
         # 升级检测 → 小弹窗
         if self._last_level is not None and level > self._last_level:

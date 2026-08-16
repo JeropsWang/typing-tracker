@@ -260,19 +260,34 @@ def main() -> int:
         check('未完成分更低', s3['score_points'] < s['score_points'])
         from app.services.challenge_service import ChallengeService
         csvc = ChallengeService(repo)
+        exp0 = repo.get_exp()
         r1 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
                                      'elapsed_seconds': 60, 'tw': 10,
-                                     'accuracy': 1.0, 'score_points': 50}, BALANCE)
+                                     'accuracy': 1.0, 'score_points': 500000,
+                                     'base': 50}, BALANCE)
         check('首次即最佳', r1['is_best'] and r1['prev_best'] == 0)
+        check('挑战经验发放', r1['exp_gained'] == 50
+              and repo.get_exp() == exp0 + 50)
         r2 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
                                      'elapsed_seconds': 30, 'tw': 20,
-                                     'accuracy': 1.0, 'score_points': 80}, BALANCE)
-        check('新纪录更新', r2['is_best'] and r2['prev_best'] == 50)
+                                     'accuracy': 1.0, 'score_points': 800000,
+                                     'base': 80}, BALANCE)
+        check('新纪录更新', r2['is_best'] and r2['prev_best'] == 500000)
         r3 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
                                      'elapsed_seconds': 60, 'tw': 5,
-                                     'accuracy': 1.0, 'score_points': 20}, BALANCE)
+                                     'accuracy': 1.0, 'score_points': 200000,
+                                     'base': 20}, BALANCE)
         check('未破纪录不标新', not r3['is_best'])
-        check('近期记录 3 条', len(csvc.recent(10)) == 3)
+        # 每日经验上限 200
+        from datetime import date as _date
+        repo.set_setting('challenge_exp_date', _date.today().isoformat())
+        repo.set_setting('challenge_exp_today', '190')
+        r4 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
+                                     'elapsed_seconds': 60, 'tw': 5,
+                                     'accuracy': 1.0, 'score_points': 100000,
+                                     'base': 50}, BALANCE)
+        check('每日经验上限 200', r4['exp_gained'] == 10)
+        check('近期记录 4 条', len(csvc.recent(10)) == 4)
 
         print('== AI 定制训练（45 级解锁 / 训练券）==')
         from app.core.challenge import ai_access_state

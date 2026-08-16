@@ -1,6 +1,12 @@
-"""今日概览面板：实时统计 + 酷炫等级区 + 连签 + 三预测 + 钩子状态 + 分钟曲线。
+"""今日概览面板（前沿 Dashboard 布局）。
 
-所有文字/卡片颜色取自全局调色板 P（主题切换自动适配，保证可读性）。
+层级设计（现代仪表盘范式）：
+1. 状态行：钩子状态（弱化，一行小字）
+2. 等级区：徽章 + 渐变进度条 + 连签（一行）
+3. Hero 区：3 张大数字卡片（有效字数 / 平均速度 / 正确率）——视觉焦点
+4. 指标 chips：次级指标两行网格（输入/删除/改写率/tw/预测…）
+5. 终身汇总条：单行卡片
+6. 今日逐分钟曲线
 """
 from __future__ import annotations
 
@@ -26,26 +32,86 @@ def _num(v, digits=0) -> str:
     return f'{v:,}'
 
 
+# Hero 卡渐变（饱和色深底，白字可读，深浅主题通用）
+_HERO_GRADIENTS = {
+    'chars': ('#6366F1', '#8B5CF6'),
+    'speed': ('#06B6D4', '#10B981'),
+    'acc': ('#EC4899', '#F43F5E'),
+}
+
+
+class _HeroCard(QFrame):
+    """大数字 Hero 卡：图标 + 标签 + 大数字 + 单位。"""
+
+    def __init__(self, icon_name, label, key, unit='', parent=None):
+        super().__init__(parent)
+        self.setFrameShape(QFrame.StyledPanel)
+        self._key = key
+        c1, c2 = _HERO_GRADIENTS.get(key, ('#6366F1', '#8B5CF6'))
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(20)
+        shadow.setOffset(0, 5)
+        shadow.setColor(QColor(0, 0, 0, 90))
+        self.setGraphicsEffect(shadow)
+        self.setStyleSheet(
+            f'QFrame {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1,'
+            f' stop:0 {c1}, stop:1 {c2}); border-radius: 18px; border: none; }}')
+
+        v = QVBoxLayout(self)
+        v.setContentsMargins(18, 14, 18, 14)
+        v.setSpacing(2)
+        row = QHBoxLayout()
+        row.setSpacing(6)
+        icon = QLabel()
+        icon.setPixmap(svg_pixmap(icon_name, '#FFFFFF', 18))
+        row.addWidget(icon)
+        lab = QLabel(label)
+        lab.setStyleSheet('color:rgba(255,255,255,210); font-size:12px; font-weight:600;')
+        row.addWidget(lab)
+        row.addStretch(1)
+        v.addLayout(row)
+        self._value = QLabel('—')
+        self._value.setStyleSheet(
+            'color:white; font-size:34px; font-weight:900;')
+        v.addWidget(self._value)
+        self._unit = QLabel(unit)
+        self._unit.setStyleSheet('color:rgba(255,255,255,190); font-size:11px;')
+        v.addWidget(self._unit)
+
+    def set_value(self, text: str, tooltip: str = ''):
+        self._value.setText(text)
+        self._value.setToolTip(tooltip)
+
+    def set_unit(self, unit: str):
+        self._unit.setText(unit)
+
+
 class Dashboard(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         root = QVBoxLayout(self)
+        root.setSpacing(10)
 
-        # 钩子状态
+        # 1. 状态行（弱化）
+        status = QHBoxLayout()
+        status.setSpacing(10)
         self._hook_status = QLabel('🟢 统计中')
-        root.addWidget(self._hook_status)
+        status.addWidget(self._hook_status)
         self._hook_info = QLabel('')
         self._hook_info.setStyleSheet('font-size:11px;')
-        root.addWidget(self._hook_info)
+        status.addWidget(self._hook_info)
+        status.addStretch(1)
+        root.addLayout(status)
 
-        # 头部：等级徽章 / 称号 / 连签 / 酷炫进度条
+        # 2. 等级区
         head = QHBoxLayout()
+        head.setSpacing(12)
         self._level_badge = QLabel('Lv.1')
         head.addWidget(self._level_badge)
-        head.addSpacing(10)
         col = QVBoxLayout()
+        col.setSpacing(2)
         self._band_label = QLabel('')
-        self._band_label.setStyleSheet('font-size:13px;')
+        self._band_label.setStyleSheet('font-size:12px;')
         col.addWidget(self._band_label)
         self._level_bar = LevelBar()
         col.addWidget(self._level_bar)
@@ -53,75 +119,75 @@ class Dashboard(QWidget):
         self._exp_text.setStyleSheet('font-size:11px;')
         col.addWidget(self._exp_text)
         head.addLayout(col, 1)
-        head.addSpacing(10)
         self._streak_label = QLabel('🔥 连签 0 天')
-        self._streak_label.setStyleSheet('font-weight:600; font-size:14px;')
+        self._streak_label.setStyleSheet('font-weight:700; font-size:14px;')
         head.addWidget(self._streak_label, 0, Qt.AlignTop)
         root.addLayout(head)
 
-        # 统计卡片（今日 / 终身两组）
-        grid = QGridLayout()
-        self._values = {}
-        self._name_labels = []
-        self._card_frames = []
-        cards = [
-            ('doc', '今日', [
-                ('输入字数', 'typed'), ('删除字数', 'deleted'),
-                ('有效字数', 'valid'), ('今日 tw', 'tw'),
-                ('平均速度', 'avg_tw'), ('正确率', 'accuracy'),
-                ('改写率', 'revision'),
-                ('预测汉字/分', 'pred_hanzi'), ('预测字母/分', 'pred_letters'),
-                ('活跃时长', 'minutes'),
-            ]),
-            ('chart', '终身总计', [
-                ('累计输入', 'lifetime_typed'), ('累计有效', 'lifetime_valid'),
-                ('累计 tw', 'lifetime_tw'), ('累计活跃', 'lifetime_minutes'),
-            ]),
+        # 3. Hero 大数字卡（视觉焦点）
+        hero_grid = QGridLayout()
+        hero_grid.setSpacing(12)
+        self._heroes = {}
+        specs = [
+            ('doc', '今日有效字数', 'valid', 'chars', ''),
+            ('zap', '平均速度', 'avg_tw', 'speed', 'tw/分'),
+            ('target', '正确率', 'accuracy', 'acc', ''),
         ]
-        for c, (icon_name, title, fields) in enumerate(cards):
-            card = QFrame()
-            card.setFrameShape(QFrame.StyledPanel)
-            # 柔和投影（高级感）
-            shadow = QGraphicsDropShadowEffect(self)
-            shadow.setBlurRadius(22)
-            shadow.setOffset(0, 5)
-            shadow.setColor(QColor(P.shadow_color))
-            card.setGraphicsEffect(shadow)
-            v = QVBoxLayout(card)
-            trow = QHBoxLayout()
-            trow.setSpacing(6)
-            ticon = QLabel()
-            ticon.setPixmap(svg_pixmap(icon_name, P.accent, 18))
-            trow.addWidget(ticon)
-            t = QLabel(f'<b>{title}</b>')
-            t.setStyleSheet('font-size:15px;')
-            trow.addWidget(t)
-            trow.addStretch(1)
-            v.addLayout(trow)
-            self._name_labels.append(t)
-            inner = QGridLayout()
-            for i, (name, key) in enumerate(fields):
-                val = QLabel('—')
-                val.setStyleSheet('font-size:19px; font-weight:700;')
-                n = QLabel(name)
-                n.setStyleSheet('font-size:11px;')
-                inner.addWidget(n, i, 0)
-                inner.addWidget(val, i, 1)
-                self._values[key] = val
-                self._name_labels.append(n)
-            v.addLayout(inner)
-            self._card_frames.append(card)
-            grid.addWidget(card, 0, c)
-        grid.setColumnStretch(0, 3)
-        grid.setColumnStretch(1, 2)
-        root.addLayout(grid)
+        for i, (ic, label, key, kind, unit) in enumerate(specs):
+            card = _HeroCard(ic, label, kind, unit)
+            self._heroes[key] = card
+            hero_grid.addWidget(card, 0, i)
+        hero_grid.setColumnStretch(0, 1)
+        hero_grid.setColumnStretch(1, 1)
+        hero_grid.setColumnStretch(2, 1)
+        root.addLayout(hero_grid)
 
-        # 今日逐分钟实时曲线
+        # 4. 次级指标 chips（4 列 2 行）
+        self._chips = {}
+        chips_grid = QGridLayout()
+        chips_grid.setSpacing(6)
+        chips = [
+            ('今日输入', 'typed'), ('今日删除', 'deleted'),
+            ('改写率', 'revision'), ('今日 tw', 'tw'),
+            ('预测汉字/分', 'pred_hanzi'), ('预测字母/分', 'pred_letters'),
+            ('活跃时长', 'minutes'), ('等级经验', 'exp'),
+        ]
+        for i, (name, key) in enumerate(chips):
+            cell = QWidget()
+            cv = QVBoxLayout(cell)
+            cv.setContentsMargins(10, 6, 10, 6)
+            cv.setSpacing(0)
+            n = QLabel(name)
+            n.setStyleSheet('font-size:10px;')
+            val = QLabel('—')
+            val.setStyleSheet('font-size:16px; font-weight:700;')
+            cv.addWidget(n)
+            cv.addWidget(val)
+            self._chips[key] = val
+            self._chip_names = getattr(self, '_chip_names', []) + [n]
+            chips_grid.addWidget(cell, i // 4, i % 4)
+        chips_grid.setColumnStretch(0, 1)
+        chips_grid.setColumnStretch(1, 1)
+        chips_grid.setColumnStretch(2, 1)
+        chips_grid.setColumnStretch(3, 1)
+        root.addLayout(chips_grid)
+
+        # 5. 终身汇总条
+        self._life_bar = QFrame()
+        self._life_bar.setFrameShape(QFrame.StyledPanel)
+        lv = QHBoxLayout(self._life_bar)
+        lv.setContentsMargins(14, 8, 14, 8)
+        self._life_label = QLabel('')
+        self._life_label.setStyleSheet('font-size:12px;')
+        lv.addWidget(self._life_label)
+        root.addWidget(self._life_bar)
+
+        # 6. 迷你曲线
         self._mini_title = QLabel('✨ 今日逐分钟 tw 曲线')
-        self._mini_title.setStyleSheet('margin-top:6px;')
+        self._mini_title.setStyleSheet('margin-top:2px;')
         root.addWidget(self._mini_title)
         self._mini_plot = pg.PlotWidget()
-        self._mini_plot.setFixedHeight(130)
+        self._mini_plot.setFixedHeight(120)
         self._mini_plot.showGrid(x=False, y=True, alpha=0.3)
         self._mini_plot.setLabel('bottom', '时间')
         self._mini_curve = self._mini_plot.plot(
@@ -129,37 +195,34 @@ class Dashboard(QWidget):
         root.addWidget(self._mini_plot)
 
         root.addStretch(1)
-
         self._hint = QLabel('提示：关闭窗口后驻留系统托盘，后台继续统计打字。')
         self._hint.setStyleSheet('font-size:11px;')
         root.addWidget(self._hint)
 
         self.apply_theme()
 
-    # ---------- 主题适配（文字可读性核心） ----------
+    # ---------- 主题 ----------
     def apply_theme(self):
-        """主题切换时调用：刷新所有文字/卡片颜色。"""
         self._hook_status.setStyleSheet(
-            f'color:{P.success}; font-weight:600;')
+            f'color:{P.success}; font-weight:700; font-size:12px;')
         self._hook_info.setStyleSheet(f'color:{P.faint}; font-size:11px;')
         self._level_badge.setStyleSheet(
-            f'font-size:30px; font-weight:800; color:{P.badge_text};'
-            f'background:{P.badge_bg}; border-radius:14px;'
-            f'padding:6px 18px; border:2px solid {P.badge_border};')
-        self._band_label.setStyleSheet(f'color:{P.muted}; font-size:13px;')
+            f'font-size:26px; font-weight:900; color:{P.badge_text};'
+            f'background:{P.badge_bg}; border-radius:12px;'
+            f'padding:4px 14px; border:2px solid {P.badge_border};')
+        self._band_label.setStyleSheet(f'color:{P.muted}; font-size:12px;')
         self._exp_text.setStyleSheet(f'color:{P.faint}; font-size:11px;')
         self._streak_label.setStyleSheet(
-            f'color:{P.warn}; font-weight:600; font-size:14px;')
-        for lab in self._name_labels:
-            lab.setStyleSheet(f'color:{P.muted}; font-size:11px;')
-        for card in self._card_frames:
-            card.setStyleSheet(
-                f'QFrame {{ background:{P.card_bg}; border-radius:16px;'
-                f' border:1px solid {P.card_border}; }}')
-            eff = card.graphicsEffect()
-            if isinstance(eff, QGraphicsDropShadowEffect):
-                eff.setColor(QColor(P.shadow_color))
-        self._mini_title.setStyleSheet(f'color:{P.muted}; margin-top:6px;')
+            f'color:{P.warn}; font-weight:700; font-size:14px;')
+        for n in getattr(self, '_chip_names', []):
+            n.setStyleSheet(f'color:{P.muted}; font-size:10px;')
+        for key, cell in self._chips.items():
+            cell.setStyleSheet(f'color:{P.text};')
+        self._life_bar.setStyleSheet(
+            f'QFrame {{ background:{P.card_bg}; border-radius:12px;'
+            f' border:1px solid {P.card_border}; }}')
+        self._life_label.setStyleSheet(f'color:{P.muted}; font-size:12px;')
+        self._mini_title.setStyleSheet(f'color:{P.muted}; margin-top:2px;')
         self._hint.setStyleSheet(f'color:{P.faint}; font-size:11px;')
         self._mini_plot.setBackground(P.mini_bg)
         self._mini_curve.setPen(pg.mkPen(P.accent, width=2))
@@ -169,7 +232,7 @@ class Dashboard(QWidget):
         self._hook_status.setText('🟢 统计中（键盘钩子正常）' if ok
                                   else '🔴 键盘钩子未运行，不会统计打字——请重启应用')
         self._hook_status.setStyleSheet(
-            f'color:{"#10b981" if ok else "#ef4444"}; font-weight:600;')
+            f'color:{"#059669" if ok else "#dc2626"}; font-weight:700; font-size:12px;')
 
     def set_hook_info(self, event_count: int, ime_readable: bool, errs=None,
                       tsf_ok: bool = False):
@@ -179,7 +242,7 @@ class Dashboard(QWidget):
         elif not ime_readable:
             text += ' ｜ 输入法组字状态读取不可用（TSF 输入法），中文按按键近似计数'
         if errs:
-            text += f' ｜ ⚠ 回调异常 {len(errs)} 条（统计可能中断，悬停查看详情）'
+            text += f' ｜ ⚠ 回调异常 {len(errs)} 条（悬停查看详情）'
             self._hook_info.setToolTip('\n'.join(errs[:3]))
         else:
             self._hook_info.setToolTip('')
@@ -189,44 +252,53 @@ class Dashboard(QWidget):
     def set_level_colors(self, colors):
         self._level_bar.set_colors(colors)
 
-    def refresh(self, snap, level, progress, band, streak, unit):
+    def refresh(self, snap, level, progress, band, streak, unit, exp=0):
+        # 等级区
         self._level_badge.setText(f'Lv.{level}')
         self._band_label.setText(f'称号：{band}　·　{unit} 单位')
         self._streak_label.setText(f'🔥 连签 {streak} 天')
         self._level_bar.set_progress(progress)
         self._exp_text.setText(f'经验进度 {round(progress * 100)}%')
+        self._exp_value = exp
 
-        self._values['typed'].setText(_num(snap['typed']))
-        self._values['deleted'].setText(_num(snap['deleted']))
-        self._values['valid'].setText(_num(snap['valid']))
-        self._values['tw'].setText(_num(snap['tw']))
+        # Hero 卡
+        hero_valid = _num(snap['valid'])
+        self._heroes['valid'].set_value(hero_valid,
+                                        '今日有效字数 = 输入 − 删除')
         avg = snap['avg_tw']
-        self._values['avg_tw'].setText(
-            f'{avg:.1f} {unit}/分' if avg is not None else '—')
-        self._values['pred_hanzi'].setText(
-            f'{tw_to_hanzi_per_min(avg):.1f} 字/分' if avg is not None else '—')
-        self._values['pred_letters'].setText(
-            f'{tw_to_letters_per_min(avg):.1f} 字母/分' if avg is not None else '—')
+        self._heroes['avg_tw'].set_value(
+            f'{avg:.1f}' if avg is not None else '—',
+            f'平均速度（{unit}/分），按日统计不并入终身总计')
+        self._heroes['avg_tw'].set_unit(f'{unit}/分' if avg is not None else '')
         acc = snap['accuracy']
-        acc_lab = self._values['accuracy']
-        acc_lab.setText(f'{acc * 100:.1f}%' if acc is not None else '—')
-        # 指标诚实化：口径说明
-        acc_lab.setToolTip(
-            '正确率口径：有效字数 ÷ 输入字数\n'
-            '（删除按键计入失误；按日统计，不并入终身总计）')
-        rev = (snap['deleted'] / snap['typed']
-               if snap['typed'] else None)
-        rev_lab = self._values['revision']
-        rev_lab.setText(f'{rev * 100:.1f}%' if rev is not None else '—')
-        rev_lab.setToolTip(
-            '改写率 = 删除字数 ÷ 输入字数\n'
-            '写作场景中删除常是改写而非失误，看这个比看正确率更诚实')
-        self._values['minutes'].setText(_num(snap['minutes']))
-        self._values['lifetime_typed'].setText(_num(snap['lifetime_typed']))
-        self._values['lifetime_valid'].setText(_num(snap['lifetime_valid']))
-        self._values['lifetime_tw'].setText(_num(snap['lifetime_tw']))
-        self._values['lifetime_minutes'].setText(_num(snap['lifetime_minutes']))
+        self._heroes['accuracy'].set_value(
+            f'{acc * 100:.1f}%' if acc is not None else '—',
+            '正确率 = 有效 ÷ 输入（删除按键计入失误），悬停见口径')
+        self._heroes['accuracy'].set_unit('')
 
+        # chips
+        self._chips['typed'].setText(_num(snap['typed']))
+        self._chips['deleted'].setText(_num(snap['deleted']))
+        rev = snap['deleted'] / snap['typed'] if snap['typed'] else None
+        rev_lab = self._chips['revision']
+        rev_lab.setText(f'{rev * 100:.1f}%' if rev is not None else '—')
+        rev_lab.setToolTip('改写率 = 删除 ÷ 输入；写作场景比正确率更诚实')
+        self._chips['tw'].setText(_num(snap['tw']))
+        self._chips['pred_hanzi'].setText(
+            f'{tw_to_hanzi_per_min(avg):.1f}' if avg is not None else '—')
+        self._chips['pred_letters'].setText(
+            f'{tw_to_letters_per_min(avg):.1f}' if avg is not None else '—')
+        self._chips['minutes'].setText(_num(snap['minutes']))
+        self._chips['exp'].setText(_num(self._exp_value if hasattr(self, '_exp_value') else 0))
+
+        # 终身汇总条
+        self._life_label.setText(
+            f'🏅 终身　累计输入 {_num(snap["lifetime_typed"])} 字　·　'
+            f'有效 {_num(snap["lifetime_valid"])} 字　·　'
+            f'tw {_num(snap["lifetime_tw"])}　·　'
+            f'活跃 {_num(snap["lifetime_minutes"])} 分钟')
+
+        # 迷你曲线
         series = snap.get('minutes_series') or []
         if series:
             xs = list(range(len(series)))

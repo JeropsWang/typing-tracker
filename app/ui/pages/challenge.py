@@ -42,6 +42,8 @@ class _GenThread(QThread):
 
 
 class ChallengePage(QWidget):
+    confetti_requested = Signal(int)    # 彩带庆祝（1=金色 2=多彩）
+
     def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None):
         super().__init__(parent)
         self._repo = repo
@@ -366,8 +368,12 @@ class ChallengePage(QWidget):
             f'用时 {self._elapsed:.1f}s　·　有效 {s["typed_chars"] - s["errors"]} 字\n'
             f'公式：速度×0.6 + 字数×0.1 + 正确率%×0.5，×10000 × 完成系数\n'
             f'历史最佳 {r["prev_best"]:,} 分'
-            + ('　← 你刚刷新了纪录！' if r['is_best'] else ''))
+            + ('　← 你刚刷新了纪录！' if r['is_best'] else '')
+            + (f'　·　+{r["exp_gained"]} 经验' if r.get('exp_gained') else ''))
         self._result.setVisible(True)
+        # 分数档位彩带：≥100万金色，≥200万多彩
+        if s['score_points'] >= 1_000_000:
+            self.confetti_requested.emit(2 if s['score_points'] >= 2_000_000 else 1)
         self._input.setEnabled(False)
         self._hint_label.setText('点「重来」再战一次')
         self._refresh_recent()

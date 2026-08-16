@@ -41,6 +41,10 @@
   "ai": {
     "unlock_level": 45
   },
+  "challenge_exp": {
+    "per_base_point": 1,
+    "daily_cap": 200
+  },
   "day_start_hour": 4,
   "unit": {
     "name": "tw",

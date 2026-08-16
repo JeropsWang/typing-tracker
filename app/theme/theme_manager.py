@@ -88,6 +88,9 @@ class ThemeManager:
             self._reports.apply_chart_palette(charts)
         if self._window is not None:
             self._window.apply_effects(effects)
+            shell_bg = m.get('shell_bg')
+            if shell_bg:
+                self._window.apply_shell_style(shell_bg)
         self._set_setting('theme_id', theme_id)
 
     def register_reports(self, reports) -> None:
@@ -110,6 +113,9 @@ class ThemeManager:
             except Exception:
                 pass
             window.apply_effects(m.get('effects') or {})
+            shell_bg = m.get('shell_bg')
+            if shell_bg:
+                window.apply_shell_style(shell_bg)
 
     def _render_qss(self, path: Path, manifest: dict) -> str:
         if not path.exists():

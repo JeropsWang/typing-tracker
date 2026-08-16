@@ -219,7 +219,11 @@ def main() -> int:
         assert cp._score_label.text().replace(',', '').isdigit(), '大数字分数异常'
         assert win._titlebar is not None and win._titlebar._btn_close is not None, \
             '自定义标题栏缺失'
-        print('设置入口 / 结算分 / 标题栏冒烟通过')
+        assert win._shell is not None and win._confetti is not None, '壳层/彩带缺失'
+        win.play_confetti(1)
+        app.processEvents()
+        assert win._confetti.isVisible(), '彩带未显示'
+        print('设置入口 / 结算分 / 标题栏 / 壳层 / 彩带冒烟通过')
 
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')

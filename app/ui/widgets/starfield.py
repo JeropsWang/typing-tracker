@@ -9,7 +9,7 @@ import math
 import random
 
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 _RNG = random.Random(42)
@@ -63,6 +63,10 @@ class StarField(QWidget):
             return
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
+        # 圆角裁剪：与壳层圆角一致，避免星星画到透明角落
+        clip = QPainterPath()
+        clip.addRoundedRect(self.rect(), 16, 16)
+        p.setClipPath(clip)
         for x, y, r, phase, sp in self._stars:
             if self._sparkle:
                 a = 0.3 + 0.7 * (0.5 + 0.5 * math.sin(self._t * sp + phase))

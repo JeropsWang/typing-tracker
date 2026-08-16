@@ -2,8 +2,7 @@
    要素：深紫星空渐变 / 金色星星 / 舞台聚光灯 / 粉色偶像感 accent /
    胶囊 Tab / 毛玻璃卡片 / 细腻滚动条 */
 QMainWindow {
-  background: qlineargradient(x1:0, y1:0, x2:0.6, y2:1,
-    stop:0 #1A1240, stop:0.45 #241B52, stop:1 #160F33);
+  background: transparent;
   color: {{colors.text}};
 }
 QLabel { color: {{colors.text}}; }

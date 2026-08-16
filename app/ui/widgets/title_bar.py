@@ -66,8 +66,15 @@ class TitleBar(QFrame):
         color = '#CBD5E1' if P.dark else '#475569'
         self._btn_max.setIcon(svg_icon(name, color, 14))
 
+    def set_corner_radius(self, radius: int) -> None:
+        """窗口最大化时置 0，普通状态跟随壳层圆角。"""
+        if radius != getattr(self, '_corner_radius', None):
+            self._corner_radius = radius
+            self.apply_theme()
+
     # ---------- 主题 ----------
     def apply_theme(self):
+        radius = getattr(self, '_corner_radius', 16)
         if P.dark:
             bg = ('qlineargradient(x1:0, y1:0, x2:1, y2:0,'
                   ' stop:0 rgba(30,41,59,235), stop:1 rgba(46,36,99,235))')
@@ -82,7 +89,9 @@ class TitleBar(QFrame):
             hover = 'rgba(99,102,241,30)'
         self.setStyleSheet(
             f'QFrame#titleBar {{ background: {bg};'
-            f' border-bottom: 1px solid {"#334155" if P.dark else "#E5E7EB"}; }}')
+            f' border-bottom: 1px solid {"#334155" if P.dark else "#E5E7EB"};'
+            f' border-top-left-radius: {radius}px;'
+            f' border-top-right-radius: {radius}px; }}')
         self._title_label.setStyleSheet(
             f'font-size:13px; font-weight:700; color:{title_color};')
         self._btn_min.setIcon(svg_icon('min', icon_color, 14))

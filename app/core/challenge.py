@@ -76,5 +76,6 @@ def score(input_text: str, reference: str, elapsed_seconds: float, balance=None)
         'tw': tw,
         'speed': speed,
         'completion': completion,
+        'base': round(base),
         'score_points': points,
     }
