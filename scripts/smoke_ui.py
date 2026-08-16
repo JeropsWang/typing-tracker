@@ -24,6 +24,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app.core.engine import StatsEngine  # noqa: E402
 from app.services.achievement_service import AchievementService  # noqa: E402
+from app.services.challenge_service import ChallengeService  # noqa: E402
 from app.services.checkin_service import CheckinService  # noqa: E402
 from app.services.reward_service import RewardService  # noqa: E402
 from app.storage.db import connect_db, init_schema  # noqa: E402
@@ -69,7 +70,8 @@ def main() -> int:
         checkin.checkin_if_needed(engine.current_day())
 
         win = MainWindow(engine, repo, BALANCE, tray=None,
-                         checkin=checkin, rewards=rewards, achievements=ach)
+                         checkin=checkin, rewards=rewards, achievements=ach,
+                         challenge=ChallengeService(repo))
         win.show()
         app.processEvents()
 
@@ -187,6 +189,17 @@ def main() -> int:
         cards = page0.findChildren(_QF)
         assert len(cards) >= 12, f'成就墙卡片不足: {len(cards)}'
         print('个人中心 / 签到弹窗 / 成就墙冒烟通过')
+
+        # 打字竞速挑战：模拟完整一局（开始→输入→自动结算）
+        win._tabs.setCurrentIndex(5)
+        app.processEvents()
+        cp = win._challenge_page
+        cp._start()
+        assert cp._input.isEnabled(), '挑战输入框未启用'
+        cp._input.setPlainText(cp._current_text())
+        app.processEvents()
+        assert cp._result.isVisible(), '挑战未自动结算'
+        print('竞速挑战冒烟通过：开始→输入→结算→记录')
 
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')

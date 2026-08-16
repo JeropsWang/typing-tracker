@@ -32,9 +32,12 @@ class CheckinPopup(QFrame):
         self._count = 0             # 动画中的连签数字
 
         if dark:
-            bg = 'rgba(28, 22, 60, 242)'
+            # 舞台聚光灯感径向渐变（梨诺主题氛围）
+            bg = ('qradialgradient(cx:0.5, cy:0.28, radius:1.3, fx:0.5, fy:0.28, '
+                  'stop:0 #4A3B8F, stop:0.5 #2C2160, stop:1 #191240)')
         else:
-            bg = 'rgba(255, 255, 255, 246)'
+            bg = ('qradialgradient(cx:0.5, cy:0.28, radius:1.3, fx:0.5, fy:0.28, '
+                  'stop:0 #FFFFFF, stop:1 #F1F0FF)')
         self.setStyleSheet(
             f'QFrame {{ background: {bg}; border: 2px solid {accent};'
             f' border-radius: 22px; }}'

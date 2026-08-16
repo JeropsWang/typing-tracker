@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.classifier import tw_to_hanzi_per_min, tw_to_letters_per_min
+from .assets.icons import pixmap as svg_pixmap
 from .palette import P
 from .widgets.level_bar import LevelBar
 
@@ -64,19 +65,20 @@ class Dashboard(QWidget):
         self._name_labels = []
         self._card_frames = []
         cards = [
-            ('📊 今日', [
+            ('doc', '今日', [
                 ('输入字数', 'typed'), ('删除字数', 'deleted'),
                 ('有效字数', 'valid'), ('今日 tw', 'tw'),
                 ('平均速度', 'avg_tw'), ('正确率', 'accuracy'),
+                ('改写率', 'revision'),
                 ('预测汉字/分', 'pred_hanzi'), ('预测字母/分', 'pred_letters'),
                 ('活跃时长', 'minutes'),
             ]),
-            ('🏅 终身总计', [
+            ('chart', '终身总计', [
                 ('累计输入', 'lifetime_typed'), ('累计有效', 'lifetime_valid'),
                 ('累计 tw', 'lifetime_tw'), ('累计活跃', 'lifetime_minutes'),
             ]),
         ]
-        for c, (title, fields) in enumerate(cards):
+        for c, (icon_name, title, fields) in enumerate(cards):
             card = QFrame()
             card.setFrameShape(QFrame.StyledPanel)
             # 柔和投影（高级感）
@@ -86,9 +88,16 @@ class Dashboard(QWidget):
             shadow.setColor(QColor(P.shadow_color))
             card.setGraphicsEffect(shadow)
             v = QVBoxLayout(card)
+            trow = QHBoxLayout()
+            trow.setSpacing(6)
+            ticon = QLabel()
+            ticon.setPixmap(svg_pixmap(icon_name, P.accent, 18))
+            trow.addWidget(ticon)
             t = QLabel(f'<b>{title}</b>')
             t.setStyleSheet('font-size:15px;')
-            v.addWidget(t)
+            trow.addWidget(t)
+            trow.addStretch(1)
+            v.addLayout(trow)
             self._name_labels.append(t)
             inner = QGridLayout()
             for i, (name, key) in enumerate(fields):
@@ -199,8 +208,19 @@ class Dashboard(QWidget):
         self._values['pred_letters'].setText(
             f'{tw_to_letters_per_min(avg):.1f} 字母/分' if avg is not None else '—')
         acc = snap['accuracy']
-        self._values['accuracy'].setText(
-            f'{acc * 100:.1f}%' if acc is not None else '—')
+        acc_lab = self._values['accuracy']
+        acc_lab.setText(f'{acc * 100:.1f}%' if acc is not None else '—')
+        # 指标诚实化：口径说明
+        acc_lab.setToolTip(
+            '正确率口径：有效字数 ÷ 输入字数\n'
+            '（删除按键计入失误；按日统计，不并入终身总计）')
+        rev = (snap['deleted'] / snap['typed']
+               if snap['typed'] else None)
+        rev_lab = self._values['revision']
+        rev_lab.setText(f'{rev * 100:.1f}%' if rev is not None else '—')
+        rev_lab.setToolTip(
+            '改写率 = 删除字数 ÷ 输入字数\n'
+            '写作场景中删除常是改写而非失误，看这个比看正确率更诚实')
         self._values['minutes'].setText(_num(snap['minutes']))
         self._values['lifetime_typed'].setText(_num(snap['lifetime_typed']))
         self._values['lifetime_valid'].setText(_num(snap['lifetime_valid']))

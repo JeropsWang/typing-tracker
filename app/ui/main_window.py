@@ -12,8 +12,11 @@ from PySide6.QtWidgets import (
 
 from .. import __version__
 from ..services.exp_service import band_title, level_and_progress
+from .assets.icons import icon as svg_icon
 from .dashboard import Dashboard
+from .palette import P
 from .pages.achievements import AchievementsPage
+from .pages.challenge import ChallengePage
 from .pages.checkin import CheckinPage
 from .pages.profile import ProfilePage
 from .pages.reports import ReportsPage
@@ -47,7 +50,7 @@ def current_streak(repo, day_iso) -> int:
 class MainWindow(QMainWindow):
     def __init__(self, engine, repo, balance, tray=None,
                  checkin=None, rewards=None, achievements=None,
-                 theme_manager=None):
+                 theme_manager=None, challenge=None):
         super().__init__()
         self._engine = engine
         self._repo = repo
@@ -75,18 +78,27 @@ class MainWindow(QMainWindow):
         self._tabs = QTabWidget()
         self._tabs.setObjectName('mainTabs')
         self._tabs.addTab(self._dashboard, '今日概览')
+        self._tabs.setTabIcon(0, svg_icon('home', '#94A3B8'))
         self._tabs.addTab(self._reports, '报表')
+        self._tabs.setTabIcon(1, svg_icon('chart', '#94A3B8'))
         if checkin is not None and rewards is not None:
             self._checkin_page = CheckinPage(repo, balance, checkin, rewards, engine)
             self._tabs.addTab(self._checkin_page, '打卡')
+            self._tabs.setTabIcon(2, svg_icon('calendar', '#94A3B8'))
         if achievements is not None:
             self._ach_page = AchievementsPage(repo, balance, achievements)
             self._ach_page.claimed.connect(self._on_reward_granted)
             self._tabs.addTab(self._ach_page, '成就')
+            self._tabs.setTabIcon(3, svg_icon('trophy', '#94A3B8'))
         if achievements is not None and rewards is not None:
             self._profile_page = ProfilePage(repo, balance, engine,
                                              achievements, rewards)
             self._tabs.addTab(self._profile_page, '个人中心')
+            self._tabs.setTabIcon(4, svg_icon('user', '#94A3B8'))
+        if challenge is not None:
+            self._challenge_page = ChallengePage(repo, balance, challenge)
+            self._tabs.addTab(self._challenge_page, '竞速')
+            self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self.setCentralWidget(self._tabs)
 
@@ -116,6 +128,10 @@ class MainWindow(QMainWindow):
         if accent:
             self._accent = accent
         self._dark = bool(self._effects.get('dark', True))
+        # Tab 图标颜色跟随主题（线性图标）
+        for i, name in enumerate(['home', 'chart', 'calendar', 'trophy', 'user', 'zap']):
+            if i < self._tabs.count():
+                self._tabs.setTabIcon(i, svg_icon(name, P.muted if not self._dark else '#94A3B8'))
         # 星空模式下页面容器透明（主题 QSS 已处理 pane，这里处理窗口属性）
         self._tabs.setAttribute(
             Qt.WA_TranslucentBackground,
@@ -129,6 +145,8 @@ class MainWindow(QMainWindow):
             self._ach_page.apply_theme()
         if hasattr(self, '_profile_page'):
             self._profile_page.apply_theme()
+        if hasattr(self, '_challenge_page'):
+            self._challenge_page.apply_theme()
 
     def resizeEvent(self, event):
         self._starfield.setGeometry(self.rect())
@@ -182,6 +200,8 @@ class MainWindow(QMainWindow):
             self._ach_page.refresh()
         elif index == 4 and hasattr(self, '_profile_page'):
             self._profile_page.refresh()
+        elif index == 5 and hasattr(self, '_challenge_page'):
+            self._challenge_page._refresh_recent()
         # 页面淡入
         page = self._tabs.widget(index)
         if page is not None:

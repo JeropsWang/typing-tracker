@@ -24,7 +24,22 @@ def init_schema(conn: sqlite3.Connection) -> None:
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
-    """轻量迁移：老库补列。"""
+    """轻量迁移：老库补列/补表。"""
     cols = {r['name'] for r in conn.execute('PRAGMA table_info(rewards)')}
     if 'note' not in cols:
         conn.execute('ALTER TABLE rewards ADD COLUMN note TEXT')
+    tables = {r['name'] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'")}
+    if 'challenge_history' not in tables:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS challenge_history (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              started_at      TEXT NOT NULL,
+              text_id         TEXT NOT NULL,
+              typed_chars     INTEGER NOT NULL DEFAULT 0,
+              errors          INTEGER NOT NULL DEFAULT 0,
+              elapsed_seconds REAL NOT NULL DEFAULT 0,
+              tw              REAL NOT NULL DEFAULT 0,
+              accuracy        REAL NOT NULL DEFAULT 0,
+              best            INTEGER NOT NULL DEFAULT 0
+            );""")

@@ -63,3 +63,16 @@ CREATE TABLE IF NOT EXISTS rewards (
 
 -- 设置（单位名、日切起点、无限等级、排除程序、等级段名、主题等）
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
+
+-- 打字竞速挑战历史（0.7）
+CREATE TABLE IF NOT EXISTS challenge_history (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at     TEXT NOT NULL,
+  text_id        TEXT NOT NULL,
+  typed_chars    INTEGER NOT NULL DEFAULT 0,
+  errors         INTEGER NOT NULL DEFAULT 0,
+  elapsed_seconds REAL NOT NULL DEFAULT 0,
+  tw             REAL NOT NULL DEFAULT 0,
+  accuracy       REAL NOT NULL DEFAULT 0,
+  best           INTEGER NOT NULL DEFAULT 0
+);

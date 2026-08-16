@@ -176,6 +176,28 @@ class Repository:
         self._conn.commit()
         return True
 
+    # ---------- 打字竞速挑战（0.7） ----------
+    def add_challenge(self, started_at, text_id, typed_chars, errors,
+                      elapsed_seconds, tw, accuracy, best) -> None:
+        self._conn.execute(
+            'INSERT INTO challenge_history(started_at,text_id,typed_chars,errors,'
+            'elapsed_seconds,tw,accuracy,best) VALUES(?,?,?,?,?,?,?,?)',
+            (started_at, text_id, typed_chars, errors,
+             elapsed_seconds, tw, accuracy, int(best)))
+        self._conn.commit()
+
+    def get_best_challenge(self, text_id):
+        row = self._conn.execute(
+            'SELECT * FROM challenge_history WHERE text_id=? '
+            'ORDER BY tw DESC, accuracy DESC LIMIT 1', (text_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_recent_challenges(self, n=10):
+        rows = self._conn.execute(
+            'SELECT * FROM challenge_history ORDER BY id DESC LIMIT ?',
+            (n,)).fetchall()
+        return [dict(r) for r in rows]
+
     # ---------- 报表查询（M2） ----------
     def get_daily_range(self, start, end):
         rows = self._conn.execute(

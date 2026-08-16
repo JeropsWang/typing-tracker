@@ -237,6 +237,35 @@ def main() -> int:
         kinds = {r['kind'] for r in repo.list_rewards(unused_only=True)}
         check('鼓励奖励入库', bool(kinds & {'makeup_card', 'exp_boost', 'exp'}))
 
+        print('== 打字竞速挑战（逐字计分）==')
+        from app.core.challenge import TEXT_BY_ID, compare, score
+        ref = '你好世界'
+        c, e = compare('你好世界', ref)
+        check('完全正确', c == 4 and e == 0)
+        c, e = compare('你好时生', ref)
+        check('两处错误', c == 2 and e == 2)
+        c, e = compare('你好世界!', ref)
+        check('多字计错', c == 4 and e == 1)
+        c, e = compare('你好', ref)
+        check('少字计错', c == 2 and e == 2)
+        s = score('你好世界', ref, 60.0, BALANCE)
+        check('速度 8tw/分（4汉字×2tw）', abs(s['speed'] - 8.0) < 1e-6)
+        from app.services.challenge_service import ChallengeService
+        csvc = ChallengeService(repo)
+        r1 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
+                                     'elapsed_seconds': 60, 'tw': 10,
+                                     'accuracy': 1.0}, BALANCE)
+        check('首次即最佳', r1['is_best'] and r1['prev_best'] == 0)
+        r2 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
+                                     'elapsed_seconds': 30, 'tw': 20,
+                                     'accuracy': 1.0}, BALANCE)
+        check('新纪录更新', r2['is_best'] and r2['prev_best'] == 10)
+        r3 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
+                                     'elapsed_seconds': 60, 'tw': 5,
+                                     'accuracy': 1.0}, BALANCE)
+        check('未破纪录不标新', not r3['is_best'])
+        check('近期记录 3 条', len(csvc.recent(10)) == 3)
+
         print('== 备份导出（M4）==')
         from app.services.export_service import export_all
         folder = export_all(repo, str(td))

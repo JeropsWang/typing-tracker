@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from app import __version__
 from app.core.engine import StatsEngine
 from app.services.achievement_service import AchievementService
+from app.services.challenge_service import ChallengeService
 from app.services.checkin_service import CheckinService
 from app.services.encourage_service import EncourageService
 from app.services.reward_service import RewardService
@@ -120,7 +121,8 @@ def main() -> int:
                         checkin=checkin, rewards=rewards,
                         achievements=achievements,
                         theme_manager=ThemeManager(
-                            app, data_dir, get_setting, repo.set_setting))
+                            app, data_dir, get_setting, repo.set_setting),
+                        challenge=ChallengeService(repo))
     theme_manager = window._theme_mgr
     theme_manager.register_reports(window._reports)
     theme_manager.register_window(window)
