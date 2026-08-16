@@ -114,8 +114,11 @@ def icon_pixmaps() -> list:
 
 
 def tray_icon() -> QIcon:
-    """托盘/窗口图标（多尺寸）。"""
-    return QIcon(icon_pixmaps())
+    """托盘/窗口图标（多尺寸；PySide6 的 QIcon 不支持列表构造，逐个 addPixmap）。"""
+    icon = QIcon()
+    for pm in icon_pixmaps():
+        icon.addPixmap(pm)
+    return icon
 
 
 def save_ico(path) -> Path:
