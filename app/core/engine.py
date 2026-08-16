@@ -102,7 +102,11 @@ class StatsEngine:
             self._mark_minute(0, 1, 0)
 
     def _mark_minute(self, typed, deleted, tw):
-        key = (self.current_day(), datetime.now().strftime('%H:%M'))
+        # 日期归属用 self._day（与当日计数器一致）：曾用 current_day()，
+        # 日切轮询（30s）之前新日分钟键会与旧日计数器错位（v0.8.9 修复）；
+        # 单次取 now，避免跨日/时钟跳变时日期与 HH:MM 不匹配
+        now = datetime.now()
+        key = (self._day, now.strftime('%H:%M'))
         rec = self._minutes.setdefault(key, [0, 0, 0])
         rec[0] += typed
         rec[1] += deleted

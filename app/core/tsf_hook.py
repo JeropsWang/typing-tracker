@@ -75,13 +75,20 @@ if HAS_COMTYPES:
 
 
 def _range_text(rng, ec=0):
-    """读取 ITfRange 文本（ec=0 快速路径）。"""
+    """读取 ITfRange 文本（ec=0 快速路径）。
+
+    按 UTF-16 码元切片后修正代理对边界：n 落在高位代理中间时去掉
+    该孤立代理（扩展 B 汉字/emoji 不会被拆成两个 other，v0.8.9 修复）。
+    """
     buf = (c_wchar * MAX_TEXT)()
     n = c_ulong(0)
     try:
         hr = rng.GetText(ec, 0, buf, MAX_TEXT - 1, byref(n))
         if hr == 0 and n.value:
-            return ''.join(buf[:n.value])
+            count = n.value
+            if count > 0 and 0xD800 <= ord(buf[count - 1]) <= 0xDBFF:
+                count -= 1
+            return ''.join(buf[:count])
     except Exception:
         pass
     return ''
@@ -149,6 +156,13 @@ class TsfHook:
                 mgr.Deactivate()
         except Exception:
             pass
+        with self._lock:
+            if self._ctx is not None:
+                _release_com(self._ctx)
+                self._ctx = None
+            if self._pending_rng is not None:
+                _release_com(self._pending_rng)
+                self._pending_rng = None
         self.available = False
         if self._thread is not None:
             self._thread.join(timeout=3)
@@ -206,20 +220,26 @@ class TsfHook:
 
     # ---------- 焦点 ----------
     def _set_focus_doc(self, pdimFocus):
-        """OnSetFocus / 初始焦点：更新当前焦点上下文。"""
+        """OnSetFocus / 初始焦点：更新当前焦点上下文。
+
+        pdimFocus 是借用指针；GetTop 返回的 ITfContext 是新引用，
+        直接"移交"给 self._ctx 持有（替换旧引用时 Release）。
+        """
         try:
-            if not pdimFocus:
-                with self._lock:
-                    self._ctx = None
-                    self.active = False
-                    self.composing = False
-                return
-            dim = ctypes.cast(pdimFocus, POINTER(T.ITfDocumentMgr))
-            pp = c_void_p()
-            if dim.GetTop(byref(pp)) == 0 and pp.value:
-                ctx = ctypes.cast(pp, POINTER(T.ITfContext))
-                with self._lock:
-                    self._ctx = ctx
+            with self._lock:
+                old = self._ctx
+                self._ctx = None
+                self.active = False
+                self.composing = False
+                if old is not None:
+                    _release_com(old)
+                if not pdimFocus:
+                    return
+                dim = ctypes.cast(pdimFocus, POINTER(T.ITfDocumentMgr))
+                pp = c_void_p()
+                if dim.GetTop(byref(pp)) == 0 and pp.value:
+                    ctx = ctypes.cast(pp, POINTER(T.ITfContext))
+                    self._ctx = ctx      # 接管引用
                     self.active = True
         except Exception:
             pass

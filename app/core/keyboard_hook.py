@@ -125,12 +125,12 @@ class MSG(ctypes.Structure):
     ]
 
 
-HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, wt.WPARAM, wt.LPARAM)
+HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wt.WPARAM, wt.LPARAM)
 
 user32.SetWindowsHookExW.restype = ctypes.c_void_p
 user32.SetWindowsHookExW.argtypes = [ctypes.c_int, HOOKPROC, wt.HINSTANCE, wt.DWORD]
 user32.CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int, wt.WPARAM, wt.LPARAM]
-user32.CallNextHookEx.restype = ctypes.c_long
+user32.CallNextHookEx.restype = ctypes.c_ssize_t  # LRESULT 是 LONG_PTR（x64 为 64 位）
 user32.UnhookWindowsHookEx.argtypes = [ctypes.c_void_p]
 user32.GetMessageW.argtypes = [ctypes.POINTER(MSG), wt.HWND, wt.UINT, wt.UINT]
 user32.PeekMessageW.argtypes = [ctypes.POINTER(MSG), wt.HWND, wt.UINT, wt.UINT, wt.UINT]
@@ -184,6 +184,7 @@ class KeyboardHook:
         self._lock = threading.Lock()
         self._ime = ImeCommitTracker()
         self._proc_cache = ('', 0.0)
+        self._mod_down = {}         # vk -> bool：修饰键按下状态（StickyKeys 安全）
         self.errors: list = []      # 诊断：采集回调中的异常堆栈（不再静默）
         self.event_count = 0        # 收到的原始按键事件数（keydown+keyup，诊断用）
         self.ime_readable = True    # IMM 组字状态是否可读（TSF 输入法可能读不到）
@@ -241,7 +242,14 @@ class KeyboardHook:
             self.event_count += 1
             try:
                 kb = KBDLLHOOKSTRUCT.from_address(lParam)
-                self._on_raw(kb.vkCode, wParam in (WM_KEYDOWN, WM_SYSKEYDOWN), kb.flags)
+                down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
+                # 维护修饰键按下状态（替代 GetAsyncKeyState，防 StickyKeys 丢键）
+                if kb.vkCode in MODIFIER_VKS:
+                    if down:
+                        self._mod_down[kb.vkCode] = True
+                    elif wParam in (WM_KEYUP, WM_SYSKEYUP):
+                        self._mod_down[kb.vkCode] = False
+                self._on_raw(kb.vkCode, down, kb.flags)
                 self._process(wParam, lParam)
             except Exception:
                 # 采集绝不影响系统，但异常必须可见（存入 errors 供诊断）
@@ -317,6 +325,12 @@ class KeyboardHook:
         while self._running:
             time.sleep(1.0)
             try:
+                # TSF 接入后 IMM 轮询跳过：TSF 线程自带 150ms 组字轮询，
+                # 这里再喂 IMM 状态机会造成双计（v0.8.9 修复）
+                if self._tsf is not None and self._tsf.available and self._tsf.active:
+                    continue
+                if self._excluded():
+                    continue  # 排除程序中的 IME 上屏也不计数（曾绕过，v0.8.9）
                 open_, comp, result = self._read_ime_state()
                 with self._lock:
                     committed = self._ime.update(open_, comp, result)
@@ -327,12 +341,17 @@ class KeyboardHook:
 
     # ---------- 辅助 ----------
     def _modifiers_held(self) -> bool:
-        for vk in MODIFIER_VKS:
-            if user32.GetAsyncKeyState(vk) & 0x8000:
-                return True
-        return False
+        """修饰键是否处于按下状态。
+
+        用钩子自维护的 down/up 状态机，而非 GetAsyncKeyState：
+        后者会被 StickyKeys 闩住（粘滞键锁存 Ctrl/Alt/Win 后，下一个
+        真实击键被误判为组合键而丢弃，v0.8.9 修复）。
+        """
+        return any(self._mod_down.get(vk) for vk in MODIFIER_VKS)
 
     def _excluded(self) -> bool:
+        if not self._excluded_apps:
+            return False  # 空列表短路：省掉 OpenProcess 开销（v0.8.9）
         proc = self._foreground_process()
         return bool(proc) and proc.lower() in self._excluded_apps
 

@@ -181,8 +181,8 @@ def main() -> int:
         window.set_hook_status(False)
         toast('警告', '当前平台不支持键盘钩子，不会统计打字。')
 
-    for a in startup_unlocks:
-        window.notify('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
+    # 注意：startup_unlocks 不在窗口显示前弹 toast（show_toast 会因
+    # 窗口不可见而丢弃），统一在 window.show() 后补发
 
     def on_flush():
         engine.flush()
@@ -231,6 +231,10 @@ def main() -> int:
     app.aboutToQuit.connect(cleanup)
 
     window.show()
+    if startup_unlocks:
+        QTimer.singleShot(600, lambda: [
+            toast('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
+            for a in startup_unlocks])
     return app.exec()
 
 
