@@ -122,10 +122,13 @@ class CheckinPage(QWidget):
         self._build_calendar()
 
     def _build_calendar(self):
+        # 立即脱离父级再销毁，避免重建期间瞬时双重绘制（布局体检发现的真实问题）
         while self._cal.count():
             item = self._cal.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                w = item.widget()
+                w.setParent(None)
+                w.deleteLater()
 
         self._month_label.setText(f'{self._month.year} 年 {self._month.month} 月')
         today = date.fromisoformat(self._engine.current_day())

@@ -32,51 +32,60 @@ def _num(v, digits=0) -> str:
     return f'{v:,}'
 
 
-# Hero 卡渐变（饱和色深底，白字可读，深浅主题通用）
-_HERO_GRADIENTS = {
-    'chars': ('#6366F1', '#8B5CF6'),
-    'speed': ('#06B6D4', '#10B981'),
-    'acc': ('#EC4899', '#F43F5E'),
+# Hero 卡语义色（低饱和，深浅主题均可达标；克制统一，避免彩虹糖）
+_HERO_COLORS = {
+    'chars': '#6366F1',   # indigo
+    'speed': '#0D9488',   # teal
+    'acc': '#DB2777',     # pink
 }
 
 
 class _HeroCard(QFrame):
-    """大数字 Hero 卡：图标 + 标签 + 大数字 + 单位。"""
+    """大数字 Hero 卡：顶部语义色条 + 图标 + 大数字（克制统一风格）。"""
 
     def __init__(self, icon_name, label, key, unit='', parent=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.StyledPanel)
         self._key = key
-        c1, c2 = _HERO_GRADIENTS.get(key, ('#6366F1', '#8B5CF6'))
+        self._color = _HERO_COLORS.get(key, '#6366F1')
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(20)
         shadow.setOffset(0, 5)
         shadow.setColor(QColor(0, 0, 0, 90))
         self.setGraphicsEffect(shadow)
-        self.setStyleSheet(
-            f'QFrame {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1,'
-            f' stop:0 {c1}, stop:1 {c2}); border-radius: 18px; border: none; }}')
 
         v = QVBoxLayout(self)
-        v.setContentsMargins(18, 14, 18, 14)
-        v.setSpacing(2)
+        v.setContentsMargins(16, 10, 16, 14)
+        v.setSpacing(4)
+        bar = QFrame()
+        bar.setFixedHeight(4)
+        bar.setStyleSheet(
+            f'QFrame {{ background:{self._color}; border:none; border-radius:2px; }}')
+        v.addWidget(bar)
         row = QHBoxLayout()
         row.setSpacing(6)
-        icon = QLabel()
-        icon.setPixmap(svg_pixmap(icon_name, '#FFFFFF', 18))
-        row.addWidget(icon)
-        lab = QLabel(label)
-        lab.setStyleSheet('color:rgba(255,255,255,210); font-size:12px; font-weight:600;')
-        row.addWidget(lab)
+        self._icon = QLabel()
+        self._icon.setPixmap(svg_pixmap(icon_name, self._color, 16))
+        row.addWidget(self._icon)
+        self._lab = QLabel(label)
+        row.addWidget(self._lab)
         row.addStretch(1)
         v.addLayout(row)
         self._value = QLabel('—')
         self._value.setStyleSheet(
-            'color:white; font-size:34px; font-weight:900;')
+            f'color:{self._color}; font-size:34px; font-weight:900;')
         v.addWidget(self._value)
         self._unit = QLabel(unit)
-        self._unit.setStyleSheet('color:rgba(255,255,255,190); font-size:11px;')
         v.addWidget(self._unit)
+
+    def apply_theme(self):
+        self._lab.setStyleSheet(f'color:{P.muted}; font-size:12px; font-weight:600;')
+        self._unit.setStyleSheet(f'color:{P.faint}; font-size:11px;')
+        self._value.setStyleSheet(
+            f'color:{self._color}; font-size:34px; font-weight:900;')
+        self.setStyleSheet(
+            f'QFrame {{ background:{P.card_bg}; border-radius:16px;'
+            f' border:1px solid {P.card_border}; }}')
 
     def set_value(self, text: str, tooltip: str = ''):
         self._value.setText(text)
@@ -137,9 +146,6 @@ class Dashboard(QWidget):
             card = _HeroCard(ic, label, kind, unit)
             self._heroes[key] = card
             hero_grid.addWidget(card, 0, i)
-        hero_grid.setColumnStretch(0, 1)
-        hero_grid.setColumnStretch(1, 1)
-        hero_grid.setColumnStretch(2, 1)
         root.addLayout(hero_grid)
 
         # 4. 次级指标 chips（4 列 2 行）
@@ -165,6 +171,7 @@ class Dashboard(QWidget):
             cv.addWidget(val)
             self._chips[key] = val
             self._chip_names = getattr(self, '_chip_names', []) + [n]
+            self._chip_cards = getattr(self, '_chip_cards', []) + [cell]
             chips_grid.addWidget(cell, i // 4, i % 4)
         chips_grid.setColumnStretch(0, 1)
         chips_grid.setColumnStretch(1, 1)
@@ -216,8 +223,12 @@ class Dashboard(QWidget):
             f'color:{P.warn}; font-weight:700; font-size:14px;')
         for n in getattr(self, '_chip_names', []):
             n.setStyleSheet(f'color:{P.muted}; font-size:10px;')
-        for key, cell in self._chips.items():
-            cell.setStyleSheet(f'color:{P.text};')
+        for cell in self._chip_cards:
+            cell.setStyleSheet(
+                f'QFrame {{ background:{P.card_bg}; border-radius:12px;'
+                f' border:1px solid {P.card_border}; }}')
+        for key, card in self._heroes.items():
+            card.apply_theme()
         self._life_bar.setStyleSheet(
             f'QFrame {{ background:{P.card_bg}; border-radius:12px;'
             f' border:1px solid {P.card_border}; }}')
