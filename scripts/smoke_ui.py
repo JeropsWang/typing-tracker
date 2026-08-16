@@ -168,6 +168,26 @@ def main() -> int:
         assert len(win._popups) >= 2, '弹窗未创建'
         print('动效组件冒烟通过：星空 / 等级条 / 弹窗动画')
 
+        # 个人中心 + 签到弹窗 + 成就墙
+        assert hasattr(win, '_profile_page'), '个人中心页缺失'
+        win._tabs.setCurrentIndex(4)
+        app.processEvents()
+        win._profile_page.refresh()
+        assert win._profile_page._nick_label.text() == '打字新星', '昵称未读取'
+        win.show_checkin_popup({'date': engine.current_day(), 'streak': 3,
+                                'base_exp': 20, 'bonus_exp': 0})
+        app.processEvents()
+        from app.ui.widgets.checkin_popup import CheckinPopup
+        assert win.findChildren(CheckinPopup), '签到弹窗未创建'
+        win._tabs.setCurrentIndex(3)
+        app.processEvents()
+        win._ach_page.refresh()
+        page0 = win._ach_page._tabs.widget(0)
+        from PySide6.QtWidgets import QFrame as _QF
+        cards = page0.findChildren(_QF)
+        assert len(cards) >= 12, f'成就墙卡片不足: {len(cards)}'
+        print('个人中心 / 签到弹窗 / 成就墙冒烟通过')
+
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')
     finally:

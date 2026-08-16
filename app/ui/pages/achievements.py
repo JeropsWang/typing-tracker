@@ -1,13 +1,15 @@
-"""成就页（M3 UI）：37 项成就按类展示，未领取显示红点与领取按钮。
+"""成就墙：37 项成就以徽章卡片展示（图案 + 名称 + 状态）。
 
-类别：速度（平均速度）/ 字数（累计有效字数）/ 分钟正确率 / 总正确率。
+- 已解锁：彩色描边 + 发光底 + 大图标
+- 待领取：红点 + 领取按钮
+- 未解锁：灰色 + 🔒
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
-    QVBoxLayout, QWidget,
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
+    QTabWidget, QVBoxLayout, QWidget,
 )
 
 from ..palette import P
@@ -53,7 +55,6 @@ class AchievementsPage(QWidget):
 
         root = QVBoxLayout(self)
         self._summary = QLabel('')
-        self._summary.setStyleSheet('font-weight:600; font-size:15px;')
         root.addWidget(self._summary)
 
         self._tabs = QTabWidget()
@@ -69,8 +70,8 @@ class AchievementsPage(QWidget):
         unlocked = [i for i in items if i['unlocked_at']]
         pending = [i for i in unlocked if not i['claimed']]
         self._summary.setText(
-            f'已解锁 {len(unlocked)} / {len(items)}　·　待领取 {len(pending)} 项'
-            + ('（红点 = 可领取奖励）' if pending else ''))
+            f'🏆 成就墙　已解锁 {len(unlocked)} / {len(items)}'
+            + (f'　·　待领取 {len(pending)} 项（红点提示）' if pending else ''))
 
         self._tabs.clear()
         for cat in ['speed', 'chars', 'min_acc', 'total_acc']:
@@ -79,52 +80,83 @@ class AchievementsPage(QWidget):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             inner = QWidget()
-            v = QVBoxLayout(inner)
-            v.setContentsMargins(4, 4, 4, 4)
+            grid = QGridLayout(inner)
+            grid.setSpacing(10)
             cat_items = [i for i in items if i['category'] == cat]
-            for item in cat_items:
-                v.addWidget(self._row(item))
-            v.addStretch(1)
+            for idx, item in enumerate(cat_items):
+                grid.addWidget(self._card(item), idx // 4, idx % 4)
+            grid.setRowStretch(len(cat_items) // 4 + 1, 1)
             scroll.setWidget(inner)
             lay.addWidget(scroll)
-            self._tabs.addTab(page, f'{CAT_TITLES[cat]}（{sum(1 for i in cat_items if i["unlocked_at"])}/{len(cat_items)}）')
+            self._tabs.addTab(
+                page, f'{CAT_TITLES[cat]}（{sum(1 for i in cat_items if i["unlocked_at"])}/{len(cat_items)}）')
 
-    def _row(self, item) -> QWidget:
+    # ---------- 徽章卡片 ----------
+    def _card(self, item) -> QWidget:
         frame = QFrame()
+        frame.setFixedSize(176, 168)
         frame.setFrameShape(QFrame.StyledPanel)
-        h = QHBoxLayout(frame)
+        unlocked = bool(item['unlocked_at'])
+        claimed = bool(item['claimed'])
 
-        dot = QLabel('●')
-        dot.setStyleSheet(
-            f'color:{CAT_COLORS[item["category"]]}; font-size:14px;')
-        h.addWidget(dot)
+        if unlocked:
+            frame.setStyleSheet(
+                f'QFrame {{ background: {P.card_bg};'
+                f' border: 2px solid {P.accent}; border-radius: 14px; }}')
+        else:
+            frame.setStyleSheet(
+                f'QFrame {{ background: rgba(120,120,140,40);'
+                f' border: 1px dashed rgba(150,150,170,90); border-radius: 14px; }}')
 
-        info = QVBoxLayout()
+        v = QVBoxLayout(frame)
+        v.setContentsMargins(8, 10, 8, 8)
+        v.setSpacing(2)
+
+        top = QHBoxLayout()
+        icon = QLabel(item.get('icon', '🎯'))
+        icon.setStyleSheet('font-size:34px;')
+        if not unlocked:
+            icon.setGraphicsEffect(_gray_effect())
+        top.addWidget(icon)
+        top.addStretch(1)
+        if unlocked and not claimed:
+            dot = QLabel('●')
+            dot.setStyleSheet('color:#ef4444; font-size:14px;')
+            top.addWidget(dot)
+        elif claimed:
+            ok = QLabel('✓')
+            ok.setStyleSheet(f'color:{P.success}; font-size:14px; font-weight:800;')
+            top.addWidget(ok)
+        else:
+            lock = QLabel('🔒')
+            lock.setStyleSheet('font-size:13px;')
+            top.addWidget(lock)
+        v.addLayout(top)
+
         name = QLabel(f'<b>{item["name"]}</b>')
-        if item['unlocked_at'] and not item['claimed']:
-            name.setText(f'<b>{item["name"]}</b> <span style="color:#ef4444;">● 待领取</span>')
-        info.addWidget(name)
-        desc = QLabel(item['desc'])
-        desc.setStyleSheet(f'color:{P.muted}; font-size:12px;')
-        info.addWidget(desc)
-        rw = QLabel(f'奖励：{reward_text(item)}')
-        rw.setStyleSheet(f'color:{P.faint}; font-size:12px;')
-        info.addWidget(rw)
-        h.addLayout(info, 1)
+        name.setStyleSheet(f'color:{P.text}; font-size:13px;')
+        name.setAlignment(Qt.AlignCenter)
+        v.addWidget(name)
 
-        if item['unlocked_at'] and not item['claimed']:
+        desc = QLabel(item['desc'])
+        desc.setStyleSheet(f'color:{P.muted}; font-size:10px;')
+        desc.setAlignment(Qt.AlignCenter)
+        desc.setWordWrap(True)
+        v.addWidget(desc)
+
+        if unlocked and not claimed:
             btn = QPushButton('领取')
             btn.setStyleSheet(
-                f'background:{P.accent}; color:white; border-radius:4px;'
-                'padding:4px 14px;')
+                f'background:{P.accent}; color:white; border-radius:8px;'
+                'padding:3px 10px; font-weight:700;')
             btn.clicked.connect(lambda _=False, c=item['code']: self._do_claim(c))
-            h.addWidget(btn)
+            v.addWidget(btn, 0, Qt.AlignCenter)
         else:
-            st = '已领取' if item['claimed'] else '未解锁'
-            lab = QLabel(st)
-            lab.setStyleSheet(
-                f'color:{P.success};' if item['claimed'] else f'color:{P.faint};')
-            h.addWidget(lab)
+            rw = QLabel(f'{reward_text(item)}' if unlocked else '达成后解锁奖励')
+            rw.setStyleSheet(f'color:{P.faint}; font-size:9px;')
+            rw.setAlignment(Qt.AlignCenter)
+            rw.setWordWrap(True)
+            v.addWidget(rw)
         return frame
 
     def _do_claim(self, code):
@@ -132,3 +164,11 @@ class AchievementsPage(QWidget):
         if granted:
             self.claimed.emit()
             self.refresh()
+
+
+def _gray_effect():
+    from PySide6.QtWidgets import QGraphicsColorizeEffect
+    eff = QGraphicsColorizeEffect()
+    eff.setColor(Qt.gray)
+    eff.setStrength(0.85)
+    return eff

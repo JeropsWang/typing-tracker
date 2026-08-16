@@ -54,6 +54,10 @@ def ensure_default_settings(repo, balance) -> None:
         'day_start_hour': str(balance['day_start_hour']),
         'infinite_levels': '0',
         'excluded_apps': '',
+        'nickname': '打字新星',
+        'signature': '键盘上的舞者 ✨',
+        'avatar_emoji': '🐱',
+        'active_title': '',
     }
     for k, v in defaults.items():
         if repo.get_setting(k) is None:
@@ -105,6 +109,7 @@ def main() -> int:
         notify('打卡', f'{result["date"]} 连签 {result["streak"]} 天，+{result["total_exp"]} exp')
         if result.get('milestone'):
             notify('里程碑', f'连签 {result["milestone"]} 天达成，里程碑礼包已发放！')
+        QTimer.singleShot(800, lambda r=result: window.show_checkin_popup(r))
     startup_unlocks = achievements.check_all(engine)
     for a in startup_unlocks:
         notify('成就', f'解锁「{a["name"]}」，到成就页领取奖励')
@@ -175,6 +180,7 @@ def main() -> int:
             if r:
                 toast('打卡', f'{r["date"]} 连签 {r["streak"]} 天，+{r["total_exp"]} exp',
                       'milestone' if r.get('milestone') else 'star')
+                window.show_checkin_popup(r)
                 if r.get('milestone'):
                     toast('里程碑', f'连签 {r["milestone"]} 天达成，礼包已发放！', 'milestone')
             for a in achievements.check_all(engine):

@@ -20,6 +20,22 @@ class SettingsDialog(QDialog):
         self._theme_mgr = theme_manager
 
         form = QFormLayout()
+
+        # 个人信息（个人中心展示）
+        self._nick_edit = QLineEdit(repo.get_setting('nickname', '打字新星'))
+        self._nick_edit.setMaxLength(12)
+        form.addRow('昵称', self._nick_edit)
+        self._sig_edit = QLineEdit(repo.get_setting('signature', '键盘上的舞者 ✨'))
+        self._sig_edit.setMaxLength(30)
+        form.addRow('签名', self._sig_edit)
+        self._avatar_combo = QComboBox()
+        for emoji in ['🐱', '🐰', '🐻', '🦊', '🐼', '🐨', '🐹', '🐯', '🐸', '🐵', '🐶', '🦄']:
+            self._avatar_combo.addItem(emoji)
+        cur = repo.get_setting('avatar_emoji', '🐱')
+        idx = self._avatar_combo.findText(cur)
+        self._avatar_combo.setCurrentIndex(max(0, idx))
+        form.addRow('头像', self._avatar_combo)
+
         self._unit_edit = QLineEdit(repo.get_setting('unit_name', balance['unit']['name']))
         self._unit_edit.setPlaceholderText('如 tw / 字')
         form.addRow('单位名称', self._unit_edit)
@@ -122,6 +138,9 @@ class SettingsDialog(QDialog):
             QMessageBox.warning(self, '导出失败', str(e))
 
     def accept(self):
+        self._repo.set_setting('nickname', self._nick_edit.text().strip() or '打字新星')
+        self._repo.set_setting('signature', self._sig_edit.text().strip() or '键盘上的舞者 ✨')
+        self._repo.set_setting('avatar_emoji', self._avatar_combo.currentText())
         self._repo.set_setting('unit_name', self._unit_edit.text().strip() or 'tw')
         self._repo.set_setting('day_start_hour', str(self._hour_spin.value()))
         self._repo.set_setting('infinite_levels', '1' if self._infinite.isChecked() else '0')

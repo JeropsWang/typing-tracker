@@ -15,8 +15,10 @@ from ..services.exp_service import band_title, level_and_progress
 from .dashboard import Dashboard
 from .pages.achievements import AchievementsPage
 from .pages.checkin import CheckinPage
+from .pages.profile import ProfilePage
 from .pages.reports import ReportsPage
 from .settings_dialog import SettingsDialog
+from .widgets.checkin_popup import CheckinPopup
 from .widgets.starfield import StarField
 from .widgets.toast_popup import ToastPopup
 
@@ -81,6 +83,10 @@ class MainWindow(QMainWindow):
             self._ach_page = AchievementsPage(repo, balance, achievements)
             self._ach_page.claimed.connect(self._on_reward_granted)
             self._tabs.addTab(self._ach_page, '成就')
+        if achievements is not None and rewards is not None:
+            self._profile_page = ProfilePage(repo, balance, engine,
+                                             achievements, rewards)
+            self._tabs.addTab(self._profile_page, '个人中心')
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self.setCentralWidget(self._tabs)
 
@@ -121,6 +127,8 @@ class MainWindow(QMainWindow):
             self._checkin_page.apply_theme()
         if hasattr(self, '_ach_page'):
             self._ach_page.apply_theme()
+        if hasattr(self, '_profile_page'):
+            self._profile_page.apply_theme()
 
     def resizeEvent(self, event):
         self._starfield.setGeometry(self.rect())
@@ -128,6 +136,19 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
 
     # ---------- 弹窗 ----------
+    def show_checkin_popup(self, result: dict) -> None:
+        """每日签到弹窗（居中显示，动态动画）。"""
+        if not self.isVisible():
+            return
+        popup = CheckinPopup(self, result, self._balance,
+                             accent=self._accent, dark=self._dark)
+        popup.adjustSize()
+        popup.move((self.width() - popup.width()) // 2,
+                   (self.height() - popup.height()) // 2 - 30)
+        popup.show()
+        popup.raise_()
+        popup.start_animation()
+
     def show_toast(self, title: str, msg: str, kind: str = 'star') -> None:
         """成就/升级/鼓励小弹窗（右上角堆叠，动画滑入，自动消失）。"""
         if not self.isVisible():
@@ -159,6 +180,8 @@ class MainWindow(QMainWindow):
             self._checkin_page.refresh()
         elif index == 3 and hasattr(self, '_ach_page'):
             self._ach_page.refresh()
+        elif index == 4 and hasattr(self, '_profile_page'):
+            self._profile_page.refresh()
         # 页面淡入
         page = self._tabs.widget(index)
         if page is not None:
@@ -183,6 +206,9 @@ class MainWindow(QMainWindow):
         exp = self._repo.get_exp()
         level, progress, _ = level_and_progress(exp, self._balance)
         title = band_title(level, self._balance, _load_bands(self._balance, self._repo))
+        active = self._repo.get_setting('active_title', '')
+        if active:
+            title = active
         unit = self._repo.get_setting('unit_name', self._balance['unit']['name'])
         streak = current_streak(self._repo, self._engine.current_day())
         self._dashboard.refresh(snap, level, progress, title, streak, unit)
