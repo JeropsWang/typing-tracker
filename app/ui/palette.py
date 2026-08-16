@@ -17,8 +17,9 @@ class _Palette:
         self.muted = '#6b7280'
         self.faint = '#9ca3af'
         self.accent = '#3b82f6'
-        self.success = '#10b981'
-        self.warn = '#f59e0b'
+        self.success = '#047857'    # 深绿：浅色背景对比度达标（审计修复）
+        self.warn = '#b45309'       # 深琥珀：浅色背景连签/里程碑可读（审计修复）
+        self.danger = '#dc2626'     # 深红
         self.card_bg = 'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(255,255,255,242), stop:1 rgba(255,255,255,196))'
         self.card_border = 'rgba(255, 255, 255, 235)'
         self.shadow_color = '#6366F12E'   # #AARRGGBB，QGraphicsDropShadowEffect 用
@@ -36,8 +37,16 @@ class _Palette:
         self.muted = colors.get('muted', '#6b7280')
         self.faint = colors.get('muted', '#9ca3af')
         self.accent = effects.get('accent', colors.get('primary', '#3b82f6'))
-        self.success = colors.get('success', '#10b981')
-        self.warn = colors.get('warn', '#f59e0b')
+        if self.dark:
+            # 深色背景：亮色即可读
+            self.success = colors.get('success', '#34d399')
+            self.warn = colors.get('warn', '#f59e0b')
+            self.danger = colors.get('danger', '#f87171')
+        else:
+            # 浅色背景：必须用深色调才能达到 WCAG 对比度（审计修复）
+            self.success = colors.get('success', '#047857')
+            self.warn = colors.get('warn', '#b45309')
+            self.danger = colors.get('danger', '#dc2626')
         if self.dark:
             self.card_bg = 'qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(43,32,92,230), stop:1 rgba(30,23,66,215))'
             self.card_border = 'rgba(179, 157, 219, 70)'

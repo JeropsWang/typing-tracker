@@ -68,6 +68,10 @@ class ThemeManager:
         if not m:
             return
         qss = self._render_qss(Path(m['_dir']) / 'theme.qss', m)
+        # 下拉箭头（QSS 不支持 data URI，程序生成 PNG 到数据目录）
+        arrow = self._ensure_arrow(m.get('base') != 'light')
+        if arrow:
+            qss = qss.replace('{{arrow}}', arrow.as_posix())
         effects = m.get('effects') or {}
         # 全局调色板：所有页面文字/卡片颜色随主题（可读性）
         try:
@@ -122,6 +126,29 @@ class ThemeManager:
             return str(node)
 
         return VAR_RE.sub(repl, text)
+
+    def _ensure_arrow(self, light_on_dark: bool):
+        """生成 QComboBox 下拉箭头 PNG（深色主题用浅箭头，反之亦然）。"""
+        try:
+            from PySide6.QtCore import Qt
+            from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF, QPointF
+            name = '__arrow_light.png' if light_on_dark else '__arrow_dark.png'
+            path = self._user_dir / name
+            if path.exists():
+                return path
+            img = QImage(14, 14, QImage.Format_ARGB32)
+            img.fill(Qt.transparent)
+            p = QPainter(img)
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor('#E2E8F0' if light_on_dark else '#4B5563'))
+            p.drawPolygon(QPolygonF([
+                QPointF(2.0, 4.5), QPointF(12.0, 4.5), QPointF(7.0, 11.0)]))
+            p.end()
+            img.save(str(path))
+            return path
+        except Exception:
+            return None
 
     @staticmethod
     def _load_charts(path: Path):

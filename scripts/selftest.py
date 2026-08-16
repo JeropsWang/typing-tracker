@@ -250,10 +250,10 @@ def main() -> int:
         check('少字计错', c == 2 and e == 2)
         s = score('你好世界', ref, 60.0, BALANCE)
         check('速度 8tw/分（4汉字×2tw）', abs(s['speed'] - 8.0) < 1e-6)
-        # 综合结算分：速度×0.6 + 有效字数×0.1 + 正确率%×0.5，×完成系数
+        # 综合结算分：速度×0.6 + 有效字数×0.1 + 正确率%×0.5，×10000 × 完成系数
         s = score('你好世界', ref, 60.0, BALANCE)
-        expect = round((8.0 * 0.6 + 4 * 0.1 + 100 * 0.5) * (0.5 + 0.5 * 1.0))
-        check('综合分公式（全对 60s）', s['score_points'] == expect)
+        expect = round((8.0 * 0.6 + 4 * 0.1 + 100 * 0.5) * 10000 * 1.0)
+        check('综合分公式（全对 60s → 96万分）', s['score_points'] == expect)
         s2 = score('你好世界', ref, 30.0, BALANCE)
         check('更快更高分', s2['score_points'] > s['score_points'])
         s3 = score('你好', ref, 60.0, BALANCE)

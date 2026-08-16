@@ -52,6 +52,9 @@ QComboBox:hover, QSpinBox:hover, QLineEdit:hover, QPlainTextEdit:hover {
   border: 1px solid #6366F1;
 }
 QComboBox::drop-down { border: none; width: 22px; }
+QComboBox::down-arrow { image: url({{arrow}}); width: 12px; height: 12px; }
+QSpinBox::up-button, QSpinBox::down-button { background: transparent; border: none; width: 0; }
+QDialog { background: #FFFFFF; color: #111827; }
 QComboBox QAbstractItemView {
   background: white;
   border: 1px solid #E5E7EB;

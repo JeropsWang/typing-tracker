@@ -213,9 +213,13 @@ def main() -> int:
         # 设置入口（悬浮按钮 + 个人中心入口）与结算分显示
         assert win._floating_settings.isVisible(), '悬浮设置按钮不可见'
         assert win._profile_page._settings_btn is not None, '个人中心设置入口缺失'
-        assert cp._result_detail.text(), '结算明细为空'
-        assert '总分' in cp._result_detail.text(), '结算未显示综合分'
-        print('设置入口 / 结算分冒烟通过')
+        assert cp._result.isVisible(), '结算面板未显示'
+        assert cp._result_detail.text() and '公式' in cp._result_detail.text(), \
+            '结算明细未显示公式'
+        assert cp._score_label.text().replace(',', '').isdigit(), '大数字分数异常'
+        assert win._titlebar is not None and win._titlebar._btn_close is not None, \
+            '自定义标题栏缺失'
+        print('设置入口 / 结算分 / 标题栏冒烟通过')
 
         win.close()
         print('GUI 冒烟通过：主窗口 / 设置对话框 / 刷新 / 落盘')

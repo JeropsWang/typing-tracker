@@ -10,9 +10,10 @@ import html
 import time
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
-    QPushButton, QVBoxLayout, QWidget,
+    QComboBox, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
+    QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 from ...core.challenge import TEXTS, ai_access_state, score
@@ -144,12 +145,33 @@ class ChallengePage(QWidget):
         self._result_title = QLabel('')
         self._result_title.setAlignment(Qt.AlignCenter)
         rv.addWidget(self._result_title)
+        # 百万级大数字：分数滚动动画 + 金色光晕
+        self._score_label = QLabel('0')
+        self._score_label.setAlignment(Qt.AlignCenter)
+        self._score_label.setStyleSheet(
+            f'font-size:60px; font-weight:900; color:{P.warn};')
+        score_shadow = QGraphicsDropShadowEffect(self._score_label)
+        score_shadow.setBlurRadius(30)
+        score_shadow.setOffset(0, 0)
+        score_shadow.setColor(QColor(P.warn))
+        self._score_label.setGraphicsEffect(score_shadow)
+        rv.addWidget(self._score_label)
+        self._score_unit = QLabel('SCORE')
+        self._score_unit.setAlignment(Qt.AlignCenter)
+        self._score_unit.setStyleSheet(
+            f'color:{P.faint}; font-size:12px; font-weight:700; letter-spacing:4px;')
+        rv.addWidget(self._score_unit)
         self._result_detail = QLabel('')
         self._result_detail.setStyleSheet(f'color:{P.muted}; font-size:13px;')
         self._result_detail.setAlignment(Qt.AlignCenter)
         rv.addWidget(self._result_detail)
         self._result.setVisible(False)
         root.addWidget(self._result)
+
+        self._score_anim = QTimer(self)
+        self._score_anim.timeout.connect(self._tick_score)
+        self._score_now = 0
+        self._score_target = 0
 
         # 近期记录
         self._recent_label = QLabel('')
@@ -295,6 +317,9 @@ class ChallengePage(QWidget):
         self._acc_label.setText('🎯 100%')
         self._prog_label.setText('0%')
         self._result.setVisible(False)
+        self._score_anim.stop()
+        self._score_now = 0
+        self._score_target = 0
         self._render_reference('')
         self._refresh_recent()
 
@@ -337,15 +362,28 @@ class ChallengePage(QWidget):
             self._result_title.setText('挑战完成！')
             self._result_title.setStyleSheet('font-size:20px; font-weight:800;')
         self._result_detail.setText(
-            f'总分 <b style="font-size:26px;color:{P.accent};">{s["score_points"]}</b>　'
-            f'·　历史最佳 {r["prev_best"]:.0f} 分\n'
             f'速度 {s["speed"]:.1f} tw/分　·　正确率 {s["accuracy"] * 100:.1f}%　·　'
             f'用时 {self._elapsed:.1f}s　·　有效 {s["typed_chars"] - s["errors"]} 字\n'
-            f'公式：速度×0.6 + 字数×0.1 + 正确率%×0.5，再乘完成系数')
+            f'公式：速度×0.6 + 字数×0.1 + 正确率%×0.5，×10000 × 完成系数\n'
+            f'历史最佳 {r["prev_best"]:,} 分'
+            + ('　← 你刚刷新了纪录！' if r['is_best'] else ''))
         self._result.setVisible(True)
         self._input.setEnabled(False)
         self._hint_label.setText('点「重来」再战一次')
         self._refresh_recent()
+        # 分数滚动动画（百万级大数字）
+        self._score_now = 0
+        self._score_target = s['score_points']
+        self._score_label.setText(f'{self._score_now:,}')
+        self._score_anim.start(24)
+
+    def _tick_score(self):
+        """分数从 0 滚动到目标（约 1.2s 完成）。"""
+        step = max(1, self._score_target // 50)
+        self._score_now = min(self._score_target, self._score_now + step)
+        self._score_label.setText(f'{self._score_now:,}')
+        if self._score_now >= self._score_target:
+            self._score_anim.stop()
 
     # ---------- 渲染 ----------
     def _render_reference(self, inp: str):

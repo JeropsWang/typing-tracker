@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QEasingCurve, QPropertyAnimation, QTimer
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect, QLabel, QMainWindow, QPushButton, QSystemTrayIcon,
-    QTabWidget, QToolBar,
+    QTabWidget, QToolBar, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -24,6 +24,7 @@ from .pages.reports import ReportsPage
 from .settings_dialog import SettingsDialog
 from .widgets.checkin_popup import CheckinPopup
 from .widgets.starfield import StarField
+from .widgets.title_bar import TitleBar
 from .widgets.toast_popup import ToastPopup
 
 
@@ -69,6 +70,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(f'打字管家 v{__version__}')
         self.resize(900, 640)
+        # 无边框窗口 + 自定义标题栏（标题层美化）
+        self.setWindowFlags(Qt.FramelessWindowHint)
 
         # 星空背景（主题 effects 控制显隐）
         self._starfield = StarField(self)
@@ -106,7 +109,16 @@ class MainWindow(QMainWindow):
             self._tabs.addTab(self._challenge_page, '竞速')
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._tabs.currentChanged.connect(self._on_tab_changed)
-        self.setCentralWidget(self._tabs)
+
+        # 容器：自定义标题栏 + 页面
+        container = QWidget(self)
+        v = QVBoxLayout(container)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(0)
+        self._titlebar = TitleBar(self, f'打字管家 v{__version__}')
+        v.addWidget(self._titlebar)
+        v.addWidget(self._tabs, 1)
+        self.setCentralWidget(container)
 
         tb = QToolBar('工具')
         tb.setMovable(False)
@@ -146,6 +158,7 @@ class MainWindow(QMainWindow):
         if accent:
             self._accent = accent
         self._dark = bool(self._effects.get('dark', True))
+        self._titlebar.apply_theme()
         # Tab 图标颜色跟随主题（线性图标）
         for i, name in enumerate(['home', 'chart', 'calendar', 'trophy', 'user', 'zap']):
             if i < self._tabs.count():
