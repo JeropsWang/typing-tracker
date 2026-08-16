@@ -1,12 +1,13 @@
-"""成就/升级小弹窗：圆角卡片 + 缩放滑入 + 星星装饰 + 自动消失。
+"""成就/升级小弹窗：圆角卡片 + 位置滑入动画 + 星星装饰 + 自动消失。
 
 kind 决定图标前缀：achievement 🏆 / level 🎉 / encourage 🚀 / star ✨
+注意：动画只用位置移动（QPropertyAnimation on pos），不使用
+QGraphicsOpacityEffect——无边框透明窗口上效果残留会导致整体渲染偏移。
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, QTimer
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 KIND_ICON = {
     'achievement': '🏆',
@@ -77,27 +78,23 @@ class ToastPopup(QFrame):
         self.setFixedWidth(min(360, max(240, self.width())))
         self.adjustSize()
 
-        self._opacity = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self._opacity)
-        self._anim = QPropertyAnimation(self._opacity, b'opacity', self)
-        self._anim.setDuration(260)
+        self._anim = QPropertyAnimation(self, b'pos', self)
+        self._anim.setDuration(280)
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
         self._hide_timer.timeout.connect(self._fade_out)
         self._hide_timer.start(SHOW_MS)
 
-    def start_animation(self) -> None:
-        self._opacity.setOpacity(0.0)
-        self._anim.setStartValue(0.0)
-        self._anim.setEndValue(1.0)
+    def start_animation(self, target: QPoint) -> None:
+        """从下方滑入到目标位置（纯位置动画）。"""
+        self.move(target.x(), target.y() + 26)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(target)
         self._anim.start()
 
     def _fade_out(self) -> None:
-        self._anim.setStartValue(1.0)
-        self._anim.setEndValue(0.0)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(self.pos() + QPoint(0, 22))
         self._anim.finished.connect(self.deleteLater)
         self._anim.start()
-
-    def accent_color(self) -> QColor:
-        return QColor(self._accent) if hasattr(self, '_accent') else QColor('#60a5fa')

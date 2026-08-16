@@ -5,11 +5,10 @@ import json
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QEasingCurve, QPropertyAnimation, QTimer
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect, QLabel,
-    QMainWindow, QPushButton, QSystemTrayIcon, QTabWidget, QToolBar,
+    QFrame, QLabel, QMainWindow, QPushButton, QSystemTrayIcon, QTabWidget,
     QVBoxLayout, QWidget,
 )
 
@@ -69,7 +68,6 @@ class MainWindow(QMainWindow):
         self._dark = True
         self._popups = []
         self._last_level = None
-        self._tab_anims = []
 
         self.setWindowTitle(f'打字管家 v{__version__}')
         self.resize(900, 640)
@@ -118,14 +116,10 @@ class MainWindow(QMainWindow):
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
-        # 圆角壳层（窗户质感）+ 标题栏 + 页面
+        # 圆角壳层（窗户质感；不使用 QGraphicsEffect——无边框透明窗口上
+        # 效果残留会导致整体渲染偏移，见 v0.8.6 修复）
         self._shell = QFrame(self)
         self._shell.setObjectName('shellFrame')
-        self._shell_shadow = QGraphicsDropShadowEffect(self._shell)
-        self._shell_shadow.setBlurRadius(30)
-        self._shell_shadow.setOffset(0, 8)
-        self._shell_shadow.setColor(QColor(0, 0, 0, 130))
-        self._shell.setGraphicsEffect(self._shell_shadow)
         v = QVBoxLayout(self._shell)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
@@ -139,13 +133,6 @@ class MainWindow(QMainWindow):
         self._confetti.setGeometry(self.rect())
 
         self._update_shell_style()
-
-        tb = QToolBar('工具')
-        tb.setMovable(False)
-        tb.setVisible(False)   # 冗余：设置入口由悬浮按钮/托盘/个人中心承担
-        act_settings = tb.addAction('设置…')
-        act_settings.triggered.connect(self.open_settings)
-        self.addToolBar(tb)
 
         # 悬浮设置按钮（右下角，永远可见）
         self._floating_settings = QPushButton(self)
@@ -207,9 +194,8 @@ class MainWindow(QMainWindow):
         self._update_shell_style()
 
     def _update_shell_style(self) -> None:
-        """最大化时直角无投影；普通状态圆角 + 投影。"""
+        """最大化时直角，普通状态圆角（纯 QSS，无 QGraphicsEffect）。"""
         radius = 0 if self.isMaximized() else 16
-        self._shell_shadow.setEnabled(not self.isMaximized())
         self._shell.setStyleSheet(
             f'QFrame#shellFrame {{ background: {self._shell_bg};'
             f' border-radius: {radius}px; border: none; }}')
@@ -244,17 +230,16 @@ class MainWindow(QMainWindow):
         popup.start_animation()
 
     def show_toast(self, title: str, msg: str, kind: str = 'star') -> None:
-        """成就/升级/鼓励小弹窗（右上角堆叠，动画滑入，自动消失）。"""
+        """成就/升级/鼓励小弹窗（右上角堆叠，位置滑入动画，自动消失）。"""
         if not self.isVisible():
             return
         popup = ToastPopup(self, title, msg, kind=kind,
                            accent=self._accent, dark=self._dark)
         popup.adjustSize()
         y = 46 + len(self._popups) * (popup.height() + 10)
-        popup.move(self.width() - popup.width() - 18, y)
         popup.show()
         popup.raise_()
-        popup.start_animation()
+        popup.start_animation(QPoint(self.width() - popup.width() - 18, y))
         self._popups.append(popup)
         QTimer.singleShot(3800, lambda: self._popups_discard(popup))
 
@@ -278,23 +263,8 @@ class MainWindow(QMainWindow):
             self._profile_page.refresh()
         elif index == 5 and hasattr(self, '_challenge_page'):
             self._challenge_page._refresh_recent()
-        # 页面淡入
-        page = self._tabs.widget(index)
-        if page is not None:
-            eff = QGraphicsOpacityEffect(page)
-            page.setGraphicsEffect(eff)
-            anim = QPropertyAnimation(eff, b'opacity', self)
-            anim.setDuration(180)
-            anim.setStartValue(0.25)
-            anim.setEndValue(1.0)
-            anim.setEasingCurve(QEasingCurve.OutCubic)
-            self._tab_anims.append(anim)
-            anim.finished.connect(lambda: self._tab_anims_done(anim))
-            anim.start()
-
-    def _tab_anims_done(self, anim) -> None:
-        if anim in self._tab_anims:
-            self._tab_anims.remove(anim)
+        # 注意：不再使用 QGraphicsOpacityEffect 页面淡入——
+        # 无边框透明窗口上效果残留会导致整体渲染偏移（v0.8.6 修复）
 
     # ---------- 刷新 ----------
     def refresh(self):

@@ -8,11 +8,10 @@ import math
 import random
 from datetime import date
 
-from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, Qt, QTimer
+from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QPropertyAnimation, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QPushButton,
-    QVBoxLayout,
+    QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
 )
 
 from ..palette import P
@@ -109,9 +108,7 @@ class CheckinPopup(QFrame):
         self.setFixedWidth(340)
         self.adjustSize()
 
-        self._opacity = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self._opacity)
-        self._anim = QPropertyAnimation(self._opacity, b'opacity', self)
+        self._anim = QPropertyAnimation(self, b'pos', self)
         self._anim.setDuration(320)
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
 
@@ -131,9 +128,10 @@ class CheckinPopup(QFrame):
 
     # ---------- 动画 ----------
     def start_animation(self) -> None:
-        self._opacity.setOpacity(0.0)
-        self._anim.setStartValue(0.0)
-        self._anim.setEndValue(1.0)
+        target = self.pos()
+        self.move(target.x(), target.y() + 24)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(target)
         self._anim.start()
 
     def _tick_count(self) -> None:
@@ -174,7 +172,7 @@ class CheckinPopup(QFrame):
 
     # ---------- 关闭 ----------
     def _close(self) -> None:
-        self._anim.setStartValue(1.0)
-        self._anim.setEndValue(0.0)
+        self._anim.setStartValue(self.pos())
+        self._anim.setEndValue(self.pos() + QPoint(0, 22))
         self._anim.finished.connect(self.deleteLater)
         self._anim.start()

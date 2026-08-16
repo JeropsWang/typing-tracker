@@ -10,10 +10,9 @@ import html
 import time
 
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
-    QLineEdit, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QPushButton, QVBoxLayout, QWidget,
 )
 
 from ...core.challenge import TEXTS, ai_access_state, score
@@ -147,16 +146,12 @@ class ChallengePage(QWidget):
         self._result_title = QLabel('')
         self._result_title.setAlignment(Qt.AlignCenter)
         rv.addWidget(self._result_title)
-        # 百万级大数字：分数滚动动画 + 金色光晕
+        # 百万级大数字：分数滚动动画（不使用 QGraphicsEffect，避免无边框
+        # 透明窗口上的渲染偏移问题）
         self._score_label = QLabel('0')
         self._score_label.setAlignment(Qt.AlignCenter)
         self._score_label.setStyleSheet(
             f'font-size:60px; font-weight:900; color:{P.warn};')
-        score_shadow = QGraphicsDropShadowEffect(self._score_label)
-        score_shadow.setBlurRadius(30)
-        score_shadow.setOffset(0, 0)
-        score_shadow.setColor(QColor(P.warn))
-        self._score_label.setGraphicsEffect(score_shadow)
         rv.addWidget(self._score_label)
         self._score_unit = QLabel('SCORE')
         self._score_unit.setAlignment(Qt.AlignCenter)
