@@ -266,6 +266,42 @@ def main() -> int:
         check('未破纪录不标新', not r3['is_best'])
         check('近期记录 3 条', len(csvc.recent(10)) == 3)
 
+        print('== AI 范文生成（mock OpenAI 兼容端点）==')
+        import threading as _th
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        class _AIHandler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get('Content-Length', 0))
+                self.server.last_body = self.rfile.read(length)
+                resp = json.dumps({'choices': [{
+                    'message': {'content': '星空之下，微光闪烁，指尖轻舞。'}}]}).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(resp)
+
+            def log_message(self, *a):
+                pass
+
+        srv = ThreadingHTTPServer(('127.0.0.1', 0), _AIHandler)
+        _th.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f'http://127.0.0.1:{srv.server_port}/v1'
+        repo.set_setting('ai_backend', 'openai')
+        repo.set_setting('ai_base_url', base)
+        repo.set_setting('ai_api_key', 'test-key')
+        repo.set_setting('ai_model', 'mock-model')
+        from app.services.ai_service import AIService
+        ai = AIService(repo)
+        ok, msg = ai.test_connection()
+        check('AI 连接测试', ok)
+        ok, text = ai.generate('星空', 'cn', 100)
+        check('AI 生成请求携带主题', ok and '\\u661f\\u7a7a' in srv.last_body.decode())
+        check('AI 响应清洗', ok and '星空之下' in text)
+        ok2, _ = ai.generate('', 'cn', 100)
+        check('空主题拒绝', not ok2)
+        srv.shutdown()
+
         print('== 备份导出（M4）==')
         from app.services.export_service import export_all
         folder = export_all(repo, str(td))

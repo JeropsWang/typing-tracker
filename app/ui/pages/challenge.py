@@ -1,6 +1,7 @@
 """打字竞速挑战页：范文对照输入 → 逐字高亮 → 实时指标 → 成绩与历史最佳。
 
 - 正确率 = 与原文逐字对比（精确口径，区别于全局按键近似）
+- 文本来源：内置范文 + AI 生成（OpenAI 兼容 / Ollama 本地，可持久化）
 - 挑战中的输入会计入今日全局统计（说明见页面提示）
 """
 from __future__ import annotations
@@ -8,36 +9,56 @@ from __future__ import annotations
 import html
 import time
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
-    QVBoxLayout, QWidget,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit,
+    QPushButton, QVBoxLayout, QWidget,
 )
 
-from ...core.challenge import TEXT_BY_ID, TEXTS, score
+from ...core.challenge import TEXTS, score
 from ..palette import P
 
 
+class _GenThread(QThread):
+    """AI 范文生成线程：done(ok, text, err)"""
+
+    done = Signal(bool, str, str)
+
+    def __init__(self, ai_svc, topic, lang, length, parent=None):
+        super().__init__(parent)
+        self._svc = ai_svc
+        self._topic = topic
+        self._lang = lang
+        self._length = length
+
+    def run(self):
+        try:
+            ok, res = self._svc.generate(self._topic, self._lang, self._length)
+            self.done.emit(ok, res if ok else '', '' if ok else res)
+        except Exception as e:
+            self.done.emit(False, '', str(e))
+
+
 class ChallengePage(QWidget):
-    def __init__(self, repo, balance, challenge_svc, parent=None):
+    def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None):
         super().__init__(parent)
         self._repo = repo
         self._balance = balance
         self._svc = challenge_svc
+        self._ai = ai_service
         self._running = False
         self._start_ts = 0.0
         self._elapsed = 0.0
+        self._gen_thread = None
 
         root = QVBoxLayout(self)
 
-        # 顶栏
+        # 顶栏：文本选择 / 开始 / 重来
         top = QHBoxLayout()
         top.addWidget(QLabel('文本:'))
         self._text_combo = QComboBox()
-        for t in TEXTS:
-            self._text_combo.addItem(t['name'], t['id'])
         self._text_combo.currentIndexChanged.connect(self._reset)
-        top.addWidget(self._text_combo)
+        top.addWidget(self._text_combo, 1)
         self._start_btn = QPushButton('开始挑战 ⚡')
         self._start_btn.clicked.connect(self._start)
         top.addWidget(self._start_btn)
@@ -45,8 +66,28 @@ class ChallengePage(QWidget):
         self._reset_btn.setEnabled(False)
         self._reset_btn.clicked.connect(self._reset)
         top.addWidget(self._reset_btn)
-        top.addStretch(1)
         root.addLayout(top)
+
+        # AI 生成行
+        if self._ai is not None:
+            ai_row = QHBoxLayout()
+            self._topic_edit = QLineEdit()
+            self._topic_edit.setPlaceholderText('AI 生成主题（如：星空 / 未来城市 / 美食）')
+            self._topic_edit.returnPressed.connect(self._ai_generate)
+            ai_row.addWidget(self._topic_edit, 1)
+            self._lang_combo = QComboBox()
+            self._lang_combo.addItem('中文', 'cn')
+            self._lang_combo.addItem('English', 'en')
+            ai_row.addWidget(self._lang_combo)
+            self._ai_btn = QPushButton('✨ AI 生成范文')
+            self._ai_btn.clicked.connect(self._ai_generate)
+            ai_row.addWidget(self._ai_btn)
+            self._ai_status = QLabel('')
+            self._ai_status.setStyleSheet(f'color:{P.faint}; font-size:11px;')
+            ai_row.addWidget(self._ai_status)
+            root.addLayout(ai_row)
+            if not self._ai.enabled():
+                self._ai_status.setText('AI 未启用：设置 → AI 配置（支持 OpenAI 兼容 / Ollama）')
 
         # 参考文本（逐字高亮）
         ref_head = QHBoxLayout()
@@ -63,7 +104,7 @@ class ChallengePage(QWidget):
         self._ref_label.setWordWrap(True)
         self._ref_label.setTextFormat(Qt.RichText)
         self._ref_label.setStyleSheet(
-            'font-size:17px; line-height:150%; padding:12px;'
+            'font-size:17px; padding:12px;'
             f'background:{P.card_bg}; border-radius:12px;'
             f'border:1px solid {P.card_border};')
         root.addWidget(self._ref_label)
@@ -101,7 +142,6 @@ class ChallengePage(QWidget):
         self._result.setFrameShape(QFrame.StyledPanel)
         rv = QVBoxLayout(self._result)
         self._result_title = QLabel('')
-        self._result_title.setStyleSheet('font-size:18px; font-weight:800;')
         self._result_title.setAlignment(Qt.AlignCenter)
         rv.addWidget(self._result_title)
         self._result_detail = QLabel('')
@@ -120,10 +160,74 @@ class ChallengePage(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
 
-        self._render_reference('')
+        self._reload_texts()
         self._refresh_recent()
         self.apply_theme()
 
+    # ---------- 文本库 ----------
+    def _reload_texts(self):
+        self._texts = list(TEXTS)
+        for row in self._repo.list_ai_texts():
+            self._texts.append({
+                'id': f'ai:{row["id"]}',
+                'name': f'AI · {row["topic"]}',
+                'lang': row['lang'],
+                'text': row['text'],
+            })
+        self._text_combo.blockSignals(True)
+        self._text_combo.clear()
+        for t in self._texts:
+            self._text_combo.addItem(t['name'], t['id'])
+        self._text_combo.blockSignals(False)
+        self._reset()
+
+    def _current_text(self) -> str:
+        tid = self._text_combo.currentData()
+        for t in self._texts:
+            if t['id'] == tid:
+                return t['text']
+        return self._texts[0]['text']
+
+    def _text_name(self, tid: str) -> str:
+        for t in self._texts:
+            if t['id'] == tid:
+                return t['name']
+        return tid
+
+    # ---------- AI 生成 ----------
+    def _ai_generate(self):
+        if self._gen_thread is not None and self._gen_thread.isRunning():
+            return
+        topic = self._topic_edit.text().strip()
+        if not topic:
+            self._ai_status.setText('请先输入主题 ✍️')
+            return
+        self._ai_btn.setEnabled(False)
+        self._ai_status.setText('生成中…（本地模型可能较慢）')
+        self._gen_thread = _GenThread(self._ai, topic,
+                                      self._lang_combo.currentData(), 260, self)
+        self._gen_thread.done.connect(self._ai_done)
+        self._gen_thread.start()
+
+    def _ai_done(self, ok, text, err):
+        self._ai_btn.setEnabled(True)
+        if not ok:
+            self._ai_status.setText(f'❌ {err}')
+            self._ai_status.setStyleSheet('color:#ef4444; font-size:11px;')
+            return
+        topic = self._topic_edit.text().strip()
+        lang = self._lang_combo.currentData()
+        self._repo.add_ai_text(lang, topic, text)
+        self._ai_status.setText(f'✅ 已生成并加入文本库：{topic}')
+        self._ai_status.setStyleSheet(f'color:{P.success}; font-size:11px;')
+        self._reload_texts()
+        # 选中刚生成的文本
+        for i, t in enumerate(self._texts):
+            if t['id'].startswith('ai:') and t['name'].endswith(topic):
+                self._text_combo.setCurrentIndex(i)
+                break
+
+    # ---------- 主题 ----------
     def apply_theme(self):
         self._ref_label.setStyleSheet(
             'font-size:17px; padding:12px;'
@@ -136,11 +240,10 @@ class ChallengePage(QWidget):
         self._hint_label.setStyleSheet(f'color:{P.faint}; font-size:11px;')
         self._result_detail.setStyleSheet(f'color:{P.muted}; font-size:13px;')
         self._prog_label.setStyleSheet(f'color:{P.muted}; font-size:13px;')
+        if self._ai is not None:
+            self._ai_status.setStyleSheet(f'color:{P.faint}; font-size:11px;')
 
     # ---------- 流程 ----------
-    def _current_text(self) -> str:
-        return TEXT_BY_ID[self._text_combo.currentData()]['text']
-
     def _start(self):
         self._reset()
         self._running = True
@@ -197,7 +300,7 @@ class ChallengePage(QWidget):
         s['elapsed_seconds'] = self._elapsed
         r = self._svc.record(self._text_combo.currentData(), s, self._balance)
 
-        name = TEXT_BY_ID[self._text_combo.currentData()]['name']
+        name = self._text_name(self._text_combo.currentData())
         if r['is_best']:
             self._result_title.setText('🎉 新纪录！')
             self._result_title.setStyleSheet(
@@ -224,7 +327,7 @@ class ChallengePage(QWidget):
                 if inp[i] == ch:
                     style = f'color:{P.success};'
                 else:
-                    style = f'color:#ef4444; text-decoration:underline;'
+                    style = 'color:#ef4444; text-decoration:underline;'
             else:
                 style = f'color:{P.muted};'
             parts.append(f'<span style="{style}">{html.escape(ch)}</span>')
@@ -237,9 +340,8 @@ class ChallengePage(QWidget):
             return
         lines = []
         for r in rows:
-            name = TEXT_BY_ID.get(r['text_id'], {}).get('name', r['text_id'])
             mark = ' 👑' if r['best'] else ''
             lines.append(
-                f'{name} · {r["elapsed_seconds"]:.1f}s · {r["tw"]:.0f} tw · '
-                f'{r["accuracy"] * 100:.0f}%{mark}')
+                f'{self._text_name(r["text_id"])} · {r["elapsed_seconds"]:.1f}s · '
+                f'{r["tw"]:.0f} tw · {r["accuracy"] * 100:.0f}%{mark}')
         self._recent_label.setText('🕘 近期挑战：' + '　|　'.join(lines))

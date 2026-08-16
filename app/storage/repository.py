@@ -198,6 +198,23 @@ class Repository:
             (n,)).fetchall()
         return [dict(r) for r in rows]
 
+    # ---------- AI 生成范文（0.8） ----------
+    def add_ai_text(self, lang, topic, text) -> int:
+        cur = self._conn.execute(
+            'INSERT INTO ai_texts(created_at,lang,topic,text) VALUES(?,?,?,?)',
+            (datetime.now().isoformat(timespec='seconds'), lang, topic, text))
+        self._conn.commit()
+        return cur.lastrowid
+
+    def list_ai_texts(self):
+        rows = self._conn.execute(
+            'SELECT * FROM ai_texts ORDER BY id DESC').fetchall()
+        return [dict(r) for r in rows]
+
+    def delete_ai_text(self, text_id) -> None:
+        self._conn.execute('DELETE FROM ai_texts WHERE id=?', (text_id,))
+        self._conn.commit()
+
     # ---------- 报表查询（M2） ----------
     def get_daily_range(self, start, end):
         rows = self._conn.execute(

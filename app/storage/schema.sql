@@ -76,3 +76,12 @@ CREATE TABLE IF NOT EXISTS challenge_history (
   accuracy       REAL NOT NULL DEFAULT 0,
   best           INTEGER NOT NULL DEFAULT 0
 );
+
+-- AI 生成的范文（0.8，本地持久化，重启可用）
+CREATE TABLE IF NOT EXISTS ai_texts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL,
+  lang       TEXT NOT NULL,
+  topic      TEXT NOT NULL,
+  text       TEXT NOT NULL
+);

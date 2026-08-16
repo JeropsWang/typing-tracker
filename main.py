@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 from app import __version__
 from app.core.engine import StatsEngine
 from app.services.achievement_service import AchievementService
+from app.services.ai_service import AIService
 from app.services.challenge_service import ChallengeService
 from app.services.checkin_service import CheckinService
 from app.services.encourage_service import EncourageService
@@ -59,6 +60,10 @@ def ensure_default_settings(repo, balance) -> None:
         'signature': '键盘上的舞者 ✨',
         'avatar_emoji': '🐱',
         'active_title': '',
+        'ai_backend': 'off',
+        'ai_base_url': '',
+        'ai_api_key': '',
+        'ai_model': '',
     }
     for k, v in defaults.items():
         if repo.get_setting(k) is None:
@@ -122,7 +127,8 @@ def main() -> int:
                         achievements=achievements,
                         theme_manager=ThemeManager(
                             app, data_dir, get_setting, repo.set_setting),
-                        challenge=ChallengeService(repo))
+                        challenge=ChallengeService(repo),
+                        ai_service=AIService(repo))
     theme_manager = window._theme_mgr
     theme_manager.register_reports(window._reports)
     theme_manager.register_window(window)

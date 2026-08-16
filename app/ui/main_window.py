@@ -50,7 +50,7 @@ def current_streak(repo, day_iso) -> int:
 class MainWindow(QMainWindow):
     def __init__(self, engine, repo, balance, tray=None,
                  checkin=None, rewards=None, achievements=None,
-                 theme_manager=None, challenge=None):
+                 theme_manager=None, challenge=None, ai_service=None):
         super().__init__()
         self._engine = engine
         self._repo = repo
@@ -96,7 +96,8 @@ class MainWindow(QMainWindow):
             self._tabs.addTab(self._profile_page, '个人中心')
             self._tabs.setTabIcon(4, svg_icon('user', '#94A3B8'))
         if challenge is not None:
-            self._challenge_page = ChallengePage(repo, balance, challenge)
+            self._challenge_page = ChallengePage(repo, balance, challenge,
+                                                 ai_service=ai_service)
             self._tabs.addTab(self._challenge_page, '竞速')
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._tabs.currentChanged.connect(self._on_tab_changed)

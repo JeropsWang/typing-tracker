@@ -43,3 +43,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
               accuracy        REAL NOT NULL DEFAULT 0,
               best            INTEGER NOT NULL DEFAULT 0
             );""")
+    if 'ai_texts' not in tables:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS ai_texts (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              created_at TEXT NOT NULL,
+              lang       TEXT NOT NULL,
+              topic      TEXT NOT NULL,
+              text       TEXT NOT NULL
+            );""")
