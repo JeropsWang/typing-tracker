@@ -11,6 +11,7 @@ dist/
 .exetmp*/
 .e2e*/
 .demo/
+.ssh_tmp/
 
 # Python
 __pycache__/
