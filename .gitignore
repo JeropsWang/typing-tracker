@@ -10,11 +10,22 @@ dist/
 .shots/
 .exetmp*/
 .e2e*/
+.demo/
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
+
+# 运行时数据（本地生成，不入库）
+*.db
+*.db-shm
+*.db-wal
+app.lock
+avatars/
+
+# 本地日志
+*.log
 
 # 参考素材（下载失败的占位）
 docs/reference/qss/*.qss

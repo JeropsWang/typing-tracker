@@ -1,5 +1,49 @@
 # 打字管家（TypingTracker）更新日志
 
+## 0.8.9 (2026-08) —— 深度审查修复（三轮，29 项）
+**核心统计正确性**
+- 修复等级公式 off-by-one：42 exp 应升 Lv.2（曾全员低一级、满级/AI 解锁门槛错位）
+- 修复分钟数据欠计 ~90%：`_min_flushed` 冻结首轮数据，min_acc 成就不可达成、
+  时段报表失真——改为每轮全量 upsert + 分钟跨 flush 累计回归断言
+- 修复日切（凌晨 4 点）竞态丢键：flush + reset 原子化（单次锁持有）
+- 修复 `_mark_minute` 日期归属：日切轮询前新分钟键与旧日计数器错位；单次取时
+- 打字经验每日上限持久化（重启不再绕过）；minute_stats 30 天滚动清理
+
+**IME / TSF 中文精确计数**
+- 修复 TSF 路径新词首字母双计（中文模式字母键等 TSF 提交，不再当普通键计）
+- 修复 IMM 结果串停顿 >1s 二次提交（`_last_result` 状态机重写，含同内容二次提交回归）
+- 修复 TSF 拼音增长误判上屏（组字中且互为前缀不读 final）
+- 修复 TSF COM 引用泄漏（每 150ms 2-3 个 → 轮询接口 Release）、OnSetFocus 悬垂
+  指针（引用移交）、stop 补齐 UnadviseSink/Deactivate/释放 ctx
+- 修复代理对切分（扩展 B 汉字/emoji 不再被拆成孤立字符）
+- 修复 `_modifiers_held` 被 StickyKeys 闩住丢键（改内存 down/up 状态机）
+- 修复 `_poll_loop` 绕过排除程序、TSF 接入后 IMM 轮询双计
+- ctypes 签名修复：HOOKPROC/CallNextHookEx 改 c_ssize_t（x64 LRESULT 截断）
+
+**挑战 / 业务**
+- 修复挑战粘贴刷分 176 倍：completion 封顶 1.0 + 正确率分母 max + 挑战中禁粘贴
+- 修复挑战经验上限按真实日历日重置（00:00-04:00 双倍窗口）→ 按应用日
+- 修复鼓励奖励"exp"死库存（直接入账）；补签卡限昨天 + 里程碑补发 + 先补后扣
+- 成就累计值即时判定（flush 时，不再等日切）+ 先发奖后标记
+- AI endpoint 重复拼接、Ollama 错误提示友好化、训练券生成前预检、exp_boost 不缩短
+
+**安全**
+- 修复主题导入 Zip Slip 路径穿越 + 主题 id 白名单校验
+- 修复备份导出泄露 API Key 明文（脱敏为 ***）
+
+**UI**
+- 清除残留 QGraphicsEffect（Hero 卡投影、成就锁图标灰度）——窗口偏移彻底根治
+- 修复 `{{arrow}}` 下拉箭头占位符被 QSS 渲染器先吞（三个主题箭头恢复）
+- 修复成就页每次刷新泄漏整棵控件树；1s refresh 隐藏守卫（托盘驻留零查询）
+- 修复 palette faint 键名（主题定义的 faint 曾失效）+ 浅色对比度兜底
+- 修复 chips 卡片 QSS 选择器不匹配（QWidget 上写 QFrame 规则不生效）
+- 修复设置取消不还原主题预览、启动成就 toast 被吞（show 后补发）
+- 30fps 定时器（星空/等级条）托盘隐藏时暂停；count_ai_passes 改 SQL 聚合
+
+## 0.8.8 (2026-08)
+- 修复 v0.8.7 启动崩溃：PySide6 的 QIcon 不接受 pixmap 列表构造
+  （tray_icon 逐个 addPixmap）——打卡已写但进程退出的问题根除
+
 ## 0.8.7 (2026-08)
 - **应用图标（exe/任务栏/托盘）**：程序化绘制"深紫星空 + 金色打字之星 +
   白色输入光标 + 星尘聚光"（呼应梨诺主题），多尺寸 ICO（16~256px，PNG 内嵌），
