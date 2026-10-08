@@ -8,11 +8,37 @@ from __future__ import annotations
 
 import json
 import urllib.request
+import urllib.error
+from .ai_protocol import TokenUsage, chat_payload, thinking_enabled, usage_text
+from .ai_response import read_chat_response
 
 DEFAULTS = {
     'openai': {'base_url': 'https://api.openai.com/v1', 'model': 'gpt-4o-mini'},
     'ollama': {'base_url': 'http://127.0.0.1:11434/v1', 'model': 'llama3.2'},
 }
+
+
+def _completion_text(data) -> str:
+    """只接收完整正文；思考内容不能作为范文或英语训练材料。"""
+    choices = data.get('choices') if isinstance(data, dict) else None
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise ValueError('AI 服务返回格式不正确：缺少生成结果')
+    choice = choices[0]
+    message = choice.get('message')
+    if not isinstance(message, dict):
+        raise ValueError('AI 服务返回格式不正确：缺少正文消息')
+    text = message.get('content')
+    if text is None:
+        text = ''
+    if not isinstance(text, str):
+        raise ValueError('AI 服务返回格式不正确：正文不是文本')
+    if choice.get('finish_reason') == 'length':
+        raise ValueError('生成达到输出上限，正文未完成；请关闭模型思考模式或缩短练习内容')
+    if not text.strip():
+        if message.get('reasoning_content'):
+            raise ValueError('模型只返回了思考内容，没有正文；请关闭模型思考模式后重试')
+        raise ValueError('AI 服务未返回正文，请检查模型配置后重试')
+    return text
 
 
 class AIService:
@@ -22,6 +48,7 @@ class AIService:
             raise ValueError('AIService 需要仓储或配置快照')
         self._repo = repo
         self._config = dict(config) if config is not None else None
+        self.last_usage = None
 
     def snapshot(self) -> AIService:
         """主线程在启动请求前捕获配置；后续设置变更只影响下一次请求。"""
@@ -36,6 +63,8 @@ class AIService:
             'base_url': self._repo.get_setting('ai_base_url', '') or '',
             'api_key': self._repo.get_setting('ai_api_key', '') or '',
             'model': self._repo.get_setting('ai_model', '') or '',
+            'thinking': self._repo.get_setting('ai_thinking', '0') or '0',
+            'thinking_protocol': self._repo.get_setting('ai_thinking_protocol', 'auto') or 'auto',
         }
 
     def enabled(self) -> bool:
@@ -69,17 +98,28 @@ class AIService:
 
     # ---------- 请求 ----------
     def _chat(self, messages, max_tokens=600, timeout=90) -> str:
-        body = json.dumps({
-            'model': self._model(),
-            'messages': messages,
-            'max_tokens': max_tokens,
-            'temperature': 0.8,
-        }).encode('utf-8')
-        req = urllib.request.Request(self._endpoint(), data=body,
+        self.last_usage = None
+        endpoint = self._endpoint()
+        model = self._model()
+        payload = chat_payload(self._cfg(), endpoint, model, messages, max_tokens)
+        body = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(endpoint, data=body,
                                      headers=self._headers(), method='POST')
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.loads(r.read().decode('utf-8'))
-        return data['choices'][0]['message']['content']
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                data = read_chat_response(r, self._capture_usage)
+        except urllib.error.HTTPError as error:
+            try:
+                self.last_usage = TokenUsage.from_response(json.loads(error.read(1_048_576).decode('utf-8')))
+            except (ValueError, OSError):
+                pass
+            raise
+        return _completion_text(data)
+
+    def _capture_usage(self, data):
+        usage = TokenUsage.from_response(data)
+        if usage is not None:
+            self.last_usage = usage
 
     def chat(self, messages, max_tokens=600, timeout=90):
         """供英语等独立模块复用网络协议；调用者负责输出结构校验。"""
@@ -104,18 +144,21 @@ class AIService:
 
     def test_connection(self):
         """连通性测试；返回 (成功, 消息)。"""
+        self.last_usage = None
         if not self.enabled():
             return False, 'AI 未启用（设置 → AI 配置）'
         try:
             reply = self._chat(
-                [{'role': 'user', 'content': 'ping'}],
-                max_tokens=8, timeout=20)
-            return True, f'连接成功（{self.backend_label()} · {self._model()}）：{reply.strip()[:40]}'
+                [{'role': 'user', 'content': '只回复 OK。'}],
+                max_tokens=64, timeout=90 if thinking_enabled(self._cfg()) else 20)
+            return True, (f'连接成功（{self.backend_label()} · {self._model()}）：{reply.strip()[:40]}\n'
+                          + usage_text(self.last_usage))
         except Exception as e:
-            return False, self._friendly_error(e)
+            return False, self._friendly_error(e) + '\n' + usage_text(self.last_usage)
 
     def generate(self, topic: str, lang: str = 'cn', length: int = 260):
         """生成一篇打字练习范文；返回 (成功, 文本或错误信息)。"""
+        self.last_usage = None
         if not self.enabled():
             return False, 'AI 未启用，请在设置中配置'
         if not topic.strip():

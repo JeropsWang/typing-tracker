@@ -8,12 +8,14 @@ from ...english.ai import EnglishAI
 class SentenceRequest(QObject):
     done = Signal(str, bool, object)
 
-    def __init__(self, ai_service, deck, words, topic, parent=None):
+    def __init__(self, ai_service, deck, words, topic, parent=None, *, test_mode=False):
         super().__init__(parent)
         self.id = uuid.uuid4().hex
         self.deck = deck
         self.words = tuple(words)
         self.topic = topic
+        self.test_mode = test_mode
+        self.usage = None
         self._generator = EnglishAI(ai_service)
         self._valid = True
         self._thread = None
@@ -31,6 +33,7 @@ class SentenceRequest(QObject):
             ok, result = self._generator.generate(self.words, self.topic)
         except Exception:
             ok, result = False, '生成失败，请检查 AI 服务或重试。'
+        self.usage = self._generator.service.last_usage
         if self._valid:
             try:
                 self.done.emit(self.id, ok, result)

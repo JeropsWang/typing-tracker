@@ -4,6 +4,7 @@ import re
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout, QWidget
 from ..widgets.training_workspace import PracticeInput
+from ..widgets.ai_usage import TokenUsageLabel
 from ..palette import P
 
 
@@ -83,6 +84,8 @@ class SentencePanel(QWidget):
         actions.addWidget(self.finish_button)
         actions.addStretch()
         layout.addLayout(actions)
+        self.usage_label = TokenUsageLabel()
+        layout.addWidget(self.usage_label)
         self.status = QLabel('生成后的材料会保留在本机，可随时再次跟打。')
         self.status.setWordWrap(True)
         self.status.setMinimumHeight(40)
@@ -151,6 +154,7 @@ class SentencePanel(QWidget):
             self.input.setFocus()
 
     def apply_theme(self):
+        self.usage_label.apply_theme()
         for button in (self.generate_button, self.start_button, self.finish_button):
             button.setStyleSheet('QPushButton {min-height:44px;max-height:44px;padding:0 18px;}')
         self.reference.setStyleSheet(f'QTextBrowser {{background:rgba(180,166,186,55);color:{P.paper_text};border:none;border-radius:12px;padding:8px;font:19px Georgia;}}')

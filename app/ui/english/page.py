@@ -16,9 +16,9 @@ class EnglishPage(PaperPage):
     running_changed = Signal(bool)
     settings_requested = Signal()
 
-    def __init__(self, repo, balance, ai_service, parent=None):
+    def __init__(self, repo, balance, ai_service, parent=None, *, test_session=None):
         super().__init__(parent)
-        self.service = EnglishService(repo)
+        self.service = EnglishService(repo, test_session=test_session)
         self._balance, self._ai_service = balance, ai_service
         self._mode = 'spelling'
         self._running = False
@@ -175,10 +175,13 @@ class EnglishPage(PaperPage):
             self.sentences.status.setText(reason)
             return
         self._reset_sentence()
-        request = SentenceRequest(self._ai_service, self.library.deck, self._targets, self.sentences.topic.text().strip(), self)
+        request = SentenceRequest(self._ai_service, self.library.deck, self._targets,
+                                  self.sentences.topic.text().strip(), self,
+                                  test_mode=self.service.test_session.enabled)
         request.done.connect(self._generated, Qt.QueuedConnection)
         self._request = request
         self.sentences.set_busy(True)
+        self.sentences.usage_label.begin_request()
         self.sentences.status.setText('正在生成；只有有效材料保存成功才会使用训练券。')
         request.start()
 
@@ -189,11 +192,13 @@ class EnglishPage(PaperPage):
             return
         self._request = None
         self.sentences.set_busy(False)
+        self.sentences.usage_label.set_usage(request.usage)
         try:
             if not ok:
                 self.sentences.status.setText(str(result))
                 return
-            self.service.save_generated(request.deck, request.topic, list(request.words), result, self._balance)
+            self.service.save_generated(request.deck, request.topic, list(request.words), result,
+                                        self._balance, test_mode=request.test_mode)
         except Exception as exc:
             self.sentences.status.setText(f'材料未保存，训练券未使用：{exc}')
             return
@@ -204,6 +209,7 @@ class EnglishPage(PaperPage):
 
     def _cancel_request(self):
         if self._request is not None:
+            self.sentences.usage_label.set_usage(self._request.usage)
             self._request.cancel()
             self._request.deleteLater()
             self._request = None
