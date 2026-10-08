@@ -14,6 +14,7 @@ class TrayIcon(QSystemTrayIcon):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # tray_icon() 内部：交付 PNG 优先，缺失/读不出时回退程序化绘制
         self.setIcon(tray_icon())
         self.setToolTip('打字管家')
 

@@ -34,6 +34,7 @@ def export_all(repo, out_dir) -> str:
         'achievements': repo.get_achievements(),
         'rewards': repo.list_rewards(),
         'checkins': repo.get_checkins('0000-01-01', '9999-12-31'),
+        'english': repo.english.export(),
     }
     (folder / 'data.json').write_text(
         json.dumps(bundle, ensure_ascii=False, indent=2), encoding='utf-8')

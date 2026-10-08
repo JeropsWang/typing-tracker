@@ -23,6 +23,9 @@ class CheckinPopup(QFrame):
     def __init__(self, parent, result: dict, balance: dict, accent: str = '#f59e0b',
                  dark: bool = True):
         super().__init__(parent)
+        self._motion_enabled = True
+        self._closing = False
+        self._target = None
         self._result = result
         self._balance = balance
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -129,6 +132,9 @@ class CheckinPopup(QFrame):
     # ---------- 动画 ----------
     def start_animation(self) -> None:
         target = self.pos()
+        self._target = target
+        if not self._motion_enabled:
+            return
         self.move(target.x(), target.y() + 24)
         self._anim.setStartValue(self.pos())
         self._anim.setEndValue(target)
@@ -172,7 +178,33 @@ class CheckinPopup(QFrame):
 
     # ---------- 关闭 ----------
     def _close(self) -> None:
+        self._closing = True
+        if not self._motion_enabled:
+            self.deleteLater()
+            return
+        self._anim.stop()
         self._anim.setStartValue(self.pos())
         self._anim.setEndValue(self.pos() + QPoint(0, 22))
         self._anim.finished.connect(self.deleteLater)
         self._anim.start()
+
+    def set_motion_enabled(self, enabled):
+        self._motion_enabled = bool(enabled)
+        if not enabled:
+            self._anim.stop()
+            self._count_timer.stop()
+            self._tick.stop()
+            self._particles.clear()
+            self._count = self._result['streak']
+            self._days_label.setText(str(self._count))
+            if self._closing:
+                self.deleteLater()
+            elif self._target is not None:
+                self.move(self._target)
+            self.update()
+        elif self.isVisible() and not self._closing:
+            self._tick.start(33)
+
+    def hideEvent(self, event):
+        self.set_motion_enabled(False)
+        super().hideEvent(event)

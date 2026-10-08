@@ -1,36 +1,57 @@
 {
   "id": "arknights_endfield_lino",
-  "name": "明日方舟：终末地 · 梨诺",
-  "version": "2.0.0",
+  "name": "萨莉安娜",
+  "version": "4.0.0",
   "author": "打字管家",
   "base": "dark",
   "colors": {
-    "primary": "#4FC3F7",
-    "accent": "#B39DDB",
-    "background": "#171233",
-    "card": "#241B4E",
-    "text": "#F1E9FF",
-    "muted": "#9C8FC9",
-    "border": "#3A2F6E",
-    "success": "#66BB6A",
-    "danger": "#EF5350",
-    "star": "#FFE9A8",
-    "stage": "#FF9ECF"
+    "primary": "#B4A8CA",
+    "on_primary": "#272532",
+    "accent": "#D79D96",
+    "background": "#232430",
+    "canvas": "#232430",
+    "card": "#2B2B3B",
+    "surface": "#2B2B3B",
+    "text": "#F2EBDF",
+    "surface_text": "#F2EBDF",
+    "muted": "#C5BDCD",
+    "surface_muted": "#C5BDCD",
+    "paper": "#EEE5D6",
+    "paper_text": "#34313E",
+    "paper_muted": "#625C68",
+    "border": "#8F879B",
+    "accent_rose": "#D79D96",
+    "accent_ochre": "#C4B78C",
+    "focus": "#D7BBEC",
+    "success_on_paper": "#346453",
+    "danger_on_paper": "#963F52",
+    "success": "#91D5AE",
+    "danger": "#FF9BAE",
+    "warn": "#F1D18A",
+    "star": "#F1D18A",
+    "stage": "#D79D96"
   },
-  "fonts": { "family": "Microsoft YaHei" },
-  "shell_bg": "qlineargradient(x1:0, y1:0, x2:0.6, y2:1, stop:0 #1A1240, stop:0.45 #241B52, stop:1 #160F33)",
+  "fonts": {
+    "family": "Microsoft YaHei UI"
+  },
+  "shell_bg": "#232430",
   "effects": {
     "dark": true,
     "background": "stars",
-    "accent": "#FF9ECF",
+    "backdrop": "background.png",
+    "character_motion": "sariana/idle.json",
+    "accent": "#B4A8CA",
     "levelbar": {
-      "colors": ["#4FC3F7", "#B39DDB", "#FF9ECF", "#FFE9A8"]
+      "colors": [
+        "#B4A8CA",
+        "#D79D96"
+      ]
     },
     "stars": {
       "enabled": true,
-      "color": "#FFE9A8",
-      "density": 0.0016,
-      "speed": 1.4,
+      "color": "#F1D18A",
+      "density": 4e-05,
+      "speed": 0.35,
       "sparkle": true
     }
   }

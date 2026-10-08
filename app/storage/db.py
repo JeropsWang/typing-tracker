@@ -20,6 +20,8 @@ def connect_db(db_path) -> sqlite3.Connection:
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
     _migrate(conn)
+    from ..english.repository import ensure_schema
+    ensure_schema(conn)
     conn.commit()
 
 

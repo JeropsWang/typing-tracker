@@ -1,9 +1,15 @@
 {
-  "background": "#171233",
-  "grid": "#3A2F6E",
-  "speed": "#4FC3F7",
-  "acc": "#66BB6A",
-  "chars": "#B39DDB",
-  "levels": ["#241B4E", "#3A2F6E", "#6B5BB5", "#4FC3F7", "#FFE9A8"],
-  "empty": "#241B4E"
+  "background": "#242037",
+  "grid": "#AFA5C4",
+  "speed": "#BBA5F3",
+  "acc": "#91D5AE",
+  "chars": "#E8A5C5",
+  "levels": [
+    "#302942",
+    "#46365F",
+    "#674C8D",
+    "#9475C0",
+    "#BBA5F3"
+  ],
+  "empty": "#242037"
 }

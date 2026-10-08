@@ -16,7 +16,12 @@ dist/
 # Python
 __pycache__/
 *.py[cod]
+*.py.tmpc
 .venv/
+
+# 本地设计、预览和交付记录
+.local/
+.superpowers/
 
 # 运行时数据（本地生成，不入库）
 *.db
@@ -24,6 +29,13 @@ __pycache__/
 *.db-wal
 app.lock
 avatars/
+# 内置 Sariana 素材属于应用资源；运行时上传头像仍忽略
+!app/ui/assets/avatars/
+!app/ui/assets/avatars/default.png
+!app/ui/assets/avatars/chibi.png
+!app/ui/assets/avatars/front.png
+!app/ui/assets/avatars/side.png
+!app/ui/assets/avatars/lino.png
 
 # 本地日志
 *.log

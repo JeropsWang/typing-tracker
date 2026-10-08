@@ -16,11 +16,21 @@ DEFAULTS = {
 
 
 class AIService:
-    def __init__(self, repo):
+    def __init__(self, repo=None, *, config=None):
+        """主线程从仓储读设置；工作线程使用独立配置快照，不持有数据库连接。"""
+        if repo is None and config is None:
+            raise ValueError('AIService 需要仓储或配置快照')
         self._repo = repo
+        self._config = dict(config) if config is not None else None
+
+    def snapshot(self) -> AIService:
+        """主线程在启动请求前捕获配置；后续设置变更只影响下一次请求。"""
+        return AIService(config=self._cfg())
 
     # ---------- 配置 ----------
     def _cfg(self):
+        if self._config is not None:
+            return dict(self._config)
         return {
             'backend': self._repo.get_setting('ai_backend', 'off') or 'off',
             'base_url': self._repo.get_setting('ai_base_url', '') or '',
@@ -70,6 +80,10 @@ class AIService:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode('utf-8'))
         return data['choices'][0]['message']['content']
+
+    def chat(self, messages, max_tokens=600, timeout=90):
+        """供英语等独立模块复用网络协议；调用者负责输出结构校验。"""
+        return self._chat(messages, max_tokens=max_tokens, timeout=timeout)
 
     # ---------- 功能 ----------
     def _friendly_error(self, e: Exception) -> str:
