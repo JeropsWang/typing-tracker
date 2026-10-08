@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from ..palette import P
 from .design import PaperSurface, asset_path, paper_texture
 from .responsive import StageLayout
+from .ai_usage import TokenUsageLabel
 
 
 class _WashPaper(PaperSurface):
@@ -151,6 +152,8 @@ class AIPassageComposer(QWidget):
         self.status_label.setTextFormat(Qt.PlainText)
         self.status_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self._topic_layout.addWidget(self.status_label)
+        self.usage_label = TokenUsageLabel()
+        self._topic_layout.addWidget(self.usage_label)
 
         self._options_layout = QVBoxLayout(self.options_paper)
         self._options_layout.setSpacing(12)
@@ -230,6 +233,7 @@ class AIPassageComposer(QWidget):
             self.set_compact(stage.compact)
 
     def apply_theme(self):
+        self.usage_label.apply_theme()
         ink = P.paper_text
         muted = P.paper_muted
         stage = self._stage or (StageLayout(900, 526) if self._compact else StageLayout(1440, 874))

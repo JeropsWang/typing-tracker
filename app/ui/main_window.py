@@ -23,6 +23,7 @@ from .pages.profile import ProfilePage
 from .pages.reports import ReportsPage
 from .english.page import EnglishPage
 from .settings_dialog import SettingsDialog
+from ..services.ai_access import AITestSession
 from .widgets.checkin_popup import CheckinPopup
 from .widgets.confetti import ConfettiOverlay
 from .widgets.design import (
@@ -74,6 +75,8 @@ class MainWindow(QMainWindow):
         self._tray = tray
         self._theme_mgr = theme_manager
         self._data_dir = data_dir
+        self._ai_service = ai_service
+        self._ai_session = AITestSession()
         self._effects = {}
         self._accent = '#60a5fa'
         self._dark = True
@@ -116,12 +119,12 @@ class MainWindow(QMainWindow):
             self._tabs.setTabIcon(4, svg_icon('user', '#94A3B8'))
         if challenge is not None:
             self._challenge_page = ChallengePage(repo, balance, challenge,
-                                                 ai_service=ai_service)
+                                                 ai_service=ai_service, test_session=self._ai_session)
             self._challenge_page.confetti_requested.connect(self.play_confetti)
             self._challenge_page.settings_requested.connect(lambda: self.open_settings(section='ai'))
             self._tabs.addTab(self._challenge_page, '竞速')
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
-        self._english_page = EnglishPage(repo, balance, ai_service)
+        self._english_page = EnglishPage(repo, balance, ai_service, test_session=self._ai_session)
         self._english_page.settings_requested.connect(lambda: self.open_settings(section='ai'))
         self._english_page.running_changed.connect(self._sync_motion)
         self._tabs.addTab(self._english_page, '英语')
@@ -531,7 +534,7 @@ class MainWindow(QMainWindow):
     def open_settings(self, checked=False, *, section=''):
         dlg = SettingsDialog(self._repo, self._balance, self,
                              theme_manager=self._theme_mgr,
-                             data_dir=self._data_dir)
+                             data_dir=self._data_dir, test_session=self._ai_session)
         if section == 'ai':
             dlg._sections.setCurrentRow(3)
         if dlg.exec():
@@ -540,7 +543,7 @@ class MainWindow(QMainWindow):
                 self._hook.set_excluded_apps(self.load_excluded_apps())
             if hasattr(self, '_profile_page'):
                 self._profile_page.refresh()
-            self.refresh()
+        self.refresh()
         self._sync_motion()
 
     def closeEvent(self, event):

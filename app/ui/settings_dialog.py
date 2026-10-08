@@ -26,6 +26,7 @@ from ..services.settings_service import SettingsService, validate_ai
 from .palette import P
 from .widgets import design as _design
 from .widgets.ai_connection import ConnectionTest
+from .widgets.ai_thinking_controls import AIThinkingControls
 from ..core.avatars import DEFAULT_AVATAR, normalize_avatar
 from .widgets.personal_settings import PersonalSettingsPanel
 from .widgets.avatar import AVATAR_NOTES
@@ -155,7 +156,7 @@ class _PaperFrame(QFrame):
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, repo, balance, parent=None, theme_manager=None, data_dir=None):
+    def __init__(self, repo, balance, parent=None, theme_manager=None, data_dir=None, test_session=None):
         super().__init__(parent)
         self.setWindowTitle('设置 · 星光伴学')
         from .widgets.window_policy import FixedWindowPolicy
@@ -169,6 +170,7 @@ class SettingsDialog(QDialog):
         self._avatar_action = None
         self._pending_deletions = set()
         self._test_job = None
+        self._test_session = test_session
         self._closed = False
         self._compact = None
         self._scale = scale_for(820, 640)
@@ -257,6 +259,8 @@ class SettingsDialog(QDialog):
 
         self._ai_backend.currentIndexChanged.connect(self._ai_placeholder)
         self._ai_url.textChanged.connect(self.check_ai_url)
+        self._ai_url.textChanged.connect(self._update_thinking_context)
+        self._ai_model.textChanged.connect(self._update_thinking_context)
 
         self._apply_metrics(force=True)
         self._refresh_style()
@@ -355,6 +359,11 @@ class SettingsDialog(QDialog):
         config.addWidget(self._key_field)
         self._ai_model = QLineEdit(self._repo.get_setting('ai_model', ''))
         config.addWidget(PaperField('模型名称', self._ai_model, '留空使用默认模型。'))
+        self._ai_thinking_controls = AIThinkingControls(
+            self._repo.get_setting('ai_thinking', '0'),
+            self._repo.get_setting('ai_thinking_protocol', 'auto'), self._test_session)
+        self._ai_thinking_controls.test_mode_changed.connect(self._ai_test_mode_changed)
+        config.addWidget(self._ai_thinking_controls)
         layout.addWidget(self._ai_config)
         self._test_btn = QPushButton('测试连接')
         self._test_btn.setProperty('buttonRole', 'secondary')
@@ -527,7 +536,7 @@ class SettingsDialog(QDialog):
         height = FIELD_HEIGHT_COMPACT if self._compact else FIELD_HEIGHT
         for control in (self._nick_edit, self._sig_edit, self._unit_edit, self._hour_spin,
                         self._avatar_combo, self._ai_backend, self._ai_url, self._ai_key,
-                        self._ai_model, self._theme_combo):
+                        self._ai_model, self._ai_thinking_controls.protocol, self._theme_combo):
             if control is not None:
                 self._pin_min_height(control, height - 20)
                 control.setFixedHeight(height)
@@ -604,6 +613,7 @@ class SettingsDialog(QDialog):
             f'QListWidget#settingsSections::item:focus {{ border: {FOCUS_WIDTH}px solid {focus}; }}')
 
     def _refresh_style(self):
+        self._ai_thinking_controls.apply_theme()
         paper_text = _readable(P.paper_text, P.paper)
         paper_muted = _readable(P.paper_muted, P.paper)
         # 配方（design-recipe.md §2 第 107 行 / §6.3 第 288、333 行）：设置表单输入是
@@ -723,9 +733,19 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
 
     def _ai_config_values(self):
         return dict(backend=self._ai_backend.currentData(), base_url=self._ai_url.text().strip(),
-                    api_key=self._ai_key.text().strip(), model=self._ai_model.text().strip())
+                    api_key=self._ai_key.text().strip(), model=self._ai_model.text().strip(),
+                    **self._ai_thinking_controls.values())
+
+    def _update_thinking_context(self, *_):
+        self._ai_thinking_controls.set_context(self._ai_config_values())
+
+    def _ai_test_mode_changed(self, enabled):
+        self._ai_feedback(True, '开发者彩蛋已开启：本次运行提前解锁 AI 测试，仍消耗 API token。'
+                          if enabled else '开发者彩蛋已关闭：恢复等级与训练券规则。')
+        QTimer.singleShot(0, self._reveal_ai_result)
 
     def _ai_placeholder(self):
+        self._update_thinking_context()
         backend = self._ai_backend.currentData()
         url, key = _AI_PLACEHOLDERS.get(backend, ('', ''))
         self._ai_url.setPlaceholderText(url)
@@ -785,6 +805,11 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
             self._ai_feedback(False, '配置已修改，请重新测试当前草稿。')
         else:
             self._ai_feedback(ok, message)
+        QTimer.singleShot(0, self._reveal_ai_result)
+
+    def _reveal_ai_result(self):
+        if not self._closed and self._pages.currentIndex() == 3:
+            self._pages.currentWidget().ensureWidgetVisible(self._ai_result, 0, 12)
 
     def _set_result(self, ok, message):
         self._ai_result.setText(message)

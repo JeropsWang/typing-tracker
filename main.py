@@ -65,6 +65,8 @@ def ensure_default_settings(repo, balance) -> None:
         'ai_base_url': '',
         'ai_api_key': '',
         'ai_model': '',
+        'ai_thinking': '0',
+        'ai_thinking_protocol': 'auto',
     }
     for k, v in defaults.items():
         if repo.get_setting(k) is None:

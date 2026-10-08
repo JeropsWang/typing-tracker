@@ -18,8 +18,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from ...core.challenge import TEXTS, ai_access_state, score
+from ...core.challenge import TEXTS, score
 from ...services.exp_service import level_and_progress
+from ...services.ai_access import AITestSession
 from ..palette import P
 from ..widgets.ai_passage_composer import AIPassageComposer
 from ..widgets.training_workspace import TrainingWorkspace
@@ -51,13 +52,15 @@ class _GenThread(QObject):
     done = Signal(bool, str, str)
     finished = Signal()
 
-    def __init__(self, ai_svc, topic, lang, length, parent=None):
+    def __init__(self, ai_svc, topic, lang, length, parent=None, *, test_mode=False):
         super().__init__(parent)
         # 构造发生在主线程：先读配置，run() 中的网络调用不再访问 SQLite。
         self._svc = ai_svc.snapshot()
         self._topic = topic
         self._lang = lang
         self._length = length
+        self.test_mode = test_mode
+        self.usage = None
         self._thread = None
 
     def start(self):
@@ -73,6 +76,7 @@ class _GenThread(QObject):
             ok, res = self._svc.generate(self._topic, self._lang, self._length)
         except Exception as e:
             ok, res = False, str(e)
+        self.usage = self._svc.last_usage
         try:
             self.done.emit(ok, res if ok else '', '' if ok else res)
             self.finished.emit()
@@ -85,12 +89,13 @@ class ChallengePage(QWidget):
     confetti_requested = Signal(int)    # 彩带庆祝（1=金色 2=多彩）
     settings_requested = Signal()
 
-    def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None):
+    def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None, *, test_session=None):
         super().__init__(parent)
         self._repo = repo
         self._balance = balance
         self._svc = challenge_svc
         self._ai = ai_service
+        self._ai_session = test_session or AITestSession()
         self._running = False
         self._start_ts = 0.0
         self._elapsed = 0.0
@@ -455,7 +460,7 @@ class ChallengePage(QWidget):
         level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
         passes = self._repo.count_ai_passes()
         unlock = self._balance.get('ai', {}).get('unlock_level', 45)
-        allowed, hint = ai_access_state(level, passes, unlock)
+        allowed, hint = self._ai_session.access(level, passes, unlock)
         self._ai_btn.setEnabled(allowed)
         self._topic_edit.setEnabled(allowed)
         self._ai_access_label.setText(hint)
@@ -472,7 +477,7 @@ class ChallengePage(QWidget):
         # 被丢弃（v0.8.9 修复）
         level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
         unlock = self._balance.get('ai', {}).get('unlock_level', 45)
-        if level < unlock and self._repo.count_ai_passes() <= 0:
+        if level < unlock and not self._ai_session.enabled and self._repo.count_ai_passes() <= 0:
             self._ai_composer.set_status('AI 训练券不足（速度跃升可获得训练券）', 'error')
             return
         self._generation = (topic, self._lang_combo.currentData())
@@ -480,8 +485,10 @@ class ChallengePage(QWidget):
         self._topic_edit.setEnabled(False)
         self._lang_combo.setEnabled(False)
         self._ai_composer.set_status('生成中…（本地模型可能较慢）')
+        self._ai_composer.usage_label.begin_request()
         self._gen_thread = _GenThread(self._ai, topic,
-                                      self._lang_combo.currentData(), 260, self)
+                                      self._lang_combo.currentData(), 260, self,
+                                      test_mode=self._ai_session.enabled)
         self._gen_thread.done.connect(self._ai_done)
         self._gen_thread.finished.connect(self._generation_finished)
         self._gen_thread.start()
@@ -496,13 +503,16 @@ class ChallengePage(QWidget):
         self.update_ai_access()
 
     def _ai_done(self, ok, text, err):
+        request = self._gen_thread
+        self._ai_composer.usage_label.set_usage(request.usage if request is not None else None)
         if not ok:
             self._ai_composer.set_status(f'生成失败：{err}', 'error')
             return
         # 未满 45 级时消耗 AI 训练券（满级后无限生成）
         level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
         unlock = self._balance.get('ai', {}).get('unlock_level', 45)
-        if level < unlock and not self._repo.use_reward('ai_pass'):
+        test_mode = bool(request and request.test_mode)
+        if level < unlock and not test_mode and not self._repo.use_reward('ai_pass'):
             self._ai_composer.set_status('训练券不足，无法生成', 'error')
             return
         topic, lang = self._generation
