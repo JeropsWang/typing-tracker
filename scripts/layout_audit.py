@@ -1,6 +1,6 @@
 """布局体检：离屏构造主窗口，自动检测几何问题（重叠/越界/文本溢出）。
 
-用法：python scripts/layout_audit.py [--theme 默认浅色|默认深色|梨诺]
+用法：python scripts/layout_audit.py [--theme arknights_endfield_lino]
 输出问题清单，作为 UI 回归检查（selftest 可调用核心函数）。
 """
 from __future__ import annotations
@@ -12,6 +12,8 @@ import uuid
 from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+from ui_test_support import prepare_fonts, load_fonts
+prepare_fonts()
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -97,6 +99,7 @@ def audit_window(win: MainWindow, label: str) -> list:
 
 def main() -> int:
     app = QApplication([])
+    load_fonts()
     tmp = ROOT / '.tmptest'
     tmp.mkdir(exist_ok=True)
     td = tmp / ('tt_' + uuid.uuid4().hex)

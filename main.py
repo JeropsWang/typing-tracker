@@ -28,6 +28,7 @@ from app.services.reward_service import RewardService
 from app.storage.db import connect_db, init_schema
 from app.storage.repository import Repository
 from app.theme.theme_manager import ThemeManager
+from app.ui.assets.app_icon import app_icon
 from app.ui.main_window import MainWindow
 from app.ui.tray import TrayIcon
 
@@ -70,14 +71,26 @@ def ensure_default_settings(repo, balance) -> None:
             repo.set_setting(k, v)
 
 
+def apply_window_icon(app: QApplication) -> None:
+    """窗口 / 任务栏图标：交付 PNG 优先，缺失时回退程序化绘制，绝不抛异常。"""
+    try:
+        icon = app_icon()
+    except Exception as e:  # 资源缺失或 Qt 异常都不该拦住启动
+        print(f'[图标] 加载失败，沿用 Qt 默认图标：{e}')
+        return
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog='typing-tracker')
     parser.add_argument('--data-dir', default=str(DEFAULT_DATA_DIR),
-                        help='数据目录（默认 %APPDATA%/TypingTracker）')
+                        help='数据目录（默认 %%APPDATA%%/TypingTracker）')
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    apply_window_icon(app)
     app.setQuitOnLastWindowClosed(False)  # 关窗不退出，驻留托盘
 
     data_dir = Path(args.data_dir)

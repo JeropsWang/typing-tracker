@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1487" height="1058" viewBox="0 0 1487 1058">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path id="left-loose" d="M 1024 136 C 1008 173 1018 211 995 244 C 985 261 977 272 982 290"
+      stroke="#71616D" stroke-width="1.05" stroke-opacity="0.48" data-sway="2.3" data-period="8.6" data-phase="0.3"/>
+    <path id="left-light" d="M 1039 171 C 1034 205 1050 231 1020 266 C 1002 288 999 315 1000 335"
+      stroke="#C2B3AE" stroke-width="0.8" stroke-opacity="0.38" data-sway="2.1" data-period="9.2" data-phase="0.65"/>
+    <path id="left-edge" d="M 1000 154 C 974 187 987 224 969 256 C 957 278 962 309 932 334"
+      stroke="#8F7C85" stroke-width="0.85" stroke-opacity="0.43" data-sway="2.7" data-period="8.0" data-phase="0.05"/>
+    <path id="right-loose" d="M 1374 142 C 1396 191 1417 239 1420 283 C 1425 314 1410 342 1420 374 C 1424 397 1440 416 1434 452"
+      stroke="#766370" stroke-width="1.0" stroke-opacity="0.48" data-sway="2.5" data-period="8.3" data-phase="1.15"/>
+    <path id="right-light" d="M 1381 167 C 1397 205 1399 243 1407 278 C 1413 316 1399 345 1404 371 C 1410 388 1423 404 1418 429"
+      stroke="#C2B3AE" stroke-width="0.8" stroke-opacity="0.38" data-sway="2.2" data-period="9.1" data-phase="1.55"/>
+    <path id="right-edge" d="M 1422 218 C 1438 250 1442 290 1439 324 C 1436 352 1448 383 1453 414"
+      stroke="#8F7C85" stroke-width="0.85" stroke-opacity="0.42" data-sway="2.8" data-period="7.9" data-phase="1.0"/>
+  </g>
+</svg>

@@ -1,0 +1,385 @@
+{
+  "version": 1,
+  "config_sha256": "043db2e285715e8ceea4daeba8ecd4ccd21ee77a3b6eebfe3744042ff6e31688",
+  "strategy": "ui-only-override-preserve-config-emoji",
+  "fallback": "config.icon",
+  "category_counts": {
+    "speed": 12,
+    "chars": 8,
+    "min_acc": 9,
+    "total_acc": 8
+  },
+  "items": {
+    "speed_50": {
+      "category": "speed",
+      "ordinal_in_category": 1,
+      "name": "初窥门径",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_100": {
+      "category": "speed",
+      "ordinal_in_category": 2,
+      "name": "渐入佳境",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_150": {
+      "category": "speed",
+      "ordinal_in_category": 3,
+      "name": "轻车熟路",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_200": {
+      "category": "speed",
+      "ordinal_in_category": 4,
+      "name": "快人一步",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_250": {
+      "category": "speed",
+      "ordinal_in_category": 5,
+      "name": "手随心动",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_300": {
+      "category": "speed",
+      "ordinal_in_category": 6,
+      "name": "指尖疾风",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_350": {
+      "category": "speed",
+      "ordinal_in_category": 7,
+      "name": "电光石火",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_400": {
+      "category": "speed",
+      "ordinal_in_category": 8,
+      "name": "疾如闪电",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_500": {
+      "category": "speed",
+      "ordinal_in_category": 9,
+      "name": "风驰电掣",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_600": {
+      "category": "speed",
+      "ordinal_in_category": 10,
+      "name": "追风逐电",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_800": {
+      "category": "speed",
+      "ordinal_in_category": 11,
+      "name": "一瞬千击",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "speed_1000": {
+      "category": "speed",
+      "ordinal_in_category": 12,
+      "name": "键舞飞仙",
+      "states": {
+        "locked": "assets/achievements/speed-locked.svg",
+        "unlocked": "assets/achievements/speed-unlocked.svg",
+        "claimed": "assets/achievements/speed-claimed.svg"
+      }
+    },
+    "chars_10k": {
+      "category": "chars",
+      "ordinal_in_category": 1,
+      "name": "万字初成",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_50k": {
+      "category": "chars",
+      "ordinal_in_category": 2,
+      "name": "五万小成",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_100k": {
+      "category": "chars",
+      "ordinal_in_category": 3,
+      "name": "十万征程",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_500k": {
+      "category": "chars",
+      "ordinal_in_category": 4,
+      "name": "半百之巅",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_1m": {
+      "category": "chars",
+      "ordinal_in_category": 5,
+      "name": "百万雄师",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_3m": {
+      "category": "chars",
+      "ordinal_in_category": 6,
+      "name": "三百万里",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_5m": {
+      "category": "chars",
+      "ordinal_in_category": 7,
+      "name": "五百万言",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "chars_10m": {
+      "category": "chars",
+      "ordinal_in_category": 8,
+      "name": "千万铸就",
+      "states": {
+        "locked": "assets/achievements/chars-locked.svg",
+        "unlocked": "assets/achievements/chars-unlocked.svg",
+        "claimed": "assets/achievements/chars-claimed.svg"
+      }
+    },
+    "min_acc_85": {
+      "category": "min_acc",
+      "ordinal_in_category": 1,
+      "name": "稳扎稳打",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_88": {
+      "category": "min_acc",
+      "ordinal_in_category": 2,
+      "name": "精准之基",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_90": {
+      "category": "min_acc",
+      "ordinal_in_category": 3,
+      "name": "十拿九稳",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_92": {
+      "category": "min_acc",
+      "ordinal_in_category": 4,
+      "name": "精益求精",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_94": {
+      "category": "min_acc",
+      "ordinal_in_category": 5,
+      "name": "明察秋毫",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_96": {
+      "category": "min_acc",
+      "ordinal_in_category": 6,
+      "name": "百不失一",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_98": {
+      "category": "min_acc",
+      "ordinal_in_category": 7,
+      "name": "近乎完美",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_99": {
+      "category": "min_acc",
+      "ordinal_in_category": 8,
+      "name": "登峰造极",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "min_acc_995": {
+      "category": "min_acc",
+      "ordinal_in_category": 9,
+      "name": "完美无瑕",
+      "states": {
+        "locked": "assets/achievements/min_acc-locked.svg",
+        "unlocked": "assets/achievements/min_acc-unlocked.svg",
+        "claimed": "assets/achievements/min_acc-claimed.svg"
+      }
+    },
+    "total_acc_80": {
+      "category": "total_acc",
+      "ordinal_in_category": 1,
+      "name": "基础扎实",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_85": {
+      "category": "total_acc",
+      "ordinal_in_category": 2,
+      "name": "稳健如山",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_88": {
+      "category": "total_acc",
+      "ordinal_in_category": 3,
+      "name": "行云流水",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_90": {
+      "category": "total_acc",
+      "ordinal_in_category": 4,
+      "name": "字字珠玑",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_92": {
+      "category": "total_acc",
+      "ordinal_in_category": 5,
+      "name": "心手合一",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_95": {
+      "category": "total_acc",
+      "ordinal_in_category": 6,
+      "name": "弹无虚发",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_97": {
+      "category": "total_acc",
+      "ordinal_in_category": 7,
+      "name": "炉火纯青",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    },
+    "total_acc_99": {
+      "category": "total_acc",
+      "ordinal_in_category": 8,
+      "name": "万无一失",
+      "states": {
+        "locked": "assets/achievements/total_acc-locked.svg",
+        "unlocked": "assets/achievements/total_acc-unlocked.svg",
+        "claimed": "assets/achievements/total_acc-claimed.svg"
+      }
+    }
+  },
+  "count": 37
+}

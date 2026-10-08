@@ -1,6 +1,10 @@
-"""自定义标题栏：无边框窗口的渐变标题层 + 拖动 + 最小化/最大化/关闭。
+"""固定窗口标题栏：拖动、最小化与关闭，不开放最大化。
 
 主题联动：apply_theme() 由主窗口在主题切换时调用。
+
+去硬边（配方 `render_design.py` 第 108 行）：设计稿的标题栏是**与画布同色的平铺色块**
+（`box(p, [0,0,width,42], '#232430', 0)`，圆角 0、无描边）。旧实现画了一条
+`border-bottom: 1px solid`，深色主题下就是那条“碍眼的黑色边框”，已去掉。
 """
 from __future__ import annotations
 
@@ -18,6 +22,7 @@ class TitleBar(QFrame):
         self._window = window
         self._drag_offset = None
         self.setObjectName('titleBar')
+        # 配方第 108 行：标题栏高 42，与 spec.json 的 titlebarHeight 一致
         self.setFixedHeight(42)
         self.setMouseTracking(True)
 
@@ -32,12 +37,9 @@ class TitleBar(QFrame):
 
         self._btn_min = self._ctrl_btn('min', '最小化')
         self._btn_min.clicked.connect(self._window.showMinimized)
-        self._btn_max = self._ctrl_btn('max', '最大化')
-        self._btn_max.clicked.connect(self._toggle_max)
         self._btn_close = self._ctrl_btn('close', '关闭')
         self._btn_close.clicked.connect(self._window.close)
         lay.addWidget(self._btn_min)
-        lay.addWidget(self._btn_max)
         lay.addWidget(self._btn_close)
 
         self.apply_theme()
@@ -45,29 +47,18 @@ class TitleBar(QFrame):
     # ---------- 控制按钮 ----------
     def _ctrl_btn(self, icon_name: str, tip: str) -> QPushButton:
         btn = QPushButton(self)
-        btn.setIcon(svg_icon(icon_name, '#94A3B8', 14))
+        btn.setIcon(svg_icon(icon_name, P.surface_muted, 14))
         btn.setFixedSize(34, 30)
         btn.setToolTip(tip)
+        btn.setAccessibleName(tip)
         btn.setCursor(Qt.PointingHandCursor)
         btn.setStyleSheet(
             'QPushButton { background: transparent; border: none; border-radius: 7px; }'
             'QPushButton:hover { background: rgba(255,255,255,40); }')
         return btn
 
-    def _toggle_max(self):
-        if self._window.isMaximized():
-            self._window.showNormal()
-        else:
-            self._window.showMaximized()
-        self._update_max_icon()
-
-    def _update_max_icon(self):
-        name = 'restore' if self._window.isMaximized() else 'max'
-        color = '#CBD5E1' if P.dark else '#475569'
-        self._btn_max.setIcon(svg_icon(name, color, 14))
-
     def set_corner_radius(self, radius: int) -> None:
-        """窗口最大化时置 0，普通状态跟随壳层圆角。"""
+        """标题栏圆角与固定窗口的壳层一致。"""
         if radius != getattr(self, '_corner_radius', None):
             self._corner_radius = radius
             self.apply_theme()
@@ -76,29 +67,29 @@ class TitleBar(QFrame):
     def apply_theme(self):
         radius = getattr(self, '_corner_radius', 16)
         if P.dark:
-            bg = ('qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-                  ' stop:0 rgba(30,41,59,235), stop:1 rgba(46,36,99,235))')
-            title_color = '#E2E8F0'
-            icon_color = '#CBD5E1'
+            # 夜色手稿：标题栏与画布**完全同色**，无描边（配方第 108 行）
+            bg = P.canvas
+            title_color = P.surface_muted
+            icon_color = P.surface_muted
             hover = 'rgba(255,255,255,40)'
         else:
-            bg = ('qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-                  ' stop:0 rgba(255,255,255,242), stop:1 rgba(238,242,255,242))')
-            title_color = '#111827'
-            icon_color = '#475569'
-            hover = 'rgba(99,102,241,30)'
+            # 浅色主题同样去掉分隔线：用与画布同色的平铺底，保留圆角
+            bg = P.canvas
+            title_color = P.text
+            icon_color = P.muted
+            hover = 'rgba(0,0,0,18)'
+        # 关键：不再有 border-bottom（旧实现 `border-bottom: 1px solid {border}`
+        # 就是深色主题下那条碍眼的黑边）
         self.setStyleSheet(
-            f'QFrame#titleBar {{ background: {bg};'
-            f' border-bottom: 1px solid {"#334155" if P.dark else "#E5E7EB"};'
+            f'QFrame#titleBar {{ background: {bg}; border: none;'
             f' border-top-left-radius: {radius}px;'
             f' border-top-right-radius: {radius}px; }}')
         self._title_label.setStyleSheet(
-            f'font-size:13px; font-weight:700; color:{title_color};')
+            f'font-size:13px; font-weight:600; color:{title_color};')
         self._btn_min.setIcon(svg_icon('min', icon_color, 14))
-        self._btn_max.setIcon(svg_icon('max', icon_color, 14))
         self._btn_close.setIcon(svg_icon('close', icon_color, 14))
         close_hover = ('rgba(239,68,68,200)' if P.dark else 'rgba(239,68,68,230)')
-        for btn in (self._btn_min, self._btn_max):
+        for btn in (self._btn_min,):
             btn.setStyleSheet(
                 f'QPushButton {{ background: transparent; border: none;'
                 f' border-radius: 7px; }}'
@@ -128,4 +119,6 @@ class TitleBar(QFrame):
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
         if event.button() == Qt.LeftButton:
-            self._toggle_max()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)

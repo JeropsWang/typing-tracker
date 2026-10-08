@@ -9,6 +9,11 @@ class Repository:
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
 
+    @property
+    def english(self):
+        from ..english.repository import EnglishRepository
+        return EnglishRepository(self._conn)
+
     # ---------- settings ----------
     def get_setting(self, key, default=None):
         row = self._conn.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
@@ -22,6 +27,14 @@ class Repository:
         self._conn.commit()
 
     # ---------- lifetime ----------
+    def set_settings(self, values: dict) -> None:
+        """同一次设置提交原子写入，失败时保留原值。"""
+        with self._conn:
+            self._conn.executemany(
+                'INSERT INTO settings(key,value) VALUES(?,?) '
+                'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                [(key, str(value)) for key, value in values.items()])
+
     def get_lifetime(self):
         row = self._conn.execute('SELECT * FROM lifetime WHERE id=1').fetchone()
         return dict(row) if row else None
@@ -80,6 +93,12 @@ class Repository:
         return [dict(r) for r in rows]
 
     # ---------- minute ----------
+    def get_minutes(self, date):
+        """读取指定应用日的分钟快照，供启动恢复和同分钟续写使用。"""
+        rows = self._conn.execute(
+            'SELECT * FROM minute_stats WHERE date=? ORDER BY minute', (date,)).fetchall()
+        return [dict(r) for r in rows]
+
     def clean_minute_stats(self, before_date: str) -> None:
         """删除指定日期之前的分钟数据（滚动保留策略）。"""
         self._conn.execute(
@@ -210,6 +229,15 @@ class Repository:
             'SELECT * FROM challenge_history ORDER BY id DESC LIMIT ?',
             (n,)).fetchall()
         return [dict(r) for r in rows]
+
+    def get_challenge_leaderboard(self, text_id, n=10):
+        """同篇范文的完整计分记录；best 是累积纪录，不能用来排序单次成绩。"""
+        limit = max(1, min(50, int(n)))
+        rows = self._conn.execute(
+            'SELECT * FROM challenge_history WHERE text_id=? AND score>0 '
+            'AND elapsed_seconds>0 ORDER BY score DESC, accuracy DESC, '
+            'elapsed_seconds ASC, id DESC LIMIT ?', (text_id, limit)).fetchall()
+        return [dict(row) for row in rows]
 
     # ---------- AI 生成范文（0.8） ----------
     def add_ai_text(self, lang, topic, text) -> int:

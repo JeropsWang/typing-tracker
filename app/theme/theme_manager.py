@@ -1,4 +1,4 @@
-"""主题插件系统（M4）：内置主题 + 用户导入主题。
+"""主题插件系统（M4）：唯一内置主题（默认）+ 用户导入主题。
 
 主题包结构（文件夹或 .zip，一键导入到数据目录 themes/）：
   manifest.json   元数据：{id, name, version, author, base, colors{...}, fonts{...}}
@@ -19,6 +19,9 @@ from pathlib import Path
 
 BUILTIN_DIR = Path(__file__).parent / 'themes'
 VAR_RE = re.compile(r'\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}')
+
+# 唯一内置主题（默认）：其余内置主题已下线，第三方主题仍可从数据目录导入。
+DEFAULT_THEME_ID = 'arknights_endfield_lino'
 
 
 class ThemeManager:
@@ -52,24 +55,34 @@ class ThemeManager:
         return reg
 
     def list_themes(self) -> list:
-        return sorted(self._registry.values(),
-                      key=lambda m: (not m['_builtin'], m['id']))
+        """产品只提供萨莉安娜外观，旧导入文件不再进入切换列表。"""
+        theme = self._registry.get(DEFAULT_THEME_ID)
+        return [theme] if theme else []
 
     def get(self, theme_id):
         return self._registry.get(theme_id)
 
+    def default_id(self) -> str:
+        """默认主题 id：内置主题缺失时退回注册表里第一个可用主题。"""
+        if DEFAULT_THEME_ID in self._registry:
+            return DEFAULT_THEME_ID
+        themes = self.list_themes()
+        return themes[0]['id'] if themes else ''
+
     def current_id(self) -> str:
-        tid = self._get_setting('theme_id', '')
-        return tid if tid in self._registry else 'default_light'
+        """始终使用萨莉安娜，兼容旧数据中保存的深色、浅色或导入主题 id。"""
+        return self.default_id()
 
     # ---------- 应用 ----------
-    def apply(self, theme_id) -> None:
+    def apply(self, theme_id, *, persist=True) -> None:
         m = self._registry.get(theme_id)
         if not m:
             return
         qss = self._render_qss(Path(m['_dir']) / 'theme.qss', m)
         # 下拉箭头（QSS 不支持 data URI，程序生成 PNG 到数据目录）
-        arrow = self._ensure_arrow(m.get('base') != 'light')
+        # base 只认 'light'；其它值（含唯一内置的 'dark'）一律走深色分支，
+        # 因此只剩深色主题时也能生成浅色箭头。
+        arrow = self._ensure_arrow(m.get('base') == 'light')
         if arrow:
             qss = qss.replace('{{arrow}}', arrow.as_posix())
         effects = m.get('effects') or {}
@@ -82,7 +95,8 @@ class ThemeManager:
         # 星空背景模式下仅面板容器透明（页面控件背景由主题 QSS 各自控制）
         if effects.get('background') == 'stars':
             qss += '\n#mainTabs::pane { background: transparent; border: none; }'
-        self._app.setStyleSheet(qss or '')
+        from ..ui.widgets.design import theme_qss
+        self._app.setStyleSheet((qss or '') + theme_qss())
         charts = self._load_charts(Path(m['_dir']) / 'charts.json')
         if self._reports is not None and charts:
             self._reports.apply_chart_palette(charts)
@@ -91,7 +105,8 @@ class ThemeManager:
             shell_bg = m.get('shell_bg')
             if shell_bg:
                 self._window.apply_shell_style(shell_bg)
-        self._set_setting('theme_id', theme_id)
+        if persist:
+            self._set_setting('theme_id', theme_id)
 
     def register_reports(self, reports) -> None:
         """注册报表页，应用当前主题的图表配色。"""
@@ -137,12 +152,16 @@ class ThemeManager:
 
         return VAR_RE.sub(repl, text)
 
-    def _ensure_arrow(self, light_on_dark: bool):
-        """生成 QComboBox 下拉箭头 PNG（深色主题用浅箭头，反之亦然）。"""
+    def _ensure_arrow(self, light_theme: bool = False):
+        """生成 QComboBox 下拉箭头 PNG。
+
+        参数是「主题是否为浅色基调」：浅色主题用深箭头，深色（及未声明 base 的）主题
+        用浅箭头。只剩深色内置主题时这条分支同样成立，不依赖浅色主题存在。
+        """
         try:
-            from PySide6.QtCore import Qt
-            from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF, QPointF
-            name = '__arrow_light.png' if light_on_dark else '__arrow_dark.png'
+            from PySide6.QtCore import Qt, QPointF
+            from PySide6.QtGui import QColor, QImage, QPainter, QPolygonF
+            name = '__arrow_dark.png' if light_theme else '__arrow_light.png'
             path = self._user_dir / name
             if path.exists():
                 return path
@@ -151,7 +170,7 @@ class ThemeManager:
             p = QPainter(img)
             p.setRenderHint(QPainter.Antialiasing)
             p.setPen(Qt.NoPen)
-            p.setBrush(QColor('#E2E8F0' if light_on_dark else '#4B5563'))
+            p.setBrush(QColor('#4B5563' if light_theme else '#E2E8F0'))
             p.drawPolygon(QPolygonF([
                 QPointF(2.0, 4.5), QPointF(12.0, 4.5), QPointF(7.0, 11.0)]))
             p.end()

@@ -51,19 +51,25 @@ class StatsEngine:
         self.check_rollover()
 
     def _reset_day(self):
-        """主线程日常重置（flush 后调用，独立取锁）。"""
+        """主线程初始化当前应用日，恢复已落盘的当日与分钟快照。"""
         with self._lock:
             self._reset_day_locked(self.current_day())
 
     def _reset_day_locked(self, day_iso):
-        """持锁重置当日计数（钩子线程阻塞至多毫秒级，可接受）。"""
+        """持锁切换应用日：已有记录恢复，新日从零开始（仅主线程调用）。"""
         self._day = day_iso
-        self._typed = 0
-        self._deleted = 0
-        self._tw = 0
-        self._minutes = {}          # (date, 'HH:MM') -> [typed, deleted, tw]
-        self._min_flushed = set()
-        self._exp_baseline = 0      # 当日已结算的千字块数
+        daily = self.repo.get_daily(day_iso) or {}
+        self._typed = daily.get('typed_chars', 0)
+        self._deleted = daily.get('deleted_chars', 0)
+        self._tw = daily.get('total_tw', 0)
+        # 同一分钟重启后必须接着旧值累加；已落盘分钟不能再次累加终身分钟数。
+        self._minutes = {
+            (day_iso, row['minute']): [row['typed_chars'], row['deleted_chars'], row['total_tw']]
+            for row in self.repo.get_minutes(day_iso)
+        }
+        self._min_flushed = set(self._minutes)
+        # 老版本没有结算块数设置，以现有有效字数兜底，避免恢复后重复发经验。
+        self._exp_baseline = self.valid_chars() // 1000
         self._daily_typing_exp = 0  # 当日已发打字经验（受每日上限约束）
         # 每日上限持久化到 settings：重启后从上次计数继续（曾仅存内存，
         # 重启 N 次可刷 N 倍经验，v0.8.9 修复）
@@ -73,6 +79,11 @@ class StatsEngine:
         else:
             self._daily_typing_exp = int(
                 self.repo.get_setting('typing_exp_today', '0') or 0)
+            # 保留已结算的最高千字块数：删除后重启、重新输入不能再次领奖。
+            self._exp_baseline = max(self._exp_baseline, int(
+                self.repo.get_setting('typing_exp_blocks', '0') or 0))
+        # 升级旧库时立即保存恢复值；之后删除文字即使没有新奖励，也不会丢高水位。
+        self.repo.set_setting('typing_exp_blocks', str(self._exp_baseline))
 
     # ---------- 事件入口（来自钩子线程） ----------
     def handle_char(self, kind):
@@ -226,6 +237,7 @@ class StatsEngine:
             self.repo.add_exp(granted)
             self.repo.add_exp_to_daily(self._day, granted)
             self.repo.set_setting('typing_exp_today', str(self._daily_typing_exp))
+        self.repo.set_setting('typing_exp_blocks', str(self._exp_baseline))
         return granted
 
     def _boost_active(self) -> bool:

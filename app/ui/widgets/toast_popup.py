@@ -32,6 +32,9 @@ class ToastPopup(QFrame):
     def __init__(self, parent, title: str, msg: str, kind: str = 'star',
                  accent: str = None, dark: bool = True):
         super().__init__(parent)
+        self._motion_enabled = True
+        self._closing = False
+        self._target = None
         self.setAttribute(Qt.WA_StyledBackground, True)
         accent = accent or KIND_ACCENT.get(kind, '#60a5fa')
         icon = KIND_ICON.get(kind, '✨')
@@ -88,13 +91,31 @@ class ToastPopup(QFrame):
 
     def start_animation(self, target: QPoint) -> None:
         """从下方滑入到目标位置（纯位置动画）。"""
+        self._target = target
+        if not self._motion_enabled:
+            self.move(target)
+            return
         self.move(target.x(), target.y() + 26)
         self._anim.setStartValue(self.pos())
         self._anim.setEndValue(target)
         self._anim.start()
 
     def _fade_out(self) -> None:
+        self._closing = True
+        if not self._motion_enabled:
+            self.deleteLater()
+            return
+        self._anim.stop()
         self._anim.setStartValue(self.pos())
         self._anim.setEndValue(self.pos() + QPoint(0, 22))
         self._anim.finished.connect(self.deleteLater)
         self._anim.start()
+
+    def set_motion_enabled(self, enabled):
+        self._motion_enabled = bool(enabled)
+        if not enabled:
+            self._anim.stop()
+            if self._closing:
+                self.deleteLater()
+            elif self._target is not None:
+                self.move(self._target)

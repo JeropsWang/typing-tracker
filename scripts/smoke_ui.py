@@ -13,6 +13,8 @@ import uuid
 from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+from ui_test_support import prepare_fonts, load_fonts
+prepare_fonts()
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -53,6 +55,7 @@ def main() -> int:
         cleanup = True
     try:
         app = QApplication([])
+        load_fonts()
         conn = connect_db(Path(td) / 't.db')
         init_schema(conn)
         repo = Repository(conn)
@@ -111,18 +114,29 @@ def main() -> int:
         repo.add_reward('exp', 5, 'smoke')
         print('成就页冒烟通过：37 项展示 / 状态 / 领取按钮')
 
-        # 主题系统：内置 / 导入 / 应用 / 删除 / 图表配色 / 导出
+        # 主题系统：唯一内置默认 / 导入 / 应用 / 删除 / 图表配色 / 导出
         import zipfile as _zip
         from app.services.export_service import export_all
-        from app.theme.theme_manager import ThemeManager
+        from app.theme.theme_manager import DEFAULT_THEME_ID, ThemeManager
         tm = ThemeManager(app, Path(td), gs, repo.set_setting)
-        ids = {m['id'] for m in tm.list_themes()}
-        assert {'default_light', 'default_dark'} <= ids, f'内置主题缺失: {ids}'
+        themes = tm.list_themes()
+        ids = {m['id'] for m in themes}
+        assert DEFAULT_THEME_ID in ids, f'唯一内置主题（梨诺）缺失: {ids}'
+        assert themes[0]['id'] == DEFAULT_THEME_ID, f'梨诺应排第一: {[m["id"] for m in themes]}'
+        builtins = {m['id'] for m in themes if m['_builtin']}
+        assert builtins == {DEFAULT_THEME_ID}, f'内置主题应只有梨诺: {builtins}'
+        # 老用户存量的已删除主题 id 必须自动回退到梨诺，且不报错
+        repo.set_setting('theme_id', 'default_light')
+        assert tm.current_id() == DEFAULT_THEME_ID, tm.current_id()
+        repo.set_setting('theme_id', 'default_dark')
+        assert tm.current_id() == DEFAULT_THEME_ID, tm.current_id()
         tm.register_reports(win._reports)
         tm.register_window(win)
-        tm.apply('default_dark')
-        assert app.styleSheet() != '', '深色 QSS 未应用'
-        assert win._reports._curve_colors['speed'] == '#60a5fa', '深色图表配色未生效'
+        lino_charts = json.loads((ROOT / 'app' / 'theme' / 'themes' / DEFAULT_THEME_ID
+                                  / 'charts.json').read_text(encoding='utf-8'))
+        tm.apply(DEFAULT_THEME_ID)
+        assert app.styleSheet() != '', '梨诺 QSS 未应用'
+        assert win._reports._curve_colors['speed'] == lino_charts['speed'], '图表配色未生效'
         assert win._starfield.isVisible(), '星空背景未开启'
         zpath = Path(td) / 'test_theme.zip'
         with _zip.ZipFile(zpath, 'w') as z:
@@ -148,7 +162,7 @@ def main() -> int:
         assert win._reports._curve_colors['speed'] == '#ff0000'
         ok, msg = tm.delete_theme('test_theme')
         assert ok, msg
-        tm.apply('default_light')
+        tm.apply(DEFAULT_THEME_ID)
         export_dir = Path(td) / 'export'
         folder = export_all(repo, str(export_dir))
         assert (Path(folder) / 'daily_stats.csv').exists()
@@ -206,12 +220,12 @@ def main() -> int:
         # AI 定制训练访问控制（默认 AI 关闭 → 按钮禁用 + 提示）
         cp2 = win._challenge_page
         assert not cp2._ai_btn.isEnabled(), 'AI 关闭时应禁用生成按钮'
-        assert '未启用' in cp2._ai_status.text() or '解锁' in cp2._ai_status.text(), \
-            f'AI 状态提示异常: {cp2._ai_status.text()}'
+        assert '未启用' in cp2._ai_access_label.text() or '解锁' in cp2._ai_access_label.text(), \
+            f'AI 资格提示异常: {cp2._ai_access_label.text()}'
         print('AI 访问控制冒烟通过：未配置时禁用并提示')
 
         # 设置入口（悬浮按钮 + 个人中心入口）与结算分显示
-        assert win._floating_settings.isVisible(), '悬浮设置按钮不可见'
+        assert win._nav_buttons['设置'].isVisible(), '固定设置入口不可见'
         assert win._profile_page._settings_btn is not None, '个人中心设置入口缺失'
         assert cp._result.isVisible(), '结算面板未显示'
         assert cp._result_detail.text() and '公式' in cp._result_detail.text(), \

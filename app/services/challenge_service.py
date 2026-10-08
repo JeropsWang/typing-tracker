@@ -56,3 +56,11 @@ class ChallengeService:
 
     def recent(self, n: int = 8):
         return self._repo.get_recent_challenges(n)
+
+    def leaderboard(self, text_id: str, n: int = 10):
+        """个人同篇练习榜：名次与 tw/分钟口径由服务给出，UI 不访问 SQL。"""
+        rows = self._repo.get_challenge_leaderboard(text_id, n)
+        for rank, row in enumerate(rows, 1):
+            row['rank'] = rank
+            row['speed'] = row['tw'] * 60 / row['elapsed_seconds']
+        return rows

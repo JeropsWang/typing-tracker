@@ -1,0 +1,10 @@
+{
+  "source_sha256": "2e810af2f7c4040f8f20f4a16f53664b49a81961a9169be078e27af35c69eed8",
+  "source_size": [1487, 1058],
+  "closed_eyes": "blink-closed-v1.png",
+  "eyes": [
+    {"center": [1185, 190], "radius": [43, 25], "rotation": 16},
+    {"center": [1286, 216], "radius": [44, 26], "rotation": 14}
+  ],
+  "hair_svg": "hair-strands-v1.svg"
+}

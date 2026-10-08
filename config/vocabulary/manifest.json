@@ -1,0 +1,36 @@
+{
+  "source": "https://github.com/skywind3000/ECDICT",
+  "revision": "bc015ed2e24a7abef49fc6dbbb7fe32c1dadaf8b",
+  "source_sha256": "1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf",
+  "license": "MIT",
+  "tag_counts": {
+    "cet4": 3849,
+    "cet6": 5407,
+    "ky": 4801
+  },
+  "validation": {
+    "source_rows": 770611,
+    "exam_tagged_rows": 6161,
+    "excluded_rows": 3
+  },
+  "books": {
+    "cet4": {
+      "name": "四级",
+      "count": 3846,
+      "phonetic_count": 3836,
+      "sha256": "a9913055d1b438b323de7a382287ececcfa030c18edb5fd43b4abeca55a748a9"
+    },
+    "cet6": {
+      "name": "六级（含四级基础词）",
+      "count": 5802,
+      "phonetic_count": 5773,
+      "sha256": "e6a60511a4fce7ffab23b2e703704bf7b09dc3ee38b4c979c9e9e4ee7c767fc0"
+    },
+    "kaoyan": {
+      "name": "考研",
+      "count": 4801,
+      "phonetic_count": 4794,
+      "sha256": "6000767944415d7b4ad927a605d734486c819c2fdfaf9b528deb998ae7fb1594"
+    }
+  }
+}

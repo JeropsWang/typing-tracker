@@ -53,10 +53,14 @@ class ConfettiOverlay(QWidget):
             p[1] += p[3]                    # 下落
             p[4] += 0.12                    # 旋转
         if self._t >= self._duration:
-            self._timer.stop()
-            self.hide()
+            self.stop()
             return
         self.update()
+
+    def stop(self):
+        self._timer.stop()
+        self._particles.clear()
+        self.hide()
 
     def paintEvent(self, event) -> None:
         if not self._particles:

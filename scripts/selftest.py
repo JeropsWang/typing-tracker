@@ -191,21 +191,27 @@ def main() -> int:
         check('称号入库存', any(r['kind'] == 'title' and r['note'] == '万无一失'
                               for r in repo.list_rewards(unused_only=True)))
 
-        # 打字经验：每 1000 有效字 +5（上限 300）
-        eng2 = StatsEngine(repo, gs, BALANCE)
-        for _ in range(2500):
-            eng2.handle_char('letter')
-        exp_before = repo.get_exp()
-        eng2.flush()
-        check('打字经验 2000字→+10', repo.get_exp() == exp_before + 10)
+        # 打字经验使用独立数据库：启动会恢复当日记录，不能沿用成就测试造数。
+        typing_conn = connect_db(':memory:')
+        try:
+            init_schema(typing_conn)
+            typing_repo = Repository(typing_conn)
+            eng2 = StatsEngine(typing_repo, typing_repo.get_setting, BALANCE)
+            for _ in range(2500):
+                eng2.handle_char('letter')
+            exp_before = typing_repo.get_exp()
+            eng2.flush()
+            check('打字经验 2000字→+10', typing_repo.get_exp() == exp_before + 10)
 
-        # 经验加成卡 ×2
-        RewardService(repo, BALANCE).activate_exp_boost(30)
-        exp_before = repo.get_exp()
-        for _ in range(1000):
-            eng2.handle_char('letter')
-        eng2.flush()
-        check('经验加成卡 ×2', repo.get_exp() == exp_before + 10)
+            # 经验加成卡 ×2
+            RewardService(typing_repo, BALANCE).activate_exp_boost(30)
+            exp_before = typing_repo.get_exp()
+            for _ in range(1000):
+                eng2.handle_char('letter')
+            eng2.flush()
+            check('经验加成卡 ×2', typing_repo.get_exp() == exp_before + 10)
+        finally:
+            typing_conn.close()
 
         # 补签卡：06-09 连签 5，06-10 断，补签后连签恢复
         # 补签卡：06-20 连签 5，06-21 断，补签后连签恢复
@@ -418,11 +424,10 @@ def main() -> int:
     bg = lino['colors']['background']
     check('梨诺正文对比度 ≥4.5', _contrast(PAL.text, bg) >= 4.5)
     check('梨诺次要文字对比度 ≥3.0', _contrast(PAL.muted, bg) >= 3.0)
-    light = json.loads((ROOT / 'app' / 'theme' / 'themes' / 'default_light'
-                        / 'manifest.json').read_text(encoding='utf-8'))
-    PAL.update(light['colors'], light.get('effects', {}))
-    check('浅色正文对比度 ≥4.5',
-          _contrast(PAL.text, light['colors']['background']) >= 4.5)
+    # 梨诺是唯一内置主题：内置目录里不应再有其它主题包
+    builtin_themes = sorted(p.name for p in (ROOT / 'app' / 'theme' / 'themes').iterdir()
+                            if (p / 'manifest.json').exists())
+    check('内置主题只剩梨诺', builtin_themes == ['arknights_endfield_lino'])
 
     print('== 键盘钩子（安装/卸载冒烟，不注入按键）==')
     from app.core.keyboard_hook import KeyboardHook, ImeCommitTracker  # noqa: E402

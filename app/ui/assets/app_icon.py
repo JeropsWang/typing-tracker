@@ -1,7 +1,16 @@
-"""应用图标（程序化绘制，多尺寸 ICO 生成）。
+"""应用图标：优先使用交付 PNG，缺失/损坏时回退程序化绘制。
 
-设计：深紫星空（呼应梨诺主题）→ 顶部舞台聚光 → 金色五角星（打字之星）+
-白色输入光标 + 星尘点缀。全程 QPainter 矢量绘制，任何尺寸清晰。
+优先级（窗口图标 / 托盘图标 / 打包 ICO 共用同一口径）：
+
+1. 交付资源 `app/ui/assets/app_icon.png`（与界面人物一致的应用图标，
+   透明圆角外沿；**512×512 派生版**，由 1254×1254 交付原稿平滑降采样得到，
+   原稿只留在 `.local` 不入仓）。
+2. 程序化绘制 `draw_app_icon()`：深紫星空（呼应梨诺主题）→ 顶部舞台聚光 →
+   金色五角星（打字之星）+ 白色输入光标 + 星尘点缀，全程 QPainter 矢量绘制。
+
+两份资源都按 `SIZES` 生成多尺寸 QPixmap：QIcon 里没有对应尺寸时由 Qt
+自动缩放，小尺寸（16/24）会比现算的缩放略糊，所以逐尺寸预先生成。
+`save_ico()` 以 PNG 内嵌方式写多尺寸 ICO（Vista+ 支持），供 PyInstaller 使用。
 """
 from __future__ import annotations
 
@@ -11,11 +20,16 @@ from pathlib import Path
 
 from PySide6.QtCore import QBuffer, QIODevice, QPointF, Qt
 from PySide6.QtGui import (
-    QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
-    QRadialGradient,
+    QColor, QIcon, QImage, QLinearGradient, QPainter, QPainterPath, QPen,
+    QPixmap, QRadialGradient,
 )
 
 SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+# 交付应用图标（与 design.py / achievements.py 的 `__file__` 相对定位口径一致：
+# onefile 打包时 __file__ 落在解包目录内，--add-data 收集的整棵树同样可命中）
+ASSETS = Path(__file__).resolve().parent
+APP_ICON_PNG = ASSETS / 'app_icon.png'
 
 
 def _star_path(cx: float, cy: float, R: float, r: float) -> QPainterPath:
@@ -110,34 +124,72 @@ def draw_app_icon(size: int) -> QPixmap:
 
 
 def icon_pixmaps() -> list:
+    """程序化绘制的多尺寸图标（回退资源）。"""
     return [draw_app_icon(s) for s in SIZES]
 
 
-def tray_icon() -> QIcon:
-    """托盘/窗口图标（多尺寸；PySide6 的 QIcon 不支持列表构造，逐个 addPixmap）。"""
+def png_pixmaps(path=None) -> list:
+    """把交付 PNG 缩放到 `SIZES` 各档；文件缺失/读不出时返回空列表。"""
+    target = APP_ICON_PNG if path is None else Path(path)
+    try:
+        image = QImage(str(target))
+    except Exception:  # 极端情况下的 Qt 层异常：视为不可用，交由调用方回退
+        return []
+    if image.isNull():
+        return []
+    out = []
+    for size in SIZES:
+        pm = QPixmap.fromImage(image.scaled(
+            size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        if not pm.isNull():
+            out.append(pm)
+    return out
+
+
+def _to_icon(pixmaps) -> QIcon:
+    """PySide6 的 QIcon 不支持列表构造，逐个 addPixmap。"""
     icon = QIcon()
-    for pm in icon_pixmaps():
+    for pm in pixmaps:
         icon.addPixmap(pm)
     return icon
 
 
-def save_ico(path) -> Path:
-    """多尺寸 PNG 内嵌 ICO（Vista+ 支持 PNG 压缩 ICO）。"""
-    entries = []
+def tray_icon() -> QIcon:
+    """托盘/窗口图标：交付 PNG 优先，缺失时回退程序化绘制（不抛异常）。"""
+    pixmaps = png_pixmaps()
+    if not pixmaps:
+        pixmaps = icon_pixmaps()
+    return _to_icon(pixmaps)
+
+
+def app_icon() -> QIcon:
+    """与 `tray_icon()` 同源的 QIcon（供 QApplication.setWindowIcon 用）。"""
+    return tray_icon()
+
+
+def save_ico(path, source=None) -> Path:
+    """写多尺寸 PNG 内嵌 ICO（Vista+ 支持 PNG 压缩 ICO）。
+
+    `source` 给定时以该图片为源缩放各档；缺省或读取失败时回退程序化绘制。
+    """
+    pixmaps = png_pixmaps(source)
+    if not pixmaps:
+        pixmaps = icon_pixmaps()
     data_blobs = []
-    for size in SIZES:
-        pm = draw_app_icon(size)
+    for pm in pixmaps:
         ba = QBuffer()
         ba.open(QIODevice.WriteOnly)
         pm.save(ba, 'PNG')
         data_blobs.append(bytes(ba.data()))
-    offset = 6 + 16 * len(SIZES)
+    count = len(pixmaps)
+    offset = 6 + 16 * count
+    entries = []
     for size, data in zip(SIZES, data_blobs):
         b = 0 if size >= 256 else size
         entries.append(struct.pack('<BBBBHHII', b, b, 0, 0, 1, 32,
                                    len(data), offset))
         offset += len(data)
-    out = struct.pack('<HHH', 0, 1, len(SIZES)) + b''.join(entries)
+    out = struct.pack('<HHH', 0, 1, count) + b''.join(entries)
     out += b''.join(data_blobs)
     target = Path(path)
     target.write_bytes(out)
