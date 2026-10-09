@@ -136,3 +136,6 @@ class PlaygroundUITests(UIFixture):
         self.assertIsNotNone(page.keyboard_panel.session)
         self.assertTrue(page._running)
         self.assertFalse(window._motion_active())
+        page.mode_buttons['practice'].click()
+        self.assertTrue(page._start_btn.isEnabled())
+        self.assertTrue(page._ai_section.toggle.isEnabled())

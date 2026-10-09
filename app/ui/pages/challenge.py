@@ -309,6 +309,9 @@ class ChallengePage(QWidget):
         self._module_stack.setCurrentWidget(target)
         if mode == 'keyboard':
             self.keyboard_panel.refresh()
+        elif mode == 'practice':
+            self.update_ai_access()
+            self._sync_controls()
 
     def _keyboard_running(self, running):
         self._keyboard_active = running
