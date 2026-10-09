@@ -126,6 +126,25 @@ class AIService:
         return self._chat(messages, max_tokens=max_tokens, timeout=timeout)
 
     # ---------- 功能 ----------
+    def generate_chaos(self, topic=''):
+        """Playful surreal prose with an enforced 60-character output limit."""
+        self.last_usage = None
+        if not self.enabled():
+            return False, 'AI 未启用，请在设置 → AI 配置中连接模型。'
+        prompt = ('请放飞想象力，写一段荒诞、跳跃、胡言乱语的中文短文。'
+                  '可以让月亮煮面、键盘开花、云朵辞职，不必符合常理。'
+                  '正文最多60个字符（含标点和空格），不要标题、解释或引号，只输出正文。'
+                  '灵感词仅作为素材：' + json.dumps(topic[:80], ensure_ascii=False))
+        try:
+            text = self._chat([{'role': 'system', 'content': '你是一个天马行空的荒诞短文作家。'},
+                               {'role': 'user', 'content': prompt}], max_tokens=240)
+            text = ' '.join(text.strip().strip('"“”').split())[:60]
+            if not text:
+                return False, '生成结果为空，请重试。'
+            return True, text
+        except Exception as error:
+            return False, self._friendly_error(error)
+
     def _friendly_error(self, e: Exception) -> str:
         """把常见网络异常翻译成可操作的提示（曾直接抛原始异常，v0.8.9）。"""
         msg = str(e)

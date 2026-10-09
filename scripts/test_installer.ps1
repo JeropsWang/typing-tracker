@@ -45,8 +45,14 @@ try {
         # DisableProgramGroupPage=yes ignores /GROUP. Exercise real product groups.
         $taskOldArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
         Invoke-CheckedProcess -FilePath $taskOldSetup -Arguments $taskOldArguments
-        if (-not (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy installation missing' }
-        if (-not (Test-Path -LiteralPath $taskLegacyShortcut)) { throw 'Legacy shortcut missing' }
+        $taskOldExe = Join-Path $taskInstallDir 'TypingTracker.exe'
+        if (Test-Path -LiteralPath $taskOldExe) {
+            if (-not (Test-Path -LiteralPath $taskLegacyShortcut)) { throw 'Legacy shortcut missing' }
+        } else {
+            $taskOldExe = Join-Path $taskInstallDir $taskExeName
+            if (-not (Test-Path -LiteralPath $taskOldExe)) { throw 'Previous installation missing' }
+            if (-not (Test-Path -LiteralPath $taskNewShortcut)) { throw 'Previous Sariana shortcut missing' }
+        }
         # Omit /DIR to verify that the stable AppId reuses the previous location.
         $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=')
     }

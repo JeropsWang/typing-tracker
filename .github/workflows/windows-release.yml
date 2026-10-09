@@ -114,6 +114,26 @@ jobs:
           } else {
             Write-Output 'Historical TypingTracker build: rename upgrade check is not applicable'
           }
+      - name: Verify upgrade from Sariana 0.9.3
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $taskManifest = Get-Content -LiteralPath 'release-output/payload/release-manifest.json' | ConvertFrom-Json
+          if ($taskManifest.product_name -eq 'Sariana' -and [version]$taskManifest.version -ge [version]'0.9.4') {
+            $taskHeaders = @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GH_TOKEN" }
+            $taskPrevious = Invoke-RestMethod -Uri 'https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v0.9.3' -Headers $taskHeaders
+            $taskAsset = @($taskPrevious.assets | Where-Object name -eq 'Sariana-0.9.3-windows-x64-setup.exe')
+            if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw 'Previous Sariana installer missing' }
+            if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw 'Previous Sariana installer digest missing' }
+            $taskExpectedHash = $Matches[1]
+            $taskPreviousSetup = Join-Path $env:RUNNER_TEMP 'Sariana-0.9.3-setup.exe'
+            Invoke-WebRequest -Uri ($taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id) -OutFile $taskPreviousSetup
+            if ((Get-FileHash -LiteralPath $taskPreviousSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw 'Previous Sariana installer checksum mismatch' }
+            ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/sariana-upgrade-smoke" -UpgradeFromSetup $taskPreviousSetup
+          } else {
+            Write-Output 'Historical build: same-brand upgrade check is not applicable'
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release-assets

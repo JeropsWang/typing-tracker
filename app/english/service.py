@@ -2,7 +2,7 @@
 from .catalog import VocabularyCatalog
 from .session import SpellingSession
 from .ai import validate_sentences
-from ..core.challenge import compare
+from .scoring import sentence_accuracy
 from ..services.exp_service import level_and_progress
 from ..services.ai_access import AITestSession
 import uuid
@@ -83,9 +83,9 @@ class EnglishService:
         return self.storage.sentence_history(deck)
 
     def record_sentence(self, deck, reference, answer, elapsed, event_id=None):
-        correct_chars, errors = compare(answer, reference)
-        accuracy = correct_chars / max(len(reference), len(answer), 1)
+        result = sentence_accuracy(answer, reference)
+        accuracy = result['accuracy']
         event = dict(id=event_id or uuid.uuid4().hex, deck=deck, word='', mode='sentence',
-                     correct=not errors, assisted=False, elapsed=elapsed, accuracy=accuracy)
+                     correct=accuracy == 1, assisted=False, elapsed=elapsed, accuracy=accuracy)
         saved = self._save_attempt(event)
-        return dict(accuracy=accuracy, saved=saved, elapsed=elapsed)
+        return dict(result, saved=saved, elapsed=elapsed)

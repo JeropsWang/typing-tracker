@@ -34,7 +34,8 @@ class ReleaseBrandTests(UIFixture):
         from app.ui.tray import TrayIcon
         from PySide6.QtWidgets import QLabel
         window = self.window()
-        self.assertEqual(window.windowTitle(), 'Sariana · 伴你成长 v0.9.3')
+        from app import APP_DISPLAY_NAME, __version__
+        self.assertEqual(window.windowTitle(), f'{APP_DISPLAY_NAME} v{__version__}')
         labels = [label.text() for label in window._titlebar.findChildren(QLabel)]
         self.assertIn('Sariana · 伴你成长', labels)
         tray = TrayIcon()
