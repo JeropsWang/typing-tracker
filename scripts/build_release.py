@@ -22,6 +22,21 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def run_logged(command: list[str], log_path: Path, cwd: Path | None = None) -> None:
+    """Keep a local log and stream diagnostics to CI instead of hiding build progress."""
+    with log_path.open('w', encoding='utf-8') as log:
+        process = subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+        assert process.stdout is not None
+        for line in process.stdout:
+            log.write(line)
+            log.flush()
+            print(line, end='', flush=True)
+        returncode = process.wait()
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
+
+
 def read_version(source: Path) -> str:
     tree = ast.parse((source / 'app/__init__.py').read_text(encoding='utf-8-sig'))
     for node in tree.body:
@@ -117,10 +132,9 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         "exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='TypingTracker', "
         f"console=False, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
         encoding='utf-8')
-    with (output / 'build.log').open('w', encoding='utf-8') as log:
-        subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
-                        '--distpath', str(output / 'payload'), '--workpath', str(build / 'work'), str(spec)],
-                       cwd=source, stdout=log, stderr=subprocess.STDOUT, check=True)
+    run_logged([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
+                '--distpath', str(output / 'payload'), '--workpath', str(build / 'work'), str(spec)],
+               output / 'build.log', cwd=source)
     return output / 'payload/TypingTracker.exe'
 
 
@@ -155,7 +169,9 @@ def main() -> None:
         shutil.copyfile(original_exe, exe)
     else:
         exe = build_executable(source, output, version)
+    print('Checking frozen application startup, source code and runtime assets', flush=True)
     verification = verify_executable(exe, source)
+    print('Frozen application verified; creating portable ZIP and installer', flush=True)
     payload = exe.parent
     for origin, name in ((source / 'LICENSE', 'LICENSE'),
                          (source / 'config/vocabulary/LICENSE-ECDICT.txt', 'LICENSE-ECDICT.txt'),
@@ -181,10 +197,9 @@ def main() -> None:
             raise ValueError('Portable ZIP integrity check failed')
         if hashlib.sha256(bundle.read(f'TypingTracker-{version}/TypingTracker.exe')).hexdigest() != sha256(exe):
             raise ValueError('Portable executable checksum mismatch')
-    with (output / 'installer-build.log').open('w', encoding='utf-8') as log:
-        subprocess.run([str(iscc), f'/DAppVersion={version}', f'/DPayloadDir={payload}',
-                        f'/DOutputDir={assets}', str(TOOLS_ROOT / 'packaging/windows/TypingTracker.iss')],
-                       stdout=log, stderr=subprocess.STDOUT, check=True)
+    run_logged([str(iscc), f'/DAppVersion={version}', f'/DPayloadDir={payload}',
+                f'/DOutputDir={assets}', str(TOOLS_ROOT / 'packaging/windows/TypingTracker.iss')],
+               output / 'installer-build.log')
     setup = assets / f'TypingTracker-{version}-windows-x64-setup.exe'
     if not setup.is_file():
         raise ValueError('Installer was not created')

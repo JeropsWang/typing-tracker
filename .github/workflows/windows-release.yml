@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: windows-release-${{ github.event.release.tag_name || inputs.tag || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   build:
