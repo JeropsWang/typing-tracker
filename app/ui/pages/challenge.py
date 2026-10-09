@@ -27,7 +27,7 @@ from ..widgets.training_workspace import TrainingWorkspace
 from ..widgets.practice_leaderboard import PracticeLeaderboard
 from ..widgets.keyboard_warrior import KeyboardWarriorPanel
 from ..widgets.chaos import ChaosPanel
-from ..widgets.responsive import StageLayout, stage_layout_for
+from ..widgets.responsive import stage_layout_for
 from ..widgets.design import (
     ArtTitle, Disclosure, Panel, is_compact, paper_padding,
 )
@@ -316,9 +316,7 @@ class ChallengePage(QWidget):
         self.running_changed.emit(self._running)
 
     def _stage_layout(self):
-        stage = stage_layout_for(self)
-        # The new module selector shares the page budget with the practice canvas.
-        return StageLayout(stage.width, max(1, stage.height - self._mode_row.sizeHint().height()))
+        return stage_layout_for(self)
 
     def _paper_width(self):
         return self._stage_layout().content_width
@@ -446,8 +444,8 @@ class ChallengePage(QWidget):
         expanded = (getattr(self, '_ai_section', None) is not None
                     and self._ai_section.toggle.isChecked())
         height = stage.blend(98, 220) if expanded else stage.hero_height
-        if stage.height < 640:
-            height = max(44, height - self._mode_row.sizeHint().height())
+        # Reserve the selector from decorative header space, preserving paper tokens.
+        height = max(44, height - self._mode_row.sizeHint().height())
         self._art.setFixedSize(round(height * 650 / 220), height)
         self._before_paper.changeSize(0, stage.blend(6, 24) if expanded else stage.paper_gap)
         self._root.invalidate()
