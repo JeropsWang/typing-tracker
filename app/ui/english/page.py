@@ -13,6 +13,7 @@ from .requests import SentenceRequest
 
 
 class EnglishPage(PaperPage):
+    result_saved = Signal(dict)
     running_changed = Signal(bool)
     settings_requested = Signal()
 
@@ -133,6 +134,8 @@ class EnglishPage(PaperPage):
                 self.spelling.set_active(False)
                 self.spelling.feedback.setText(f'这一轮完成！独立答对 {independent} / {len(session.words)}。\n待复习词已经留好了，下次继续。')
                 self._set_running(False)
+                self.result_saved.emit({'id': f"spelling:{session.results[-1]['id']}",
+                                        'accuracy': independent / max(1, len(session.words))})
             return
         try:
             result = self.service.submit(self.spelling.answer.text())
@@ -245,6 +248,8 @@ class EnglishPage(PaperPage):
             return
         self._reset_sentence()
         self.sentences.status.setText(f"这一句完成 · 正确率 {result['accuracy']:.1%} · 用时 {result['elapsed']:.1f} 秒")
+        if result['saved']:
+            self.result_saved.emit({'id': f'sentence:{event_id}', 'accuracy': result['accuracy']})
 
     def _sentence_progress(self):
         if self._sentence_run is not None:

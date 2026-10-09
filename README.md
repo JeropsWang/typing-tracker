@@ -1,10 +1,12 @@
-# 打字管家（TypingTracker）0.9.1
+# 打字管家（TypingTracker）0.9.2
 
 Windows 本地打字统计与练习应用，使用 Python、PySide6、pyqtgraph 和 SQLite。
 本版为面向 [JeropsWang/typing-tracker](https://github.com/JeropsWang/typing-tracker) 的后续贡献版本。
 
 ## 本版改进
 
+- 新增 Sariana 小伙伴：应用内 / 桌面宠物两种模式可切换，十种情绪、摸头、双击互动和偶发表情包。
+- 新增离线二创工坊，内置星光陪伴、傲娇监督、摸鱼搭子三套作品；逐状态替换表情、GIF 和话术，支持预览、保存、应用与 ZIP 分享。
 - 萨莉安娜界面：夜色插画、奶油纸张、艺术字和错位装饰，底部六项导航。
 - 主窗口固定 1440×1024，设置窗口固定 820×640，关闭最大化；长范文与表单内部滚动。
 - AI 范文表单独立封装，修复展开裁切、生成状态冲突和失败提示被刷新覆盖。
@@ -17,7 +19,8 @@ Windows 本地打字统计与练习应用，使用 Python、PySide6、pyqtgraph 
 
 ## 运行
 
-仅支持 Windows。发布包中的 `TypingTracker.exe` 可直接运行。
+仅支持 Windows。安装版运行 `TypingTracker-0.9.2-windows-x64-setup.exe`；免安装版解压整个 `TypingTracker-0.9.2-windows-x64-portable.zip` 后运行 `TypingTracker.exe`。
+发布附件含构建清单和 SHA-256 校验文件；升级前从托盘退出旧版本，卸载保留 `%APPDATA%\TypingTracker` 中的记录。
 
 源码运行需要 Python 3.10+：
 
@@ -84,12 +87,29 @@ Lv.45 解锁 AI 生成，提前体验需训练券；英语与范文生成共用�
 设置 → 外观 → 动态效果，可统一关闭角色、星空、导航和作答动效。
 角色发丝采用独立 SVG 笔触层，整束头发和原插画不做位图形变。
 
+### Sariana 小伙伴与二创
+
+设置 → 外观 → Sariana 小伙伴，可开启/关闭陪伴、切换应用内或桌面模式、调整大小、主动互动频率和话术气泡。
+按住角色可在应用内自由摆放，拖出窗口边界会直接转为桌面宠物，同一次拖动可继续到目标位置；应用内与桌面位置分别记忆。桌面模式下主窗口收起到托盘后仍可陪伴；角色右键和托盘菜单提供模式切换、收起、重新显示与工坊入口。
+单击摸头，连续戳会委屈，双击会惊讶；角色会回应已保存的练习完成、新纪录、打卡、升级和成就。
+不同情绪带有轻跳、摇摆、呼吸或困倦点头，表情切换平滑过渡，拖动时轻微倾斜、松手后回弹。练习期间暂停主动表情包与装饰动画。关闭全局动态效果后 GIF 和角色动画立即静止，拖动仍可用，气泡可单独关闭。
+
+本地二创工坊：选内置模板 → 复制当前作品 → 编辑状态 → 保存作品 → 应用到小伙伴。
+十种状态的素材、话术、反应持续时间和 GIF 静态帧均可编辑，偶发表情包可自行添加或移除。
+支持 PNG、静态 WebP 和 GIF；话术每行一条，可使用 `{nickname}`、`{level}`、`{speed}`、`{accuracy}`、`{streak}`，事件缺少的字段显示“暂无数据”。
+预览使用标注的示例数据，不改变统计、练习成绩或奖励；编辑草稿和保存作品都不会自动替换当前角色，点击“应用”才生效。
+
+用户作品保存在数据目录 `companion/packs/`。作品包使用 ZIP（`manifest.json` + `assets/`），支持从工坊导入导出；统计备份不包含二创素材，需要单独导出。
+单文件上限 10 MiB、作品总量 50 MiB、最多 100 个文件、图片每边最大 2048 像素；作品不执行脚本或请求网络。
+内置作品使用根据现有 Sariana 参考形象生成的透明 Q 版二创图集，与原背景插画独立。
+
 ## 验证与构建
 
 ```powershell
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_*.py' -v
 .venv\Scripts\python.exe -B scripts/selftest.py
 .venv\Scripts\python.exe -B scripts/preview_ui.py --interactive
+.venv\Scripts\python.exe -B scripts/preview_companion.py --interactive
 powershell -File scripts\build.ps1
 ```
 
@@ -107,6 +127,8 @@ app/core/          键盘统计、TSF、计数与计分规则
 app/services/      打卡、挑战、成就、AI、设置、导出等业务
 app/storage/       公共 SQLite 仓储和迁移
 app/english/       词库、拼写会话、学习服务与独立存储
+app/companion/     角色状态、情绪事件、离线作品仓储与格式校验
+app/ui/companion/  角色显示、宿主切换、设置与二创工坊
 app/ui/english/    英语页面和拆分的训练组件
 app/ui/widgets/    导航、表单、头像、排行榜、纸张与动效组件
 app/ui/assets/     运行必需的插画、头像、SVG 与图标

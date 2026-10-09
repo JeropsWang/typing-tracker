@@ -238,6 +238,8 @@ def main() -> int:
     roll_timer.start(30_000)
 
     def cleanup():
+        if window._companion is not None:
+            window._companion.shutdown()
         engine.flush()
         if hook is not None:
             hook.stop()

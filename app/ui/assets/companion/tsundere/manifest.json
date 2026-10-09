@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "id": "tsundere",
+  "name": "傲娇监督",
+  "author": "TypingTracker · Sariana 二创",
+  "description": "嘴上说着勉强，悄悄记住你的每一次进步。",
+  "version": "1.0",
+  "states": {
+    "idle": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        0,
+        384,
+        371
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "我只是刚好路过这里。",
+        "还不开始？键盘可都准备好了。",
+        "{nickname}，我就陪你一小会儿。"
+      ]
+    },
+    "focused": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        0,
+        384,
+        371
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "认真一点，我可是在看着呢。",
+        "别急，先把这一行敲对。",
+        "专注的你……还挺像样的。"
+      ]
+    },
+    "happy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        0,
+        384,
+        371
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "完成了？嗯，还不错。",
+        "勉强给你一颗星星好了。",
+        "别得意，下次也要这么认真。"
+      ]
+    },
+    "proud": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        0,
+        384,
+        371
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "又破纪录了？……勉强夸你一下。",
+        "这次确实厉害，只有一点点。",
+        "我就知道你能行，才不是提前期待。"
+      ]
+    },
+    "shy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        375,
+        384,
+        315
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "别、别摸头！发型会乱的。",
+        "突然这么温柔，我还没准备好。",
+        "只许摸这一次……下一次再说。"
+      ]
+    },
+    "pout": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        375,
+        384,
+        315
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "再戳，我就把笔收起来了。",
+        "我的脸不是按钮！",
+        "哼，先道歉再继续练习。"
+      ]
+    },
+    "sleepy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        375,
+        384,
+        315
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "只是闭眼思考，才没有困。",
+        "休息一下也算训练安排。",
+        "今天就先放你一小会儿假。"
+      ]
+    },
+    "surprised": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        375,
+        384,
+        315
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "诶？！刚才发生了什么？",
+        "这、这可不在我的计划里。",
+        "不要突然吓我啦！"
+      ]
+    },
+    "cheering": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        698,
+        384,
+        326
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "错字而已，下次敲回来就行。",
+        "我都没放弃，你也不许。",
+        "别小看慢慢练习的力量。"
+      ]
+    },
+    "celebrating": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        698,
+        384,
+        326
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "庆祝就庆祝，别看我这么开心。",
+        "Lv.{level}，监督很有成果嘛。",
+        "这次的奖章，收好不许丢。"
+      ]
+    }
+  },
+  "memes": [
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        698,
+        384,
+        326
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "哼，我才没有等你。",
+        "监督员突然出现！"
+      ]
+    },
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        698,
+        384,
+        326
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "这道题怎么还有这种操作！",
+        "我只是有一点点慌。"
+      ]
+    }
+  ]
+}
