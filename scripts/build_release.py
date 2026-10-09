@@ -49,6 +49,20 @@ def read_version(source: Path) -> str:
     raise ValueError('app/__init__.py must define a numeric __version__')
 
 
+def read_brand(source: Path) -> str:
+    """Historical tags keep their filenames when built by current tooling."""
+    tree = ast.parse((source / 'app/__init__.py').read_text(encoding='utf-8-sig'))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == 'APP_NAME' for target in node.targets
+        ):
+            value = ast.literal_eval(node.value)
+            if isinstance(value, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{0,40}', value):
+                return value
+            raise ValueError('APP_NAME must be a safe ASCII product identifier')
+    return 'TypingTracker'
+
+
 def normalize(code: CodeType) -> CodeType:
     return code.replace(co_filename='checked.py', co_consts=tuple(
         normalize(value) if isinstance(value, CodeType) else value for value in code.co_consts))
@@ -121,6 +135,7 @@ def verify_executable(exe: Path, source: Path) -> dict:
 def build_executable(source: Path, output: Path, version: str) -> Path:
     import PySide6
 
+    brand = read_brand(source)
     build = output / 'build'
     build.mkdir()
     qt_root = Path(PySide6.__file__).parent
@@ -135,26 +150,26 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         ", mask=0x3f, flags=0, OS=0x40004, fileType=1, subtype=0, date=(0,0)), "
         "kids=[StringFileInfo([StringTable('040904B0', ["
         "StringStruct('CompanyName', 'JeropsWang'),"
-        "StringStruct('ProductName', 'TypingTracker'),"
+        f"StringStruct('ProductName', '{brand}'),"
         f"StringStruct('FileVersion', '{version}'),StringStruct('ProductVersion', '{version}'),"
-        "StringStruct('FileDescription', 'TypingTracker'),"
-        "StringStruct('OriginalFilename', 'TypingTracker.exe')])]),"
+        f"StringStruct('FileDescription', '{brand}'),"
+        f"StringStruct('OriginalFilename', '{brand}.exe')])]),"
         "VarFileInfo([VarStruct('Translation', [1033, 1200])])])", encoding='utf-8')
     datas = [(str(path), path.parent.relative_to(source).as_posix()) for path in runtime_files(source)]
-    spec = build / 'TypingTracker.spec'
+    spec = build / f'{brand}.spec'
     spec.write_text(
         f"a = Analysis([{str(source / 'main.py')!r}], pathex=[{str(source)!r}], "
         f"binaries={vc_dlls!r}, datas={datas!r}, "
         f"runtime_hooks=[{str(source / 'scripts/pyinstaller_runtime.py')!r}], "
         "excludes=['pygame'], optimize=0)\npyz = PYZ(a.pure)\n"
         # Embedded Python ignores PYTHONIOENCODING; UTF-8 must be a bootloader option.
-        "exe = EXE(pyz, a.scripts, a.binaries, a.datas, [('X utf8', None, 'OPTION')], name='TypingTracker', "
+        f"exe = EXE(pyz, a.scripts, a.binaries, a.datas, [('X utf8', None, 'OPTION')], name={brand!r}, "
         f"console=False, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
         encoding='utf-8')
     run_logged([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
                 '--distpath', str(output / 'payload'), '--workpath', str(build / 'work'), str(spec)],
                output / 'build.log', cwd=source)
-    return output / 'payload/TypingTracker.exe'
+    return output / f'payload/{brand}.exe'
 
 
 def main() -> None:
@@ -168,6 +183,7 @@ def main() -> None:
     args = parser.parse_args()
     source, output, iscc = args.source_dir.resolve(), args.output_dir.resolve(), args.iscc.resolve()
     version = read_version(source)
+    brand = read_brand(source)
     if args.expected_version and args.expected_version != version:
         parser.error(f'Tag version {args.expected_version} differs from source version {version}')
     if not re.fullmatch(r'[0-9a-f]{40}', args.source_commit):
@@ -179,12 +195,12 @@ def main() -> None:
     if output == source or source in output.parents:
         parser.error('Keep build outputs outside the source snapshot')
     output.mkdir(parents=True, exist_ok=True)
-    print(f'Building TypingTracker {version} from {args.source_commit}', flush=True)
+    print(f'Building {brand} {version} from {args.source_commit}', flush=True)
     if args.existing_exe:
         original_exe = args.existing_exe.resolve()
         verify_executable(original_exe, source)
         (output / 'payload').mkdir()
-        exe = output / 'payload/TypingTracker.exe'
+        exe = output / f'payload/{brand}.exe'
         shutil.copyfile(original_exe, exe)
     else:
         exe = build_executable(source, output, version)
@@ -197,33 +213,34 @@ def main() -> None:
                          (source / 'app.ico', 'app.ico')):
         shutil.copyfile(origin, payload / name)
     (payload / 'INSTALL.txt').write_text(
-        f'TypingTracker {version}\nSource commit: {args.source_commit}\n\n'
+        f'{brand} {version}\nSource commit: {args.source_commit}\n\n'
         '安装版：运行 setup.exe，可在开始菜单启动。\n'
-        '免安装版：解压整个 ZIP，再运行 TypingTracker.exe。\n'
+        f'免安装版：解压整个 ZIP，再运行 {brand}.exe。\n'
         '升级前请从托盘退出旧进程。记录保存在 %APPDATA%\\TypingTracker；卸载保留记录。\n',
         encoding='utf-8-sig')
-    manifest = dict(version=version, source_commit=args.source_commit, platform='windows-x64',
+    manifest = dict(product_name=brand, executable=f'{brand}.exe',
+                    version=version, source_commit=args.source_commit, platform='windows-x64',
                     python=sys.version.split()[0], **verification)
     (payload / 'release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
     assets = output / 'assets'
     assets.mkdir()
-    portable = assets / f'TypingTracker-{version}-windows-x64-portable.zip'
+    portable = assets / f'{brand}-{version}-windows-x64-portable.zip'
     with zipfile.ZipFile(portable, 'w', zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(payload.iterdir()):
-            bundle.write(path, f'TypingTracker-{version}/{path.name}')
+            bundle.write(path, f'{brand}-{version}/{path.name}')
     with zipfile.ZipFile(portable) as bundle:
         if bundle.testzip() is not None:
             raise ValueError('Portable ZIP integrity check failed')
-        if hashlib.sha256(bundle.read(f'TypingTracker-{version}/TypingTracker.exe')).hexdigest() != sha256(exe):
+        if hashlib.sha256(bundle.read(f'{brand}-{version}/{brand}.exe')).hexdigest() != sha256(exe):
             raise ValueError('Portable executable checksum mismatch')
-    run_logged([str(iscc), f'/DAppVersion={version}', f'/DPayloadDir={payload}',
+    run_logged([str(iscc), f'/DAppVersion={version}', f'/DAppBrand={brand}', f'/DPayloadDir={payload}',
                 f'/DOutputDir={assets}', str(TOOLS_ROOT / 'packaging/windows/TypingTracker.iss')],
                output / 'installer-build.log')
-    setup = assets / f'TypingTracker-{version}-windows-x64-setup.exe'
+    setup = assets / f'{brand}-{version}-windows-x64-setup.exe'
     if not setup.is_file():
         raise ValueError('Installer was not created')
-    shutil.copyfile(payload / 'release-manifest.json', assets / f'TypingTracker-{version}-manifest.json')
-    checksums = assets / f'TypingTracker-{version}-SHA256SUMS.txt'
+    shutil.copyfile(payload / 'release-manifest.json', assets / f'{brand}-{version}-manifest.json')
+    checksums = assets / f'{brand}-{version}-SHA256SUMS.txt'
     checksums.write_text(''.join(f'{sha256(path)}  {path.name}\n' for path in sorted(assets.iterdir())), encoding='ascii')
     print(json.dumps(manifest), flush=True)
     for path in sorted(assets.iterdir()):

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
-from .. import __version__
+from .. import APP_DISPLAY_NAME, APP_NAME, __version__
 from ..services.exp_service import band_title, level_and_progress
 from .assets.icons import icon as svg_icon
 from .dashboard import Dashboard
@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
         self._last_level = None
         self._companion = None
 
-        self.setWindowTitle(f'打字管家 v{__version__}')
+        self.setWindowTitle(f'{APP_DISPLAY_NAME} v{__version__}')
         # 无边框窗口 + 自定义标题栏 + 圆角壳层 + 投影（窗户质感）
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint
                             | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
@@ -193,7 +193,7 @@ class MainWindow(QMainWindow):
         v = QVBoxLayout(self._shell)
         v.setContentsMargins(0, 0, 0, 0)
         v.setSpacing(0)
-        self._titlebar = TitleBar(self, '打字管家  /  TypingTracker')
+        self._titlebar = TitleBar(self, APP_DISPLAY_NAME)
         v.addWidget(self._titlebar)
         v.addWidget(pages, 1)
         # 导航条按规范内缩（非紧凑 32/16，紧凑 16/12）
@@ -584,7 +584,7 @@ class MainWindow(QMainWindow):
         self.hide()
         if self._tray is not None:
             self._tray.showMessage(
-                '打字管家', '已最小化到托盘，后台继续统计打字。',
+                APP_NAME, '已最小化到托盘，后台继续统计打字。',
                 QSystemTrayIcon.Information, 2000)
 
     def changeEvent(self, event):

@@ -92,6 +92,28 @@ jobs:
       - name: Verify install and uninstall
         shell: pwsh
         run: ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/installer-smoke"
+      - name: Verify upgrade from TypingTracker 0.9.2
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $taskManifest = Get-Content -LiteralPath 'release-output/payload/release-manifest.json' | ConvertFrom-Json
+          if ($taskManifest.product_name -eq 'Sariana') {
+            $taskHeaders = @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GH_TOKEN" }
+            $taskPrevious = Invoke-RestMethod -Uri 'https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v0.9.2' -Headers $taskHeaders
+            $taskAsset = @($taskPrevious.assets | Where-Object name -eq 'TypingTracker-0.9.2-windows-x64-setup.exe')
+            if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw 'Previous installer missing' }
+            if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw 'Previous installer digest missing' }
+            $taskExpectedHash = $Matches[1]
+            $taskLegacySetup = Join-Path $env:RUNNER_TEMP 'TypingTracker-0.9.2-setup.exe'
+            # Asset ID bypasses cached redirects after release assets are replaced.
+            $taskDownload = $taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id
+            Invoke-WebRequest -Uri $taskDownload -OutFile $taskLegacySetup
+            if ((Get-FileHash -LiteralPath $taskLegacySetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw 'Previous installer checksum mismatch' }
+            ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/upgrade-smoke" -UpgradeFromSetup $taskLegacySetup
+          } else {
+            Write-Output 'Historical TypingTracker build: rename upgrade check is not applicable'
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release-assets

@@ -1,4 +1,4 @@
-"""打字管家 - 入口：单实例锁、初始化、后台钩子、托盘、主窗口。
+"""Sariana - 入口：单实例锁、初始化、后台钩子、托盘、主窗口。
 
 用法：python main.py [--data-dir DIR]
 """
@@ -17,7 +17,7 @@ if _DEPS.is_dir():
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
-from app import __version__
+from app import APP_NAME, APP_TAGLINE, __version__
 from app.core.engine import StatsEngine
 from app.services.achievement_service import AchievementService
 from app.services.ai_service import AIService
@@ -37,7 +37,7 @@ try:
 except Exception:  # 非 Windows 平台降级：无钩子，仅界面可用
     KeyboardHook = None
 
-APP_NAME = '打字管家'
+# Preserve the data directory and app.lock shared with pre-rename versions.
 DEFAULT_DATA_DIR = Path.home() / 'AppData' / 'Roaming' / 'TypingTracker'
 
 
@@ -85,13 +85,14 @@ def apply_window_icon(app: QApplication) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog='typing-tracker')
+    parser = argparse.ArgumentParser(prog=APP_NAME, description=APP_TAGLINE)
     parser.add_argument('--data-dir', default=str(DEFAULT_DATA_DIR),
                         help='数据目录（默认 %%APPDATA%%/TypingTracker）')
     args = parser.parse_args()
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
+    app.setApplicationVersion(__version__)
     apply_window_icon(app)
     app.setQuitOnLastWindowClosed(False)  # 关窗不退出，驻留托盘
 
@@ -102,7 +103,7 @@ def main() -> int:
     from PySide6.QtCore import QLockFile
     lock = QLockFile(str(data_dir / 'app.lock'))
     if not lock.tryLock(100):
-        QMessageBox.warning(None, APP_NAME, '打字管家已在运行（单实例），请勿重复启动。')
+        QMessageBox.warning(None, APP_NAME, 'Sariana 或旧版打字管家已在运行，请勿重复启动。')
         return 1
 
     balance = load_balance()
