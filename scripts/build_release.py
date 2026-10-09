@@ -67,7 +67,7 @@ def verify_executable(exe: Path, source: Path) -> dict:
     """Check the frozen program itself, including source code and runtime assets."""
     from PyInstaller.archive.readers import CArchiveReader
 
-    subprocess.run([str(exe), '--help'], check=True, capture_output=True, timeout=60)
+    subprocess.run([str(exe), '--help'], check=True, timeout=60)
     archive = CArchiveReader(str(exe))
     pyz = archive.open_embedded_archive(next(name for name in archive.toc if name.endswith('.pyz')))
     checked = []
@@ -130,7 +130,7 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         f"runtime_hooks=[{str(source / 'scripts/pyinstaller_runtime.py')!r}], "
         "excludes=['pygame'], optimize=0)\npyz = PYZ(a.pure)\n"
         "exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='TypingTracker', "
-        f"console=False, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
+        f"console=True, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
         encoding='utf-8')
     run_logged([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
                 '--distpath', str(output / 'payload'), '--workpath', str(build / 'work'), str(spec)],
