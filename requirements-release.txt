@@ -1,0 +1,8 @@
+# Windows x64 / Python 3.13; pin the build environment separately from app requirements.
+PySide6==6.11.2
+pyqtgraph==0.14.0
+comtypes==1.4.17
+numpy==2.5.3
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.8
+setuptools==84.0.0
