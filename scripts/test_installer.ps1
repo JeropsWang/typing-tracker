@@ -27,6 +27,12 @@ $taskManifest = Get-Content -LiteralPath (Join-Path $taskPackageDir 'payload\rel
 $taskExeName = if ($taskManifest.executable) { [string]$taskManifest.executable } else { 'TypingTracker.exe' }
 if ($taskExeName -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,40}\.exe$') { throw 'Invalid manifest executable' }
 $taskExpectedExe = Join-Path $taskPackageDir ('payload\' + $taskExeName)
+$taskProgramsDir = [Environment]::GetFolderPath('Programs')
+$taskLegacyShortcut = Join-Path $taskProgramsDir 'TypingTracker\TypingTracker.lnk'
+$taskNewShortcut = Join-Path $taskProgramsDir (($taskExeName -replace '\.exe$', '') + '\' + ($taskExeName -replace '\.exe$', '.lnk'))
+if ($UpgradeFromSetup -and ((Test-Path -LiteralPath $taskLegacyShortcut) -or (Test-Path -LiteralPath $taskNewShortcut))) {
+    throw 'An existing product shortcut exists; use a clean Windows test machine'
+}
 $taskDataDir = Join-Path $env:APPDATA 'TypingTracker'
 New-Item -ItemType Directory -Force -Path $taskDataDir | Out-Null
 $taskSentinel = Join-Path $taskDataDir ('release-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
@@ -36,14 +42,13 @@ try {
     $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
     if ($UpgradeFromSetup) {
         $taskOldSetup = (Resolve-Path -LiteralPath $UpgradeFromSetup).Path
-        $taskGroup = 'Sariana-release-smoke-' + [guid]::NewGuid().ToString('N')
-        $taskMenuDir = Join-Path ([Environment]::GetFolderPath('Programs')) $taskGroup
-        $taskOldArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/DIR="' + $taskInstallDir + '"'),('/GROUP="' + $taskGroup + '"'))
+        # DisableProgramGroupPage=yes ignores /GROUP. Exercise real product groups.
+        $taskOldArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
         Invoke-CheckedProcess -FilePath $taskOldSetup -Arguments $taskOldArguments
         if (-not (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy installation missing' }
-        if (-not (Test-Path -LiteralPath (Join-Path $taskMenuDir 'TypingTracker.lnk'))) { throw 'Legacy shortcut missing' }
+        if (-not (Test-Path -LiteralPath $taskLegacyShortcut)) { throw 'Legacy shortcut missing' }
         # Omit /DIR to verify that the stable AppId reuses the previous location.
-        $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/GROUP="' + $taskGroup + '"'))
+        $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=')
     }
     Invoke-CheckedProcess -FilePath $taskPackages[0].FullName -Arguments $taskArguments
     $taskInstalledExe = Join-Path $taskInstallDir $taskExeName
@@ -55,8 +60,7 @@ try {
     if ($taskRecord.InstallLocation.TrimEnd('\') -ne $taskInstallDir) { throw 'Installation location changed' }
     if ($taskExeName -ne 'TypingTracker.exe' -and (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy executable remains after rename' }
     if ($UpgradeFromSetup) {
-        if (Test-Path -LiteralPath (Join-Path $taskMenuDir 'TypingTracker.lnk')) { throw 'Legacy shortcut remains after rename' }
-        $taskNewShortcut = Join-Path $taskMenuDir ($taskExeName -replace '\.exe$', '.lnk')
+        if (Test-Path -LiteralPath $taskLegacyShortcut) { throw 'Legacy shortcut remains after rename' }
         if (-not (Test-Path -LiteralPath $taskNewShortcut)) { throw 'Renamed shortcut missing' }
         $taskShell = New-Object -ComObject WScript.Shell
         if ($taskShell.CreateShortcut($taskNewShortcut).TargetPath -ne $taskInstalledExe) { throw 'Renamed shortcut target mismatch' }
