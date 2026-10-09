@@ -85,6 +85,7 @@ class _GenThread(QObject):
 
 
 class ChallengePage(QWidget):
+    result_saved = Signal(dict)
     running_changed = Signal(bool)
     confetti_requested = Signal(int)    # 彩带庆祝（1=金色 2=多彩）
     settings_requested = Signal()
@@ -666,6 +667,8 @@ class ChallengePage(QWidget):
         s = score(inp, ref, self._elapsed, self._balance)
         s['elapsed_seconds'] = self._elapsed
         r = self._svc.record(self._text_combo.currentData(), s, self._balance)
+        self.result_saved.emit({'id': f'challenge:{self._start_ts}', 'is_best': r['is_best'],
+                                'accuracy': s['accuracy'], 'speed': s['speed']})
 
         if r['is_best']:
             self._result_title.setText('🎉 新纪录！')

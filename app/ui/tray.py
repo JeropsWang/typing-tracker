@@ -38,3 +38,13 @@ class TrayIcon(QSystemTrayIcon):
     def update_summary(self, text: str):
         self._act_summary.setText(f'今日：{text}')
         self.setToolTip(f'打字管家\n今日：{text}')
+
+    def bind_companion(self, controller):
+        menu = self.contextMenu()
+        companion = menu.addMenu('Sariana 小伙伴')
+        companion.addAction('显示角色', controller.show_companion)
+        companion.addAction('收起角色', controller.hide_companion)
+        companion.addSeparator()
+        companion.addAction('应用窗口内', lambda: controller.switch_mode('window'))
+        companion.addAction('桌面宠物', lambda: controller.switch_mode('desktop'))
+        companion.addAction('本地二创工坊…', controller.open_workshop)

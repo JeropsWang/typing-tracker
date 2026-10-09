@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "id": "starlight",
+  "name": "星光陪伴",
+  "author": "TypingTracker · Sariana 二创",
+  "description": "温柔地陪你把每一个字敲成小星星。",
+  "version": "1.0",
+  "states": {
+    "idle": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        0,
+        384,
+        352
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "我在这里，随时陪你。",
+        "{nickname}，今天也一起加油吧。",
+        "一颗小星星，等你敲亮。"
+      ]
+    },
+    "focused": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        0,
+        384,
+        352
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "慢慢来，我陪你打完这段。",
+        "专注的时候，也有星光陪着你。",
+        "每敲一个字，都离目标近一点。"
+      ]
+    },
+    "happy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        0,
+        384,
+        352
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "这次练习完成啦！",
+        "你认真敲字的样子真好看。",
+        "给今天的努力一颗小星星。"
+      ]
+    },
+    "proud": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        0,
+        384,
+        352
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "新纪录！这颗星星属于你。",
+        "{nickname}，你又比昨天更棒了。",
+        "悄悄进步，也值得大声庆祝。"
+      ]
+    },
+    "shy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        355,
+        384,
+        325
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "诶……摸摸头会有点害羞。",
+        "谢谢你，我也喜欢陪着你。",
+        "再摸一下的话……也不是不行。"
+      ]
+    },
+    "pout": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        355,
+        384,
+        325
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "轻一点嘛，我的蝴蝶结要歪啦。",
+        "我也想被温柔地对待。",
+        "不闹啦，一起看星星吧。"
+      ]
+    },
+    "sleepy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        355,
+        384,
+        325
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "困困了，要不要一起休息一下？",
+        "闭上眼睛，给自己一点小假期。",
+        "你的进步不会因为休息消失。"
+      ]
+    },
+    "surprised": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        355,
+        384,
+        325
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "哇，怎么突然这么厉害！",
+        "诶！你发现我的小秘密了吗？",
+        "星星刚刚是不是眨眼了？"
+      ]
+    },
+    "cheering": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "错几个字没关系，我们再试一次。",
+        "认真练习，就已经很棒了。",
+        "放慢一点，也是在向前走。"
+      ]
+    },
+    "celebrating": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "撒花！又迈过一个小台阶。",
+        "Lv.{level}，新的星光点亮了！",
+        "为你的坚持开一场小小庆典。"
+      ]
+    }
+  },
+  "memes": [
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "偷偷探头，看看你。",
+        "小星星来串门啦。"
+      ]
+    },
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "脑袋转不过来啦！",
+        "让我缓冲三秒钟。"
+      ]
+    }
+  ]
+}

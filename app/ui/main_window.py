@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         self._dark = True
         self._popups = []
         self._last_level = None
+        self._companion = None
 
         self.setWindowTitle(f'打字管家 v{__version__}')
         # 无边框窗口 + 自定义标题栏 + 圆角壳层 + 投影（窗户质感）
@@ -228,6 +229,16 @@ class MainWindow(QMainWindow):
         self._floating_settings.clicked.connect(self.open_settings)
         self._floating_settings.hide()  # 设置移到固定导航，避免遮挡练习内容。
 
+        if data_dir is not None:
+            from .companion.controller import CompanionController
+            self._companion = CompanionController(self, repo, data_dir)
+            if hasattr(self, '_challenge_page'):
+                self._challenge_page.result_saved.connect(self._companion_result)
+            self._english_page.result_saved.connect(self._companion_result)
+            if self._tray is not None:
+                self._tray.bind_companion(self._companion)
+            self._companion.start()
+
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
         self._timer.start(1000)
@@ -373,6 +384,10 @@ class MainWindow(QMainWindow):
     # ---------- 弹窗 ----------
     def show_checkin_popup(self, result: dict) -> None:
         """每日签到弹窗（居中显示，动态动画）。"""
+        if self._companion is not None:
+            from ..companion.models import CompanionEvent
+            self._companion.handle_event(CompanionEvent('checkin', {'streak': result['streak']},
+                                                       f"checkin:{result['date']}"))
         if not self.isVisible():
             return
         popup = CheckinPopup(self, result, self._balance,
@@ -406,7 +421,21 @@ class MainWindow(QMainWindow):
 
     def notify(self, title: str, msg: str, kind: str = 'star') -> None:
         """兼容旧调用：统一走小弹窗。"""
+        if self._companion is not None and kind in ('achievement', 'encourage', 'milestone'):
+            from ..companion.models import CompanionEvent
+            self._companion.handle_event(CompanionEvent('achievement' if kind == 'milestone' else kind,
+                                                       event_id=f'{self._engine.current_day()}:{kind}:{msg}'))
         self.show_toast(title, msg, kind)
+
+    def _companion_result(self, result):
+        if self._companion is not None:
+            from ..companion.models import CompanionEvent
+            kind = ('record' if result.get('is_best') else
+                    'encourage' if result.get('accuracy', 1) < .8 else 'finished')
+            payload = {'accuracy': f"{result['accuracy']:.0%}"}
+            if 'speed' in result:
+                payload['speed'] = f"{result['speed']:.1f}"
+            self._companion.handle_event(CompanionEvent(kind, payload, result['id']))
 
     # ---------- Tab 动效 ----------
     def _on_tab_changed(self, index: int):
@@ -522,6 +551,8 @@ class MainWindow(QMainWindow):
             self._confetti.stop()
         for popup in self.findChildren(CheckinPopup) + self.findChildren(ToastPopup):
             popup.set_motion_enabled(active)
+        if self._companion is not None:
+            self._companion.sync_visibility()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -544,6 +575,8 @@ class MainWindow(QMainWindow):
             if hasattr(self, '_profile_page'):
                 self._profile_page.refresh()
         self.refresh()
+        if self._companion is not None:
+            self._companion.sync_settings()
         self._sync_motion()
 
     def closeEvent(self, event):

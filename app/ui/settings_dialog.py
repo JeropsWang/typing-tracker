@@ -417,7 +417,19 @@ class SettingsDialog(QDialog):
         self._motion = QCheckBox('动态效果')
         self._motion.setChecked(self._repo.get_setting('reduced_motion', '0') != '1')
         layout.addWidget(self._check_row(self._motion, 'Sariana 眨眼与手绘发丝、星空、导航和作答小星光；关闭后保持静态。'))
+        from .companion.settings import CompanionSettings
+        self._companion_settings = CompanionSettings(self._repo)
+        self._companion_settings.workshop_requested.connect(self._open_companion_workshop)
+        self._companion_settings.workshop_button.setEnabled(bool(getattr(self.parent(), '_companion', None)))
+        layout.addWidget(self._companion_settings)
         layout.addStretch()
+
+    def _open_companion_workshop(self):
+        controller = getattr(self.parent(), '_companion', None)
+        if controller is not None:
+            self.accept()
+            if self.result() == QDialog.Accepted:
+                QTimer.singleShot(0, controller.open_workshop)
 
     def _build_data(self):
         layout = self._section('数据备份', '导出当前记录，方便迁移或自己留存。')
@@ -426,7 +438,7 @@ class SettingsDialog(QDialog):
         self._export_btn.setAutoDefault(False)
         self._export_btn.clicked.connect(self._export)
         layout.addWidget(self._export_btn, 0, Qt.AlignLeft)
-        note = QLabel('包含 daily_stats.csv 与 data.json；导出不会修改原始数据。')
+        note = QLabel('包含 daily_stats.csv 与 data.json；二创作品请在本地二创工坊单独导出。')
         note.setWordWrap(True)
         note.setProperty('textRole', 'paperMuted')
         layout.addWidget(note)
@@ -895,6 +907,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
                       excluded_apps=self._exclude_edit.toPlainText(),
                       reduced_motion='0' if self._motion.isChecked() else '1')
         values.update({f'ai_{key}': value for key, value in config.items()})
+        values.update(self._companion_settings.values())
         if self._theme_mgr:
             values['theme_id'] = self._theme_combo.currentData()
         try:

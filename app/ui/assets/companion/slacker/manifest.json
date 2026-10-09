@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "id": "slacker",
+  "name": "摸鱼搭子",
+  "author": "TypingTracker · Sariana 二创",
+  "description": "一起认真，也一起给键盘放个小假。",
+  "version": "1.0",
+  "states": {
+    "idle": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        0,
+        384,
+        351
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "我负责陪伴，你负责敲字。",
+        "{nickname}，今天的茶泡好了。",
+        "先坐好，我们随时开工。"
+      ]
+    },
+    "focused": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        0,
+        384,
+        351
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "认真模式，偷偷上线。",
+        "这一段打完，给自己一个赞。",
+        "我也在努力，虽然看起来很懒。"
+      ]
+    },
+    "happy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        0,
+        384,
+        351
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "收工一小段，开心一大点。",
+        "完成！键盘可以喘口气啦。",
+        "这次努力，值得一个懒懒的击掌。"
+      ]
+    },
+    "proud": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        0,
+        384,
+        351
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "新纪录？先让我震惊三秒。",
+        "厉害，键盘都快冒烟啦。",
+        "我在摸鱼，你在创造奇迹。"
+      ]
+    },
+    "shy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        355,
+        384,
+        324
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "摸头加成到账！",
+        "被发现我偷偷开心了。",
+        "再摸一下，就充满电啦。"
+      ]
+    },
+    "pout": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        355,
+        384,
+        324
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "不要戳，奶茶差点洒了。",
+        "我只是摸鱼，没惹任何人。",
+        "好吧，委屈三秒再和好。"
+      ]
+    },
+    "sleepy": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        355,
+        384,
+        324
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "困困困，抱紧我的小毯子。",
+        "键盘冒烟啦，歇一下！",
+        "休息也是今日计划的一部分。"
+      ]
+    },
+    "surprised": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        355,
+        384,
+        324
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "啊？这手速是真的吗？",
+        "我刚眯了一下，发生什么了？",
+        "茶还没凉，你已经完成啦？"
+      ]
+    },
+    "cheering": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        0,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "没事，鱼也不是一次摸到的。",
+        "错字改回来，咱们继续。",
+        "稳住，今天已经比不练习赢了。"
+      ]
+    },
+    "celebrating": {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        384,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "撒花，我负责气氛组！",
+        "Lv.{level}，今天的快乐加倍。",
+        "努力的人，值得小小狂欢。"
+      ]
+    }
+  },
+  "memes": [
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        768,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "人在键盘前，灵魂在放假。",
+        "让我趴一小会儿。"
+      ]
+    },
+    {
+      "asset": "assets/atlas-v1.png",
+      "rect": [
+        1152,
+        686,
+        384,
+        338
+      ],
+      "frame": 0,
+      "duration_ms": 6000,
+      "lines": [
+        "被窝是另一种办公地点。",
+        "今日电量：正在充电。"
+      ]
+    }
+  ]
+}
