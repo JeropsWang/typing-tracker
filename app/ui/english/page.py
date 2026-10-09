@@ -247,7 +247,7 @@ class EnglishPage(PaperPage):
             self.sentences.status.setText(str(exc))
             return
         self._reset_sentence()
-        self.sentences.status.setText(f"这一句完成 · 正确率 {result['accuracy']:.1%} · 用时 {result['elapsed']:.1f} 秒")
+        self.sentences.status.setText(f"这一句完成 · 单词正确率 {result['accuracy']:.1%} · 错误词数 {result['errors']} · 用时 {result['elapsed']:.1f} 秒")
         if result['saved']:
             self.result_saved.emit({'id': f'sentence:{event_id}', 'accuracy': result['accuracy']})
 

@@ -14,8 +14,8 @@ import threading
 from PySide6.QtCore import Qt, QEvent, QObject, QTimer, Signal
 from PySide6.QtGui import QTextBlockFormat, QTextCursor
 from PySide6.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QSpacerItem,
-    QVBoxLayout, QWidget,
+    QButtonGroup, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
+    QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from ...core.challenge import TEXTS, score
@@ -25,6 +25,8 @@ from ..palette import P
 from ..widgets.ai_passage_composer import AIPassageComposer
 from ..widgets.training_workspace import TrainingWorkspace
 from ..widgets.practice_leaderboard import PracticeLeaderboard
+from ..widgets.keyboard_warrior import KeyboardWarriorPanel
+from ..widgets.chaos import ChaosPanel
 from ..widgets.responsive import stage_layout_for
 from ..widgets.design import (
     ArtTitle, Disclosure, Panel, is_compact, paper_padding,
@@ -98,6 +100,8 @@ class ChallengePage(QWidget):
         self._ai = ai_service
         self._ai_session = test_session or AITestSession()
         self._running = False
+        self._practice_running = False
+        self._keyboard_active = False
         self._start_ts = 0.0
         self._elapsed = 0.0
         self._gen_thread = None
@@ -106,6 +110,26 @@ class ChallengePage(QWidget):
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        modes = QHBoxLayout()
+        self._mode_row = modes
+        modes.setContentsMargins(48, 8, 48, 0)
+        self.mode_buttons = {}
+        self._mode_group = QButtonGroup(self)
+        for key, title in [('practice', '范文练习'), ('keyboard', '键盘侠 · 15 秒'), ('chaos', '混乱 · 60 字')]:
+            button = QPushButton(title)
+            button.setCheckable(True)
+            button.setProperty('growthTab', True)
+            button.setMinimumHeight(36)
+            button.clicked.connect(lambda checked=False, mode=key: self._select_mode(mode))
+            self._mode_group.addButton(button)
+            self.mode_buttons[key] = button
+            modes.addWidget(button)
+        modes.addStretch()
+        self.mode_buttons['practice'].setChecked(True)
+        outer.addLayout(modes)
+        self._module_stack = QStackedWidget()
+        outer.addWidget(self._module_stack)
         self._page_scroll = QScrollArea(self)
         self._page_scroll.setFrameShape(QFrame.NoFrame)
         self._page_scroll.setWidgetResizable(True)
@@ -117,7 +141,13 @@ class ChallengePage(QWidget):
             'QWidget#challengeCanvas { background: transparent; }')
         self._page_scroll.viewport().setAutoFillBackground(False)
         self._page_scroll.setWidget(canvas)
-        outer.addWidget(self._page_scroll)
+        self._module_stack.addWidget(self._page_scroll)
+        self.keyboard_panel = KeyboardWarriorPanel(repo, balance)
+        self.chaos_panel = ChaosPanel(ai_service)
+        self.keyboard_panel.running_changed.connect(self._keyboard_running)
+        self.chaos_panel.settings_requested.connect(self.settings_requested.emit)
+        self._module_stack.addWidget(self.keyboard_panel)
+        self._module_stack.addWidget(self.chaos_panel)
         root = QVBoxLayout(canvas)
         self._root = root
         root.setContentsMargins(MARGIN_X, MARGIN_TOP, MARGIN_X, 0)
@@ -269,6 +299,25 @@ class ChallengePage(QWidget):
         self.apply_theme()
 
     # ---------- 版式 ----------
+    def _select_mode(self, mode):
+        target = {'practice': self._page_scroll, 'keyboard': self.keyboard_panel,
+                  'chaos': self.chaos_panel}[mode]
+        if target is self._module_stack.currentWidget():
+            return
+        if self._module_stack.currentWidget() is self._page_scroll and self._running:
+            self._reset()
+        self._module_stack.setCurrentWidget(target)
+        if mode == 'keyboard':
+            self.keyboard_panel.refresh()
+        elif mode == 'practice':
+            self.update_ai_access()
+            self._sync_controls()
+
+    def _keyboard_running(self, running):
+        self._keyboard_active = running
+        self._running = self._practice_running or self._keyboard_active
+        self.running_changed.emit(self._running)
+
     def _stage_layout(self):
         return stage_layout_for(self)
 
@@ -398,6 +447,8 @@ class ChallengePage(QWidget):
         expanded = (getattr(self, '_ai_section', None) is not None
                     and self._ai_section.toggle.isChecked())
         height = stage.blend(98, 220) if expanded else stage.hero_height
+        # Reserve the selector from decorative header space, preserving paper tokens.
+        height = max(44, height - self._mode_row.sizeHint().height())
         self._art.setFixedSize(round(height * 650 / 220), height)
         self._before_paper.changeSize(0, stage.blend(6, 24) if expanded else stage.paper_gap)
         self._root.invalidate()
@@ -529,6 +580,8 @@ class ChallengePage(QWidget):
 
     # ---------- 主题 ----------
     def apply_theme(self):
+        self.keyboard_panel.apply_theme()
+        self.chaos_panel.apply_theme()
         # 设计稿里范文是纸面上的散文本行（无输入框描边/底色），不是控件方框：
         # 内联样式覆盖主题 QSS 给 QTextBrowser 的 padding:12px + 白底 + 1px 边框。
         # padding 会同时吃掉「视口高度」和「可用行宽」，是叠行的帮凶之一。
@@ -594,11 +647,12 @@ class ChallengePage(QWidget):
             section.toggle.setEnabled(not self._running)
 
     def _set_running(self, running):
-        self._running = running
+        self._practice_running = running
+        self._running = self._practice_running or self._keyboard_active
         self._style_input()
         self._sync_controls()
         self.update_ai_access()
-        self.running_changed.emit(running)
+        self.running_changed.emit(self._running)
 
     # ---------- 流程 ----------
     def _start(self):

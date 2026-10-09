@@ -14,6 +14,21 @@ class Repository:
         from ..english.repository import EnglishRepository
         return EnglishRepository(self._conn)
 
+    def add_keyboard_warrior(self, result, created_at):
+        with self._conn:
+            cursor = self._conn.execute(
+                'INSERT OR IGNORE INTO keyboard_warrior_history '
+                '(id,created_at,typed_chars,tw,elapsed_seconds,speed) VALUES(?,?,?,?,?,?)',
+                (result['id'], created_at, result['typed_chars'], result['tw'],
+                 result['elapsed_seconds'], result['speed']))
+        return cursor.rowcount > 0
+
+    def keyboard_warrior_leaderboard(self, limit=10):
+        rows = self._conn.execute(
+            'SELECT * FROM keyboard_warrior_history ORDER BY speed DESC, created_at ASC, id ASC LIMIT ?',
+            (max(1, min(int(limit), 100)),)).fetchall()
+        return [dict(row, rank=rank) for rank, row in enumerate(rows, 1)]
+
     # ---------- settings ----------
     def get_setting(self, key, default=None):
         row = self._conn.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()

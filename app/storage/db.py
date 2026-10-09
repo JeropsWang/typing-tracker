@@ -20,6 +20,11 @@ def connect_db(db_path) -> sqlite3.Connection:
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
     _migrate(conn)
+    conn.execute('''CREATE TABLE IF NOT EXISTS keyboard_warrior_history (
+        id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
+        typed_chars INTEGER NOT NULL, tw REAL NOT NULL,
+        elapsed_seconds REAL NOT NULL CHECK(elapsed_seconds = 15), speed REAL NOT NULL
+    )''')
     from ..english.repository import ensure_schema
     ensure_schema(conn)
     conn.commit()
