@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$PackageDir,
-    [Parameter(Mandatory=$true)][string]$Workspace
+    [Parameter(Mandatory=$true)][string]$Workspace,
+    [string]$UpgradeFromSetup
 )
 $ErrorActionPreference = 'Stop'
 function Invoke-CheckedProcess {
@@ -17,31 +18,57 @@ function Invoke-CheckedProcess {
 $taskPackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $taskWorkspace = [IO.Path]::GetFullPath($Workspace)
 $taskRegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8A3CAB17-B864-4379-9BAA-A2C7AE85706D}_is1'
-if (Test-Path -LiteralPath $taskRegistryKey) { throw 'An installed TypingTracker exists; use a clean Windows test machine' }
+if (Test-Path -LiteralPath $taskRegistryKey) { throw 'An installed Sariana/TypingTracker exists; use a clean Windows test machine' }
 $taskPackages = @(Get-ChildItem -LiteralPath (Join-Path $taskPackageDir 'assets') -Filter '*-setup.exe')
 if ($taskPackages.Count -ne 1) { throw 'Expected exactly one installer' }
 $taskInstallDir = Join-Path $taskWorkspace ('install-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $taskWorkspace | Out-Null
-$taskExpectedExe = Join-Path $taskPackageDir 'payload\TypingTracker.exe'
+$taskManifest = Get-Content -LiteralPath (Join-Path $taskPackageDir 'payload\release-manifest.json') | ConvertFrom-Json
+$taskExeName = if ($taskManifest.executable) { [string]$taskManifest.executable } else { 'TypingTracker.exe' }
+if ($taskExeName -notmatch '^[A-Za-z][A-Za-z0-9_-]{0,40}\.exe$') { throw 'Invalid manifest executable' }
+$taskExpectedExe = Join-Path $taskPackageDir ('payload\' + $taskExeName)
 $taskDataDir = Join-Path $env:APPDATA 'TypingTracker'
 New-Item -ItemType Directory -Force -Path $taskDataDir | Out-Null
 $taskSentinel = Join-Path $taskDataDir ('release-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
 'preserve-user-records' | Set-Content -LiteralPath $taskSentinel
 $taskSentinelHash = (Get-FileHash -LiteralPath $taskSentinel).Hash
 try {
-    Invoke-CheckedProcess -FilePath $taskPackages[0].FullName -Arguments '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"')
-    $taskInstalledExe = Join-Path $taskInstallDir 'TypingTracker.exe'
+    $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
+    if ($UpgradeFromSetup) {
+        $taskOldSetup = (Resolve-Path -LiteralPath $UpgradeFromSetup).Path
+        $taskGroup = 'Sariana-release-smoke-' + [guid]::NewGuid().ToString('N')
+        $taskMenuDir = Join-Path ([Environment]::GetFolderPath('Programs')) $taskGroup
+        $taskOldArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/DIR="' + $taskInstallDir + '"'),('/GROUP="' + $taskGroup + '"'))
+        Invoke-CheckedProcess -FilePath $taskOldSetup -Arguments $taskOldArguments
+        if (-not (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy installation missing' }
+        if (-not (Test-Path -LiteralPath (Join-Path $taskMenuDir 'TypingTracker.lnk'))) { throw 'Legacy shortcut missing' }
+        # Omit /DIR to verify that the stable AppId reuses the previous location.
+        $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/GROUP="' + $taskGroup + '"'))
+    }
+    Invoke-CheckedProcess -FilePath $taskPackages[0].FullName -Arguments $taskArguments
+    $taskInstalledExe = Join-Path $taskInstallDir $taskExeName
     if ((Get-FileHash -LiteralPath $taskInstalledExe).Hash -ne (Get-FileHash -LiteralPath $taskExpectedExe).Hash) { throw 'Installed executable differs from verified payload' }
     Invoke-CheckedProcess -FilePath $taskInstalledExe -Arguments '--help' -TimeoutSeconds 60
     $taskRecord = Get-ItemProperty -LiteralPath $taskRegistryKey
-    $taskManifest = Get-Content -LiteralPath (Join-Path $taskPackageDir 'payload\release-manifest.json') | ConvertFrom-Json
     if ($taskRecord.DisplayVersion -ne $taskManifest.version) { throw 'Uninstall record version mismatch' }
+    if ($taskManifest.product_name -and -not $taskRecord.DisplayName.StartsWith($taskManifest.product_name)) { throw 'Uninstall display name mismatch' }
+    if ($taskRecord.InstallLocation.TrimEnd('\') -ne $taskInstallDir) { throw 'Installation location changed' }
+    if ($taskExeName -ne 'TypingTracker.exe' -and (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy executable remains after rename' }
+    if ($UpgradeFromSetup) {
+        if (Test-Path -LiteralPath (Join-Path $taskMenuDir 'TypingTracker.lnk')) { throw 'Legacy shortcut remains after rename' }
+        $taskNewShortcut = Join-Path $taskMenuDir ($taskExeName -replace '\.exe$', '.lnk')
+        if (-not (Test-Path -LiteralPath $taskNewShortcut)) { throw 'Renamed shortcut missing' }
+        $taskShell = New-Object -ComObject WScript.Shell
+        if ($taskShell.CreateShortcut($taskNewShortcut).TargetPath -ne $taskInstalledExe) { throw 'Renamed shortcut target mismatch' }
+    }
     $taskUninstall = Join-Path $taskInstallDir 'unins000.exe'
     Invoke-CheckedProcess -FilePath $taskUninstall -Arguments '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'
     if (Test-Path -LiteralPath $taskInstalledExe) { throw 'Uninstall left the application executable' }
     if (Test-Path -LiteralPath $taskRegistryKey) { throw 'Uninstall left its registry entry' }
+    if ($UpgradeFromSetup -and (Test-Path -LiteralPath $taskNewShortcut)) { throw 'Uninstall left the renamed shortcut' }
     if (-not (Test-Path -LiteralPath $taskSentinel) -or (Get-FileHash -LiteralPath $taskSentinel).Hash -ne $taskSentinelHash) { throw 'Uninstall changed user data' }
     Write-Output "Installer verified: version=$($taskManifest.version), payload matches, bootstrap=0, uninstall preserves data"
+    if ($UpgradeFromSetup) { Write-Output 'Upgrade verified: previous location reused, old executable/shortcut removed, Sariana shortcut target matches, data preserved' }
 } finally {
     # Remove only our uniquely named test sentinel; never remove the user's data directory.
     if (Test-Path -LiteralPath $taskSentinel) { Remove-Item -LiteralPath $taskSentinel }

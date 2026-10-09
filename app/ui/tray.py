@@ -4,6 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
 
+from .. import APP_DISPLAY_NAME, APP_NAME
 from .assets.app_icon import tray_icon
 
 
@@ -16,7 +17,7 @@ class TrayIcon(QSystemTrayIcon):
         super().__init__(parent)
         # tray_icon() 内部：交付 PNG 优先，缺失/读不出时回退程序化绘制
         self.setIcon(tray_icon())
-        self.setToolTip('打字管家')
+        self.setToolTip(APP_DISPLAY_NAME)
 
         menu = QMenu()
         act_show = menu.addAction('显示主界面')
@@ -37,7 +38,7 @@ class TrayIcon(QSystemTrayIcon):
 
     def update_summary(self, text: str):
         self._act_summary.setText(f'今日：{text}')
-        self.setToolTip(f'打字管家\n今日：{text}')
+        self.setToolTip(f'{APP_NAME}\n今日：{text}')
 
     def bind_companion(self, controller):
         menu = self.contextMenu()

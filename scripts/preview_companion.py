@@ -1,4 +1,4 @@
-"""Isolated 0.9.2 companion/workshop preview: no global hooks or user database."""
+"""Isolated Sariana companion/workshop preview: no global hooks or user database."""
 import argparse
 import json
 import os
@@ -14,7 +14,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--interactive', action='store_true')
     parser.add_argument('--desktop', action='store_true')
-    parser.add_argument('--capture', default=str(ROOT / '.local/0.9.2/preview'))
+    parser.add_argument('--capture', default=str(ROOT / '.local/0.9.3/preview'))
     args = parser.parse_args()
     if not args.interactive:
         os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
@@ -56,7 +56,7 @@ def main():
                         achievements=AchievementService(repo, balance, definitions),
                         challenge=ChallengeService(repo), ai_service=AIService(repo),
                         theme_manager=theme, data_dir=data)
-    window.setWindowTitle('0.9.2 隔离预览 · 示例数据')
+    window.setWindowTitle('Sariana 0.9.3 隔离预览 · 示例数据')
     theme.register_reports(window._reports)
     theme.register_window(window)
     theme.apply('arknights_endfield_lino')

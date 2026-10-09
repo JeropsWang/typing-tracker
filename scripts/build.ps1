@@ -20,7 +20,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot locate PySide6 runtime' }
 #   decorations/*.svg                                     交付 v2 八个装饰贴纸
 #   app_icon.py / icons.py                                程序化图标与线性图标
 python -m PyInstaller --noconfirm --clean --onefile --windowed `
-    --name TypingTracker `
+    --name Sariana `
     --paths "$Root\.deps" `
     --exclude-module pygame `
     --add-binary "$taskQtRuntimeDir\*140*.dll;." `
@@ -36,4 +36,4 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "BUILD FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
     exit $LASTEXITCODE
 }
-Write-Host "DONE: $Root\dist\TypingTracker.exe"
+Write-Host "DONE: $Root\dist\Sariana.exe"

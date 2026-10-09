@@ -1,10 +1,14 @@
-# 打字管家（TypingTracker）0.9.2
+# Sariana · 伴你成长 0.9.3
 
-Windows 本地打字统计与练习应用，使用 Python、PySide6、pyqtgraph 和 SQLite。
+**陪你打字，陪你成长。**
+
+一个会回应你的桌面小伙伴，陪你练习，也能被你创作成喜欢的模样。
+Sariana（原打字管家 TypingTracker）是 Windows 本地桌面陪伴、打字统计与练习应用，使用 Python、PySide6、pyqtgraph 和 SQLite。
 本版为面向 [JeropsWang/typing-tracker](https://github.com/JeropsWang/typing-tracker) 的后续贡献版本。
 
 ## 本版改进
 
+- 0.9.3 正式更名为 Sariana：窗口、托盘、程序属性、快捷方式及发布附件统一命名；沿用原有记录和安装标识，支持从 TypingTracker 升级。
 - 新增 Sariana 小伙伴：应用内 / 桌面宠物两种模式可切换，十种情绪、摸头、双击互动和偶发表情包。
 - 新增离线二创工坊，内置星光陪伴、傲娇监督、摸鱼搭子三套作品；逐状态替换表情、GIF 和话术，支持预览、保存、应用与 ZIP 分享。
 - 萨莉安娜界面：夜色插画、奶油纸张、艺术字和错位装饰，底部六项导航。
@@ -19,8 +23,9 @@ Windows 本地打字统计与练习应用，使用 Python、PySide6、pyqtgraph 
 
 ## 运行
 
-仅支持 Windows。安装版运行 `TypingTracker-0.9.2-windows-x64-setup.exe`；免安装版解压整个 `TypingTracker-0.9.2-windows-x64-portable.zip` 后运行 `TypingTracker.exe`。
+仅支持 Windows。安装版运行 `Sariana-0.9.3-windows-x64-setup.exe`；免安装版解压整个 `Sariana-0.9.3-windows-x64-portable.zip` 后运行 `Sariana.exe`。
 发布附件含构建清单和 SHA-256 校验文件；升级前从托盘退出旧版本，卸载保留 `%APPDATA%\TypingTracker` 中的记录。
+为兼容旧版，数据目录继续使用原名称；安装版会复用旧安装位置并替换程序和快捷方式。免安装版请完整解压到新文件夹，继续沿用同一份本机记录。
 
 源码运行需要 Python 3.10+：
 
@@ -113,7 +118,7 @@ Lv.45 解锁 AI 生成，提前体验需训练券；英语与范文生成共用�
 powershell -File scripts\build.ps1
 ```
 
-预览使用隔离数据库，不启用全局键盘钩子。构建输出为 `dist/TypingTracker.exe`。
+预览使用隔离数据库，不启用全局键盘钩子。构建输出为 `dist/Sariana.exe`。
 AI 自动化测试使用模拟响应，真实模型效果取决于所配置的服务。
 
 Windows Release 生成安装 EXE、免安装 ZIP、源码提交清单和 SHA-256 校验文件。安装版支持升级，卸载保留本机记录。
