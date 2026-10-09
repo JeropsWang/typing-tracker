@@ -3,6 +3,17 @@ param(
     [Parameter(Mandatory=$true)][string]$Workspace
 )
 $ErrorActionPreference = 'Stop'
+function Invoke-CheckedProcess {
+    param([string]$FilePath, [string[]]$Arguments, [int]$TimeoutSeconds = 120)
+    $taskChild = Start-Process -FilePath $FilePath -ArgumentList $Arguments -WindowStyle Hidden -PassThru
+    if (-not $taskChild.WaitForExit($TimeoutSeconds * 1000)) {
+        # Kill only the process tree started by this test, including one-file extraction children.
+        & taskkill.exe /PID $taskChild.Id /T /F | Out-Null
+        throw "Process timed out after ${TimeoutSeconds}s: $FilePath"
+    }
+    $taskChild.Refresh()
+    if ($taskChild.ExitCode -ne 0) { throw "Process failed with exit code $($taskChild.ExitCode): $FilePath" }
+}
 $taskPackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $taskWorkspace = [IO.Path]::GetFullPath($Workspace)
 $taskRegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8A3CAB17-B864-4379-9BAA-A2C7AE85706D}_is1'
@@ -18,18 +29,15 @@ $taskSentinel = Join-Path $taskDataDir ('release-smoke-' + [guid]::NewGuid().ToS
 'preserve-user-records' | Set-Content -LiteralPath $taskSentinel
 $taskSentinelHash = (Get-FileHash -LiteralPath $taskSentinel).Hash
 try {
-    $taskProcess = Start-Process -FilePath $taskPackages[0].FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"') -WindowStyle Hidden -Wait -PassThru
-    if ($taskProcess.ExitCode -ne 0) { throw "Installation failed: $($taskProcess.ExitCode)" }
+    Invoke-CheckedProcess -FilePath $taskPackages[0].FullName -Arguments '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"')
     $taskInstalledExe = Join-Path $taskInstallDir 'TypingTracker.exe'
     if ((Get-FileHash -LiteralPath $taskInstalledExe).Hash -ne (Get-FileHash -LiteralPath $taskExpectedExe).Hash) { throw 'Installed executable differs from verified payload' }
-    $taskBootstrap = Start-Process -FilePath $taskInstalledExe -ArgumentList '--help' -WindowStyle Hidden -Wait -PassThru
-    if ($taskBootstrap.ExitCode -ne 0) { throw 'Installed executable bootstrap failed' }
+    Invoke-CheckedProcess -FilePath $taskInstalledExe -Arguments '--help' -TimeoutSeconds 60
     $taskRecord = Get-ItemProperty -LiteralPath $taskRegistryKey
     $taskManifest = Get-Content -LiteralPath (Join-Path $taskPackageDir 'payload\release-manifest.json') | ConvertFrom-Json
     if ($taskRecord.DisplayVersion -ne $taskManifest.version) { throw 'Uninstall record version mismatch' }
     $taskUninstall = Join-Path $taskInstallDir 'unins000.exe'
-    $taskProcess = Start-Process -FilePath $taskUninstall -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
-    if ($taskProcess.ExitCode -ne 0) { throw "Uninstall failed: $($taskProcess.ExitCode)" }
+    Invoke-CheckedProcess -FilePath $taskUninstall -Arguments '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART'
     if (Test-Path -LiteralPath $taskInstalledExe) { throw 'Uninstall left the application executable' }
     if (Test-Path -LiteralPath $taskRegistryKey) { throw 'Uninstall left its registry entry' }
     if (-not (Test-Path -LiteralPath $taskSentinel) -or (Get-FileHash -LiteralPath $taskSentinel).Hash -ne $taskSentinelHash) { throw 'Uninstall changed user data' }

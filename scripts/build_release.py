@@ -63,11 +63,29 @@ def runtime_files(source: Path) -> list[Path]:
     return files
 
 
+def check_bootstrap(command: list[str], timeout: float = 60) -> None:
+    """Bound the complete frozen process tree, without inherited PIPE handles."""
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0)
+    try:
+        returncode = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if sys.platform == 'win32':
+            subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        else:
+            process.kill()
+        process.wait(timeout=10)
+        raise
+    if returncode:
+        raise subprocess.CalledProcessError(returncode, command)
+
+
 def verify_executable(exe: Path, source: Path) -> dict:
     """Check the frozen program itself, including source code and runtime assets."""
     from PyInstaller.archive.readers import CArchiveReader
 
-    subprocess.run([str(exe), '--help'], check=True, timeout=60)
+    check_bootstrap([str(exe), '--help'])
     archive = CArchiveReader(str(exe))
     pyz = archive.open_embedded_archive(next(name for name in archive.toc if name.endswith('.pyz')))
     checked = []
@@ -129,8 +147,9 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         f"binaries={vc_dlls!r}, datas={datas!r}, "
         f"runtime_hooks=[{str(source / 'scripts/pyinstaller_runtime.py')!r}], "
         "excludes=['pygame'], optimize=0)\npyz = PYZ(a.pure)\n"
-        "exe = EXE(pyz, a.scripts, a.binaries, a.datas, [], name='TypingTracker', "
-        f"console=True, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
+        # Embedded Python ignores PYTHONIOENCODING; UTF-8 must be a bootloader option.
+        "exe = EXE(pyz, a.scripts, a.binaries, a.datas, [('X utf8', None, 'OPTION')], name='TypingTracker', "
+        f"console=False, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",
         encoding='utf-8')
     run_logged([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
                 '--distpath', str(output / 'payload'), '--workpath', str(build / 'work'), str(spec)],
