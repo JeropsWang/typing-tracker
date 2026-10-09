@@ -96,6 +96,10 @@ powershell -File scripts\build.ps1
 预览使用隔离数据库，不启用全局键盘钩子。构建输出为 `dist/TypingTracker.exe`。
 AI 自动化测试使用模拟响应，真实模型效果取决于所配置的服务。
 
+Windows Release 生成安装 EXE、免安装 ZIP、源码提交清单和 SHA-256 校验文件。安装版支持升级，卸载保留本机记录。
+发布 Release 后，`Windows release assets` 工作流自动构建并上传附件；旧版本缺少附件时，在 Actions 手动运行并填写对应标签（如 `v0.9.0` 或 `v0.9.1`）。标签中的源码版本必须一致，标签应指向该版本提交；安装包不进入 Git。
+本地构建先安装 `requirements-release.txt` 和 Inno Setup 6，再运行 `python scripts/build_release.py --help` 查看参数。历史版本使用独立的干净源码目录，构建工具与应用源码分开读取。
+
 ## 代码边界
 
 ```text

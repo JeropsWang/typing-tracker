@@ -1,0 +1,120 @@
+name: Windows release assets
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to build or backfill (e.g. v0.9.1)'
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - '.github/workflows/windows-release.yml'
+      - 'packaging/windows/**'
+      - 'scripts/build_release.py'
+      - 'scripts/test_installer.ps1'
+      - 'requirements-release.txt'
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/windows-release.yml'
+      - 'packaging/windows/**'
+      - 'scripts/build_release.py'
+      - 'scripts/test_installer.ps1'
+      - 'requirements-release.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.event.release.tag_name || inputs.tag || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      # Tooling comes from the default branch so old tags can be backfilled.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.sha || github.event.repository.default_branch }}
+          path: tooling
+          persist-credentials: false
+      - name: Validate release tag
+        id: source
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          if ($env:EVENT_NAME -in @('pull_request', 'push')) {
+            "ref=$env:GITHUB_SHA" >> $env:GITHUB_OUTPUT
+            "version=" >> $env:GITHUB_OUTPUT
+          } else {
+            if ($env:RELEASE_TAG -notmatch '^v?\d+\.\d+\.\d+$') { throw 'Expected a numeric release tag' }
+            "ref=refs/tags/$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+            "version=$($env:RELEASE_TAG -replace '^v','')" >> $env:GITHUB_OUTPUT
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: tooling/requirements-release.txt
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -r tooling/requirements-release.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Python dependencies failed' }
+          # windows-2022 provides Inno Setup; avoid installing unpinned tooling.
+          $compiler = 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
+          if (-not (Test-Path -LiteralPath $compiler)) { throw 'Runner Inno Setup compiler missing' }
+          Write-Output "Inno Setup: $((Get-Item -LiteralPath $compiler).VersionInfo.FileVersion)"
+      - name: Build and verify frozen application
+        shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ steps.source.outputs.version }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          $commit = git -C source rev-parse HEAD
+          $arguments = @('-B','tooling/scripts/build_release.py','--source-dir','source','--output-dir','release-output','--source-commit',$commit,'--iscc','C:/Program Files (x86)/Inno Setup 6/ISCC.exe')
+          if ($env:EXPECTED_VERSION) { $arguments += @('--expected-version', $env:EXPECTED_VERSION) }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'Release build failed' }
+      - name: Verify install and uninstall
+        shell: pwsh
+        run: ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/installer-smoke"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          path: release-output/assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release-assets
+          path: assets
+      - name: Upload to release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO"
+          gh release upload "$RELEASE_TAG" assets/* --repo "$GH_REPO" --clobber
