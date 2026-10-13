@@ -20,7 +20,7 @@ from app.services.checkin_service import CheckinService  # noqa: E402
 from app.services.reward_service import RewardService  # noqa: E402
 from app.services.achievement_service import AchievementService  # noqa: E402
 from app.storage.db import connect_db, init_schema  # noqa: E402
-from app.storage.repository import Repository  # noqa: E402
+from app.storage.session import DataSession as Repository  # noqa: E402
 from app.theme.theme_manager import ThemeManager  # noqa: E402
 from app.ui.main_window import MainWindow  # noqa: E402
 

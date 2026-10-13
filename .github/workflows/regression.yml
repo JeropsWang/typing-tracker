@@ -1,0 +1,38 @@
+name: Regression tests
+on:
+  pull_request:
+  push:
+    branches: ['**']
+    paths:
+      - 'app/**'
+      - 'main.py'
+      - 'scripts/**'
+      - 'config/**'
+      - 'requirements*.txt'
+      - '.github/workflows/regression.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: requirements-release.txt
+      - name: Install pinned runtime and test dependencies
+        run: python -m pip install -r requirements-release.txt
+      - name: Check module import boundaries
+        run: python -B scripts/check_architecture.py
+      - name: Run isolated regression tests
+        run: python -B -m unittest discover -s scripts -p 'test_*.py' -v
+      - name: Run application self-test
+        run: python -B scripts/selftest.py

@@ -11,6 +11,8 @@
   保证纸面正文/辅助文字仍 ≥4.5:1。
 """
 from __future__ import annotations
+from .presenters import QueryPresenter
+from .tasks import TaskBridge
 
 from pathlib import Path
 from PySide6.QtCore import QBuffer, QIODevice, QRectF, QSize, Qt, QTimer
@@ -20,9 +22,10 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QListWidget, QMessageBox, QPlainTextEdit, QPushButton,
     QScrollArea, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
-from ..services.ai_service import AIService
-from ..services.export_service import export_all
-from ..services.settings_service import SettingsService, validate_ai
+from ..integrations.ai.api import AIService
+from ..workflows.export import export_all
+from ..modules.profile.api import validate_ai
+from ..bootstrap.features import settings_presenter
 from .palette import P
 from .widgets import design as _design
 from .widgets.ai_connection import ConnectionTest
@@ -118,41 +121,9 @@ def _readable(fg, bg, minimum: float = _CONTRAST_MIN) -> str:
 
 # ---------- 纸张容器（底部操作栏留在纸张外，滚动只发生在表单内部） ----------
 
-class _PaperFrame(QFrame):
-    """整块奶油纸张：不透明、轻微不规则边缘，与 design.PaperSurface 同一视觉语言。
-
-    自己绘制而非复用 `PaperSurface`，是因为需要一层不透明的纸张底：
-    QDialog 在深色主题下窗口底色是画布色，若纸张只作为子容器，四周会露出深色边。
-    """
-
-    @staticmethod
-    def _paper_path(rect: QRectF) -> QPainterPath:
-        path = QPainterPath()
-        left, right = rect.left() + 1.0, rect.right() - 1.0
-        top, bottom = rect.top() + 3.0, rect.bottom() - 3.0
-        width = max(1.0, right - left)
-        segments = 8
-        path.moveTo(left + 8, top)
-        for i in range(1, segments + 1):
-            x = left + width * i / segments
-            control_y = top + (1.8 if i % 2 else -1.6)
-            path.quadTo(left + width * (i - 0.5) / segments, control_y, x, top)
-        path.lineTo(right - 8, bottom)
-        for i in range(segments - 1, -1, -1):
-            x = left + width * i / segments
-            control_y = bottom + (-1.8 if i % 2 else 1.6)
-            path.quadTo(left + width * (i + 0.5) / segments, control_y, x, bottom)
-        path.closeSubpath()
-        return path
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        path = self._paper_path(QRectF(self.rect()))
-        painter.fillPath(path, QColor(P.paper))
-        painter.setPen(QPen(QColor(P.paper_muted), 1))
-        painter.drawPath(path)
-        painter.end()
+class _PaperFrame(_design.PaperSurface):
+    def __init__(self,parent=None):
+        super().__init__(parent,opaque=True)
 
 
 class SettingsDialog(QDialog):
@@ -162,10 +133,12 @@ class SettingsDialog(QDialog):
         from .widgets.window_policy import FixedWindowPolicy
         self._window_policy = FixedWindowPolicy(self, (820, 640))
         self.setSizeGripEnabled(False)
-        self._repo, self._balance = repo, balance
+        self._presenter, self._balance = QueryPresenter(repo), balance
+        self._tasks = TaskBridge(self)
         self._theme_mgr = theme_manager
         self._data_dir = Path(data_dir) if data_dir else None
-        self._service = SettingsService(repo, data_dir)
+        self._service = settings_presenter(repo,data_dir)
+        self._saving = False
         self._original_theme = theme_manager.current_id() if theme_manager else None
         self._avatar_action = None
         self._pending_deletions = set()
@@ -289,10 +262,10 @@ class SettingsDialog(QDialog):
 
     def _build_profile(self):
         layout = self._section('我的角色小档案', '头像、昵称和签名，一起收进成长页。')
-        self._avatar_preset = normalize_avatar(self._repo.get_setting('avatar_preset', DEFAULT_AVATAR))
+        self._avatar_preset = normalize_avatar(self._presenter.get_setting('avatar_preset', DEFAULT_AVATAR))
         editor = PersonalSettingsPanel(
-            self._repo.get_setting('nickname', '打字新星'),
-            self._repo.get_setting('signature', '键盘上的舞者 ✨'), self._avatar_preset)
+            self._presenter.get_setting('nickname', '打字新星'),
+            self._presenter.get_setting('signature', '键盘上的舞者 ✨'), self._avatar_preset)
         self._profile_editor = editor
         self._nick_edit, self._sig_edit = editor.nickname_edit, editor.signature_edit
         self._avatar_combo = None
@@ -301,7 +274,7 @@ class SettingsDialog(QDialog):
         editor.upload_requested.connect(self._upload_avatar)
         editor.clear_requested.connect(self._clear_avatar)
         editor.picker.selected.connect(self._select_avatar)
-        if self._data_dir and self._repo.get_setting('avatar_image', '') == '1':
+        if self._data_dir and self._presenter.get_setting('avatar_image', '') == '1':
             image = QImage(str(self._data_dir / 'avatars/avatar.png'))
             if not image.isNull():
                 editor.portrait.set_portrait(self._avatar_preset, image)
@@ -310,22 +283,22 @@ class SettingsDialog(QDialog):
 
     def _build_rules(self):
         layout = self._section('统计规则', '统计数值始终按 tw 口径计算，单位名称仅改变显示。')
-        self._unit_edit = QLineEdit(self._repo.get_setting('unit_name', self._balance['unit']['name']))
+        self._unit_edit = QLineEdit(self._presenter.get_setting('unit_name', self._balance['unit']['name']))
         self._unit_edit.setMaxLength(8)
         layout.addWidget(PaperField('显示单位', self._unit_edit, '1 字母 = 1 tw，1 汉字 = 2 tw。建议保留 tw。'))
         self._hour_spin = QSpinBox()
         self._hour_spin.setRange(0, 23)
         self._hour_spin.setSuffix(' 点')
-        self._hour_spin.setValue(int(self._repo.get_setting('day_start_hour', self._balance['day_start_hour'])))
+        self._hour_spin.setValue(int(self._presenter.get_setting('day_start_hour', self._balance['day_start_hour'])))
         layout.addWidget(PaperField('新一天的起点', self._hour_spin, '改变统计日的边界，不会删除已有记录。'))
         self._infinite = QCheckBox('100 级后继续累积等级')
-        self._infinite.setChecked(self._repo.get_setting('infinite_levels', '0') == '1')
+        self._infinite.setChecked(self._presenter.get_setting('infinite_levels', '0') == '1')
         layout.addWidget(self._check_row(self._infinite, '开启后等级没有上限。'))
         layout.addStretch()
 
     def _build_exclusion(self):
         layout = self._section('应用排除', '在这些程序里输入时暂停统计。')
-        self._exclude_edit = QPlainTextEdit(self._repo.get_setting('excluded_apps', ''))
+        self._exclude_edit = QPlainTextEdit(self._presenter.get_setting('excluded_apps', ''))
         self._exclude_edit.setMinimumHeight(180)
         self._exclude_edit.setPlaceholderText('PasswordManager.exe\n每行一个程序名')
         layout.addWidget(PaperField(
@@ -338,14 +311,14 @@ class SettingsDialog(QDialog):
         for value, label in _AI_BACKENDS:
             self._ai_backend.addItem(label, value)
         self._ai_backend.setCurrentIndex(
-            max(0, self._ai_backend.findData(self._repo.get_setting('ai_backend', 'off'))))
+            max(0, self._ai_backend.findData(self._presenter.get_setting('ai_backend', 'off'))))
         layout.addWidget(PaperField('服务类型', self._ai_backend))
         self._ai_config = QWidget()
         config = QVBoxLayout(self._ai_config)
         config.setContentsMargins(0, 0, 0, 0)
         config.setSpacing(18)
         self._ai_config_layout = config
-        self._ai_url = QLineEdit(self._repo.get_setting('ai_base_url', ''))
+        self._ai_url = QLineEdit(self._presenter.get_setting('ai_base_url', ''))
         self._ai_url_error = QLabel('')
         self._ai_url_error.setProperty('textRole', 'paperDanger')
         self._ai_url_error.setWordWrap(True)
@@ -353,15 +326,15 @@ class SettingsDialog(QDialog):
         config.addWidget(self._field_with_error(
             PaperField('服务地址 · Base URL', self._ai_url, '留空使用默认地址。'),
             self._ai_url_error))
-        self._ai_key = QLineEdit(self._repo.get_setting('ai_api_key', ''))
+        self._ai_key = QLineEdit(self._presenter.get_setting('ai_api_key', ''))
         self._ai_key.setEchoMode(QLineEdit.Password)
         self._key_field = PaperField('API Key', self._ai_key, '保存在本机。')
         config.addWidget(self._key_field)
-        self._ai_model = QLineEdit(self._repo.get_setting('ai_model', ''))
+        self._ai_model = QLineEdit(self._presenter.get_setting('ai_model', ''))
         config.addWidget(PaperField('模型名称', self._ai_model, '留空使用默认模型。'))
         self._ai_thinking_controls = AIThinkingControls(
-            self._repo.get_setting('ai_thinking', '0'),
-            self._repo.get_setting('ai_thinking_protocol', 'auto'), self._test_session)
+            self._presenter.get_setting('ai_thinking', '0'),
+            self._presenter.get_setting('ai_thinking_protocol', 'auto'), self._test_session)
         self._ai_thinking_controls.test_mode_changed.connect(self._ai_test_mode_changed)
         config.addWidget(self._ai_thinking_controls)
         layout.addWidget(self._ai_config)
@@ -415,10 +388,10 @@ class SettingsDialog(QDialog):
             note.setWordWrap(True)
             layout.addWidget(note)
         self._motion = QCheckBox('动态效果')
-        self._motion.setChecked(self._repo.get_setting('reduced_motion', '0') != '1')
+        self._motion.setChecked(self._presenter.get_setting('reduced_motion', '0') != '1')
         layout.addWidget(self._check_row(self._motion, 'Sariana 眨眼与手绘发丝、星空、导航和作答小星光；关闭后保持静态。'))
         from .companion.settings import CompanionSettings
-        self._companion_settings = CompanionSettings(self._repo)
+        self._companion_settings = CompanionSettings(self._presenter)
         self._companion_settings.workshop_requested.connect(self._open_companion_workshop)
         self._companion_settings.workshop_button.setEnabled(bool(getattr(self.parent(), '_companion', None)))
         layout.addWidget(self._companion_settings)
@@ -882,14 +855,20 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         if not output:
             return
         try:
-            folder = export_all(self._repo, output)
-            QMessageBox.information(self, '导出完成', f'备份已保存到：\n{folder}')
+            if getattr(self._presenter,'application',None) is not None:
+                result=self._presenter.export(output)
+            else:
+                result=export_all(self._presenter,output)
+            self._tasks.resolve(result,lambda folder:QMessageBox.information(self,'导出完成',f'备份已保存到：\n{folder}'),
+                                lambda error:QMessageBox.warning(self,'导出失败',str(error)))
         except OSError as error:
             QMessageBox.warning(self, '导出失败', str(error))
 
     # ---------- 提交与取消 ----------
 
     def accept(self):
+        if self._saving:
+            return
         config = self._ai_config_values()
         error = validate_ai(config)
         if error:
@@ -911,11 +890,20 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         if self._theme_mgr:
             values['theme_id'] = self._theme_combo.currentData()
         try:
-            self._service.save(values, self._avatar_action)
-        except Exception:
-            self._save_error.setText('设置未保存，请检查数据目录是否可写后重试。草稿仍保留。')
-            self._save_error.setVisible(True)
+            result=self._service.save(values,self._avatar_action)
+        except Exception as error:
+            self._save_failed(error)
             return
+        self._saving=True
+        self._tasks.resolve(result,lambda _:self._saved(values),self._save_failed)
+
+    def _save_failed(self,error):
+        self._saving=False
+        self._save_error.setText('设置未保存，请检查数据目录是否可写后重试。草稿仍保留。')
+        self._save_error.setVisible(True)
+
+    def _saved(self,values):
+        self._saving=False
         if self._theme_mgr:
             for theme_id in self._pending_deletions:
                 self._theme_mgr.delete_theme(theme_id)
@@ -924,6 +912,8 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         super().accept()
 
     def reject(self):
+        if self._saving:
+            return
         self._closed = True
         if self._theme_mgr:
             self._theme_mgr.apply(self._original_theme, persist=False)

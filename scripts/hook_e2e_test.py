@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from app.core.engine import StatsEngine  # noqa: E402
 from app.core.keyboard_hook import KeyboardHook  # noqa: E402
 from app.storage.db import connect_db, init_schema  # noqa: E402
-from app.storage.repository import Repository  # noqa: E402
+from app.storage.session import DataSession as Repository  # noqa: E402
 
 
 def main() -> int:

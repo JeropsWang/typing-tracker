@@ -383,6 +383,9 @@ class Dashboard(QWidget):
         status_line.setContentsMargins(0, 0, 0, 0)
         status_line.setSpacing(10)
         status_line.addWidget(self._hook_status)
+        self._save_status = QLabel('')
+        self._save_status.setProperty('textRole','muted')
+        status_line.addWidget(self._save_status)
         status_line.addWidget(self._hook_info, 1)
         status.addLayout(status_line)
         self._hint = QLabel('提示：关闭窗口后驻留系统托盘，后台继续统计打字。')
@@ -702,3 +705,7 @@ class Dashboard(QWidget):
             self._mini_plot.getAxis('bottom').setTicks([[]])
             self._mini_plot.setVisible(False)
             self._chart_empty.setVisible(True)
+
+    def set_persistence_status(self,saved_at,error=None):
+        self._save_status.setText('保存失败' if error else f'已保存 {(saved_at or "")[-8:]}')
+        self._save_status.setToolTip(f'最后成功保存：{saved_at or "暂无"}' + (f'\n统计仍在内存中，正在等待重试。{error}' if error else ''))

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPlainTextEdit,
     QPushButton, QSpinBox, QFormLayout, QGridLayout, QButtonGroup, QFrame,
 )
-from ...companion.models import STATES
+from ...modules.companion.api import STATES
 
 
 class StateEditor(QWidget):

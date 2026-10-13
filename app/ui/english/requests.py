@@ -2,7 +2,8 @@
 import threading
 import uuid
 from PySide6.QtCore import QObject, Signal
-from ...english.ai import EnglishAI
+from ...modules.english.api import EnglishAI
+from ..tasks import begin_network, cancel_network
 
 
 class SentenceRequest(QObject):
@@ -22,20 +23,9 @@ class SentenceRequest(QObject):
 
     def start(self):
         if self._thread is None:
-            self._thread = threading.Thread(target=self._run, daemon=True)
-            self._thread.start()
+            begin_network(self,self._generator.service,
+                          lambda:self._generator.generate(self.words,self.topic),
+                          lambda result:self.done.emit(self.id,result.ok,result.body if result.ok else result.error))
 
     def cancel(self):
-        self._valid = False
-
-    def _run(self):
-        try:
-            ok, result = self._generator.generate(self.words, self.topic)
-        except Exception:
-            ok, result = False, '生成失败，请检查 AI 服务或重试。'
-        self.usage = self._generator.service.last_usage
-        if self._valid:
-            try:
-                self.done.emit(self.id, ok, result)
-            except RuntimeError:
-                pass  # 应用退出后丢弃结果；守护线程不阻碍关闭。
+        cancel_network(self)

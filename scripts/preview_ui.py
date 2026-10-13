@@ -44,7 +44,7 @@ def main():
     from app.services.checkin_service import CheckinService
     from app.services.reward_service import RewardService
     from app.storage.db import connect_db, init_schema
-    from app.storage.repository import Repository
+    from app.storage.session import DataSession as Repository
     from app.theme.theme_manager import ThemeManager
     from app.ui.main_window import MainWindow
     from app.ui.settings_dialog import SettingsDialog

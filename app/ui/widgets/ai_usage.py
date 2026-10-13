@@ -1,7 +1,7 @@
 """三处 AI 反馈共用的用量显示。"""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel
-from ...services.ai_protocol import usage_text
+from ...integrations.ai.protocol import usage_text
 from ..palette import P
 
 

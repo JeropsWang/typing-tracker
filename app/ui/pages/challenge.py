@@ -6,6 +6,10 @@
 - 纸张与输入由独立组件呈现；窗口尺寸由共享布局策略计算
 """
 from __future__ import annotations
+from ..presenters import QueryPresenter, PracticePresenter, PracticeState
+from ...bootstrap.features import save_material
+from ..tasks import TaskBridge, begin_network, cancel_network, finish_network_result
+import uuid
 
 import html
 import time
@@ -18,9 +22,9 @@ from PySide6.QtWidgets import (
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from ...core.challenge import TEXTS, score
-from ...services.exp_service import level_and_progress
-from ...services.ai_access import AITestSession
+from ...modules.practice.api import TEXTS
+from ...modules.growth.api import level_and_progress
+from ...modules.growth.api import AITestSession
 from ..palette import P
 from ..widgets.ai_passage_composer import AIPassageComposer
 from ..widgets.training_workspace import TrainingWorkspace
@@ -57,6 +61,8 @@ class _GenThread(QObject):
     def __init__(self, ai_svc, topic, lang, length, parent=None, *, test_mode=False):
         super().__init__(parent)
         # 构造发生在主线程：先读配置，run() 中的网络调用不再访问 SQLite。
+        self.id = uuid.uuid4().hex
+        self._valid = True
         self._svc = ai_svc.snapshot()
         self._topic = topic
         self._lang = lang
@@ -66,24 +72,16 @@ class _GenThread(QObject):
         self._thread = None
 
     def start(self):
-        # 网络线程不持有数据库；守护线程允许退出应用，不销毁运行中的 QThread。
-        self._thread = threading.Thread(target=self.run, daemon=True)
-        self._thread.start()
+        def deliver(result):
+            self.done.emit(result.ok,result.body if result.ok else '',result.error)
+        begin_network(self,self._svc,
+                      lambda:self._svc.generate(self._topic,self._lang,self._length),deliver)
+
+    def cancel(self):
+        cancel_network(self)
 
     def isRunning(self):
         return self._thread is not None and self._thread.is_alive()
-
-    def run(self):
-        try:
-            ok, res = self._svc.generate(self._topic, self._lang, self._length)
-        except Exception as e:
-            ok, res = False, str(e)
-        self.usage = self._svc.last_usage
-        try:
-            self.done.emit(ok, res if ok else '', '' if ok else res)
-            self.finished.emit()
-        except RuntimeError:
-            pass  # 页面或应用已关闭，丢弃返回结果。
 
 
 class ChallengePage(QWidget):
@@ -94,7 +92,8 @@ class ChallengePage(QWidget):
 
     def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None, *, test_session=None):
         super().__init__(parent)
-        self._repo = repo
+        self._presenter = PracticePresenter(repo,challenge_svc)
+        self._tasks = TaskBridge(self)
         self._balance = balance
         self._svc = challenge_svc
         self._ai = ai_service
@@ -105,6 +104,8 @@ class ChallengePage(QWidget):
         self._start_ts = 0.0
         self._elapsed = 0.0
         self._gen_thread = None
+        self._pending_material = None
+        self._material_saving = False
         self._compact = None
         self._paper_w = 0
 
@@ -300,12 +301,16 @@ class ChallengePage(QWidget):
 
     # ---------- 版式 ----------
     def _select_mode(self, mode):
+        if self._presenter.state in (PracticeState.SAVING,PracticeState.SAVE_FAILED):
+            return
         target = {'practice': self._page_scroll, 'keyboard': self.keyboard_panel,
                   'chaos': self.chaos_panel}[mode]
         if target is self._module_stack.currentWidget():
             return
         if self._module_stack.currentWidget() is self._page_scroll and self._running:
             self._reset()
+        if target is not self._page_scroll:
+            self._cancel_generation()
         self._module_stack.setCurrentWidget(target)
         if mode == 'keyboard':
             self.keyboard_panel.refresh()
@@ -456,7 +461,7 @@ class ChallengePage(QWidget):
     # ---------- 文本库 ----------
     def _reload_texts(self):
         self._texts = list(TEXTS)
-        for row in self._repo.list_ai_texts():
+        for row in self._presenter.list_ai_texts():
             self._texts.append({
                 'id': f'ai:{row["id"]}',
                 'name': f'AI · {row["topic"]}',
@@ -509,8 +514,8 @@ class ChallengePage(QWidget):
             self._ai_access_label.setText('AI 未启用：设置 → AI 配置（支持 OpenAI 兼容 / Ollama）')
             self._sync_controls()
             return
-        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
-        passes = self._repo.count_ai_passes()
+        level, _, _ = level_and_progress(self._presenter.get_exp(), self._balance)
+        passes = self._presenter.count_ai_passes()
         unlock = self._balance.get('ai', {}).get('unlock_level', 45)
         allowed, hint = self._ai_session.access(level, passes, unlock)
         self._ai_btn.setEnabled(allowed)
@@ -519,6 +524,10 @@ class ChallengePage(QWidget):
         self._sync_controls()
 
     def _ai_generate(self):
+        if self._pending_material is not None:
+            if not self._material_saving:
+                self._save_material()
+            return
         if self._ai is None or self._running or self._busy() or not self._ai_btn.isEnabled():
             return
         topic = self._topic_edit.text().strip()
@@ -527,9 +536,9 @@ class ChallengePage(QWidget):
             return
         # 生成前预检库存：曾等生成成功后才扣券，券不足时 API 已计费而文本
         # 被丢弃（v0.8.9 修复）
-        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
+        level, _, _ = level_and_progress(self._presenter.get_exp(), self._balance)
         unlock = self._balance.get('ai', {}).get('unlock_level', 45)
-        if level < unlock and not self._ai_session.enabled and self._repo.count_ai_passes() <= 0:
+        if level < unlock and not self._ai_session.enabled and self._presenter.count_ai_passes() <= 0:
             self._ai_composer.set_status('AI 训练券不足（速度跃升可获得训练券）', 'error')
             return
         self._generation = (topic, self._lang_combo.currentData())
@@ -543,40 +552,87 @@ class ChallengePage(QWidget):
                                       test_mode=self._ai_session.enabled)
         self._gen_thread.done.connect(self._ai_done)
         self._gen_thread.finished.connect(self._generation_finished)
-        self._gen_thread.start()
+        try:
+            self._gen_thread.start()
+        except Exception as error:
+            self._ai_composer.set_status(str(error),'error')
+            self._gen_thread.deleteLater()
+            self._gen_thread=None
+            self.update_ai_access()
         self._sync_controls()
 
     def _generation_finished(self):
         thread = self._gen_thread
         self._gen_thread = None
-        if thread is not None:
+        if thread is not None and self._pending_material is None:
             thread.deleteLater()
         self._sync_controls()
         self.update_ai_access()
 
-    def _ai_done(self, ok, text, err):
-        request = self._gen_thread
+    def _ai_done(self,ok,text,err):
+        request=self._gen_thread
+        if request is not None and not getattr(request,'_valid',True):
+            finish_network_result(request)
+            return
         self._ai_composer.usage_label.set_usage(request.usage if request is not None else None)
         if not ok:
-            self._ai_composer.set_status(f'生成失败：{err}', 'error')
+            self._ai_composer.set_status(f'生成失败：{err}','error')
+            if request is not None:
+                finish_network_result(request)
             return
-        # 未满 45 级时消耗 AI 训练券（满级后无限生成）
-        level, _, _ = level_and_progress(self._repo.get_exp(), self._balance)
-        unlock = self._balance.get('ai', {}).get('unlock_level', 45)
-        test_mode = bool(request and request.test_mode)
-        if level < unlock and not test_mode and not self._repo.use_reward('ai_pass'):
-            self._ai_composer.set_status('训练券不足，无法生成', 'error')
+        topic,lang=self._generation
+        self._pending_material=(request,getattr(request,'id',uuid.uuid4().hex),lang,topic,text,
+                                bool(request and request.test_mode))
+        self._save_material()
+
+    def _save_material(self):
+        request,operation_id,lang,topic,text,test_mode=self._pending_material
+        self._material_saving=True
+        self._ai_btn.setEnabled(False)
+        try:
+            saved=save_material(self._presenter,self._balance,lang,topic,text,
+                                operation_id=operation_id,test_mode=test_mode)
+        except Exception as error:
+            self._material_failed(error)
             return
-        topic, lang = self._generation
-        self._repo.add_ai_text(lang, topic, text)
-        self._ai_composer.set_status(f'已生成并加入范文库：{topic}。返回训练即可练习。', 'success')
+        self._tasks.resolve(saved,self._material_saved,self._material_failed)
+
+    def _material_failed(self,error):
+        self._material_saving=False
+        self._ai_composer.set_status(f'材料未保存，训练券未使用：{error}。点击生成按钮重试保存。','error')
+        self._ai_btn.setEnabled(True)
+
+    def _material_saved(self,_):
+        if self._pending_material is None:
+            return
+        request,operation_id,lang,topic,text,test_mode=self._pending_material
+        self._pending_material=None
+        self._material_saving=False
+        if request is not None:
+            finish_network_result(request)
+            request.deleteLater()
+        self._ai_composer.set_status(f'已生成并加入范文库：{topic}。返回训练即可练习。','success')
         self._reload_texts()
         self.update_ai_access()
-        # 选中刚生成的文本
-        for i, t in enumerate(self._texts):
-            if t['id'].startswith('ai:') and t['name'].endswith(topic):
+        for i,item in enumerate(self._texts):
+            if item['id'].startswith('ai:') and item['name'].endswith(topic):
                 self._text_combo.setCurrentIndex(i)
                 break
+
+    def _cancel_generation(self):
+        request=self._gen_thread
+        if request is not None:
+            request.cancel()
+        if self._pending_material is not None and not self._material_saving:
+            pending=self._pending_material[0]
+            if pending is not None:
+                pending.cancel()
+                pending.deleteLater()
+            self._pending_material=None
+
+    def hideEvent(self,event):
+        self._cancel_generation()
+        super().hideEvent(event)
 
     # ---------- 主题 ----------
     def apply_theme(self):
@@ -626,12 +682,16 @@ class ChallengePage(QWidget):
         self._hint_label.setText(short if (self._compact and short) else text)
 
     def _busy(self):
-        return self._gen_thread is not None and self._gen_thread.isRunning()
+        return self._presenter.state == PracticeState.SAVING or (self._gen_thread is not None and self._gen_thread.isRunning())
 
     def _sync_controls(self):
         """按状态同步主动作、重来与换一篇（状态矩阵：待开始 / 训练中 / 完成）。"""
         busy = self._busy()
-        if self._result.isVisible():
+        if self._presenter.state == PracticeState.SAVE_FAILED:
+            text, enabled = '重试保存', True
+        elif self._presenter.state == PracticeState.SAVING:
+            text, enabled = '正在保存…', False
+        elif self._result.isVisible():
             text, enabled = '练习已完成', False
         elif self._running:
             text, enabled = '练习中…', False
@@ -639,8 +699,8 @@ class ChallengePage(QWidget):
             text, enabled = '开始练习 →', not busy
         self._start_btn.setText(text)
         self._start_btn.setEnabled(enabled)
-        self._text_combo.setEnabled(not self._running and not busy)
-        self._next_btn.setEnabled(not self._running and not busy)
+        self._text_combo.setEnabled(not self._running and not busy and self._presenter.state != PracticeState.SAVE_FAILED)
+        self._next_btn.setEnabled(not self._running and not busy and self._presenter.state != PracticeState.SAVE_FAILED)
         self._reset_btn.setEnabled(self._running or self._result.isVisible())
         section = getattr(self, '_ai_section', None)
         if section is not None:
@@ -656,9 +716,13 @@ class ChallengePage(QWidget):
 
     # ---------- 流程 ----------
     def _start(self):
+        if self._presenter.state == PracticeState.SAVE_FAILED:
+            self._store_result(*self._presenter.pending)
+            return
         if self._busy():
             return
         self._reset()
+        self._presenter.start()
         self._set_running(True)
         self._start_ts = time.monotonic()
         self._input.setEnabled(True)
@@ -668,6 +732,9 @@ class ChallengePage(QWidget):
                          '正在练习 · 打满自动结算。')
 
     def _reset(self, *_):
+        if self._presenter.state == PracticeState.SAVING:
+            return
+        self._presenter.state = PracticeState.IDLE
         self._set_running(False)
         self._timer.stop()
         self._input.setEnabled(False)
@@ -706,7 +773,7 @@ class ChallengePage(QWidget):
         total = len(ref) or 1
         self._prog_label.setText(f'进度 {min(100, int(len(inp) / total * 100))}%')
         if inp:
-            s = score(inp, ref, time.monotonic() - self._start_ts, self._balance)
+            s = self._presenter.evaluate(inp,ref,time.monotonic()-self._start_ts,self._balance)
             self._speed_label.setText(f'速度 {s["speed"]:.1f} tw/分')
             self._acc_label.setText(f'正确率 {s["accuracy"] * 100:.1f}%')
         # 完成检测
@@ -718,9 +785,27 @@ class ChallengePage(QWidget):
         self._timer.stop()
         self._elapsed = time.monotonic() - self._start_ts
         self._time_label.setText(f'用时 {self._elapsed:.1f}s')
-        s = score(inp, ref, self._elapsed, self._balance)
+        s = self._presenter.evaluate(inp,ref,self._elapsed,self._balance)
         s['elapsed_seconds'] = self._elapsed
-        r = self._svc.record(self._text_combo.currentData(), s, self._balance)
+        self._store_result(self._text_combo.currentData(),s,self._balance)
+
+    def _store_result(self,text_id,s,balance):
+        self._input.setEnabled(False)
+        try:
+            result=self._presenter.complete(text_id,s,balance)
+        except Exception as error:
+            self._save_failed(error)
+            return
+        self._sync_controls()
+        self._tasks.resolve(result,lambda r:self._result_saved(r,s),self._save_failed)
+
+    def _save_failed(self,error):
+        self._presenter.failed()
+        self._set_status('成绩未保存，本轮结果已保留，请点击重试保存。')
+        self._sync_controls()
+
+    def _result_saved(self,r,s):
+        self._presenter.saved()
         self.result_saved.emit({'id': f'challenge:{self._start_ts}', 'is_best': r['is_best'],
                                 'accuracy': s['accuracy'], 'speed': s['speed']})
 
@@ -754,7 +839,7 @@ class ChallengePage(QWidget):
         self._score_now = 0
         self._score_target = s['score_points']
         self._score_label.setText(f'{self._score_now:,}')
-        if self._repo.get_setting('reduced_motion', '0') == '1':
+        if self._presenter.get_setting('reduced_motion', '0') == '1':
             self._score_now = self._score_target
             self._score_label.setText(f'{self._score_target:,}')
         else:

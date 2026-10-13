@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from app.storage.db import connect_db, init_schema  # noqa: E402
-from app.storage.repository import Repository  # noqa: E402
+from app.storage.session import DataSession as Repository  # noqa: E402
 
 DEFAULT_DATA_DIR = Path.home() / 'AppData' / 'Roaming' / 'TypingTracker'
 

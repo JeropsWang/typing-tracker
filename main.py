@@ -18,15 +18,9 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon
 
 from app import APP_NAME, APP_TAGLINE, __version__
-from app.core.engine import StatsEngine
-from app.services.achievement_service import AchievementService
-from app.services.ai_service import AIService
-from app.services.challenge_service import ChallengeService
-from app.services.checkin_service import CheckinService
-from app.services.encourage_service import EncourageService
-from app.services.reward_service import RewardService
-from app.storage.db import connect_db, init_schema
-from app.storage.repository import Repository
+from app.bootstrap.application import DesktopApplication
+from app.bootstrap.features import DesktopQueries
+from app.integrations.ai.api import AIService
 from app.theme.theme_manager import ThemeManager
 from app.ui.assets.app_icon import app_icon
 from app.ui.main_window import MainWindow
@@ -51,8 +45,8 @@ def load_achievements() -> dict:
     return json.loads(p.read_text(encoding='utf-8'))
 
 
-def ensure_default_settings(repo, balance) -> None:
-    defaults = {
+def default_settings(balance) -> dict:
+    return {
         'unit_name': balance['unit']['name'],
         'day_start_hour': str(balance['day_start_hour']),
         'infinite_levels': '0',
@@ -68,9 +62,12 @@ def ensure_default_settings(repo, balance) -> None:
         'ai_thinking': '0',
         'ai_thinking_protocol': 'auto',
     }
-    for k, v in defaults.items():
-        if repo.get_setting(k) is None:
-            repo.set_setting(k, v)
+
+
+def ensure_default_settings(repo,balance):
+    for key,value in default_settings(balance).items():
+        if repo.get_setting(key) is None:
+            repo.set_setting(key,value)
 
 
 def apply_window_icon(app: QApplication) -> None:
@@ -108,25 +105,24 @@ def main() -> int:
 
     balance = load_balance()
     ach_defs = load_achievements()
-    conn = connect_db(data_dir / 'app.db')
-    init_schema(conn)
-    repo = Repository(conn)
-    ensure_default_settings(repo, balance)
-
-    def get_setting(key, default=None):
-        return repo.get_setting(key, default)
-
-    engine = StatsEngine(repo, get_setting, balance)
-    checkin = CheckinService(repo, balance)
-    achievements = AchievementService(repo, balance, ach_defs)
-    encourage = EncourageService(repo, balance)
-    rewards = RewardService(repo, balance)
+    try:
+        application=DesktopApplication(data_dir,balance,ach_defs,default_settings(balance))
+    except Exception as error:
+        QMessageBox.critical(None,APP_NAME,f'数据初始化失败，原有数据已保留。\n{error}')
+        return 1
+    repo=DesktopQueries(application)
+    engine=application.counter
+    checkin=application.checkin
+    achievements=application.achievements
+    encourage=application.encourage
+    rewards=application.rewards
+    get_setting=repo.get_setting
 
     def notify(title: str, msg: str):
         print(f'[{title}] {msg}')
 
     # 每天首次启动自动打卡
-    checkin_result = checkin.checkin_if_needed(engine.current_day())
+    checkin_result = application.startup_checkin
     if checkin_result:
         notify('打卡',
                f'{checkin_result["date"]} 连签 {checkin_result["streak"]} 天，'
@@ -134,7 +130,7 @@ def main() -> int:
         if checkin_result.get('milestone'):
             notify('里程碑',
                    f'连签 {checkin_result["milestone"]} 天达成，里程碑礼包已发放！')
-    startup_unlocks = achievements.check_all(engine)
+    startup_unlocks = application.startup_unlocks
     for a in startup_unlocks:
         notify('成就', f'解锁「{a["name"]}」，到成就页领取奖励')
 
@@ -145,9 +141,9 @@ def main() -> int:
                         achievements=achievements,
                         theme_manager=ThemeManager(
                             app, data_dir, get_setting, repo.set_setting),
-                        challenge=ChallengeService(repo),
+                        challenge=application.practice,
                         ai_service=AIService(repo),
-                        data_dir=data_dir)
+                        data_dir=data_dir,application=application)
     theme_manager = window._theme_mgr
     theme_manager.register_reports(window._reports)
     theme_manager.register_window(window)
@@ -201,15 +197,11 @@ def main() -> int:
     # 窗口不可见而丢弃），统一在 window.show() 后补发
 
     def on_flush():
-        engine.flush()
-        # 累计值成就（chars/total_acc）在数据落盘时即时判定：
-        # 曾只在启动与日切判定，白天跨过 1 万字门槛要等次日才解锁（v0.8.9）
-        for a in achievements.check_all(engine):
-            toast('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
+        application.flush()
 
     flush_timer = QTimer()
     flush_timer.timeout.connect(on_flush)
-    flush_timer.start(10_000)
+    flush_timer.start(2_000)
 
     roll_timer = QTimer()
 
@@ -218,33 +210,40 @@ def main() -> int:
 
     def on_roll():
         if engine.check_rollover():
-            r = checkin.checkin_if_needed(engine.current_day())
-            if r:
-                toast('打卡', f'{r["date"]} 连签 {r["streak"]} 天，+{r["total_exp"]} exp',
-                      'milestone' if r.get('milestone') else 'star')
-                window.show_checkin_popup(r)
-                if r.get('milestone'):
-                    toast('里程碑', f'连签 {r["milestone"]} 天达成，礼包已发放！', 'milestone')
-            for a in achievements.check_all(engine):
-                toast('成就', f'解锁「{a["name"]}」，到成就页领取奖励', 'achievement')
-            ev = encourage.check(engine)
-            if ev:
-                kind, qty = ev['reward']
-                toast('鼓励',
-                      f'速度跃升 {ev["ratio"]:.0%}！奖励 {_REWARD_CN.get(kind, kind)}×{qty}'
-                      + ('，可用于提前体验 AI 定制训练！' if kind == 'ai_pass' else '，继续保持！'),
-                      'encourage')
+            application.flush()
+            def checked(result):
+                if result:
+                    toast('打卡',f"{result['date']} 连签 {result['streak']} 天，+{result['total_exp']} exp",
+                          'milestone' if result.get('milestone') else 'star')
+                    window.show_checkin_popup(result)
+            window._tasks.resolve(checkin.checkin_if_needed(engine.current_day()),checked)
+            def encouraged(event):
+                if event:
+                    kind,qty=event['reward']
+                    toast('鼓励',f"速度跃升 {event['ratio']:.0%}！奖励 {_REWARD_CN.get(kind,kind)}×{qty}",'encourage')
+            window._tasks.resolve(encourage.check(engine),encouraged)
 
     roll_timer.timeout.connect(on_roll)
     roll_timer.start(30_000)
 
     def cleanup():
+        application.stop_accepting()
+        flush_timer.stop()
+        roll_timer.stop()
         if window._companion is not None:
             window._companion.shutdown()
-        engine.flush()
+        if hasattr(window,'_challenge_page'):
+            window._challenge_page._cancel_generation()
+            window._challenge_page.chaos_panel.hide()
+        window._english_page._cancel_request()
+        if tsf is not None:
+            tsf.stop()
         if hook is not None:
             hook.stop()
-        repo.close()
+        try:
+            application.close()
+        except Exception as error:
+            QMessageBox.warning(window,'统计未保存',f'最后一次统计保存失败：{error}')
 
     app.aboutToQuit.connect(cleanup)
 

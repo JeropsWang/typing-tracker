@@ -1,7 +1,7 @@
 """词库便签：选择与进度展示，不访问数据库。"""
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout
-from ...english.catalog import DECKS
+from ...modules.english.api import DECKS
 from ..widgets.avatar import AvatarPortrait
 from ..widgets.scrapbook import ScrapbookCard
 from ..palette import P

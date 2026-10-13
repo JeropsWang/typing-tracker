@@ -20,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from app.core.engine import StatsEngine
 from app.services.ai_service import AIService
 from app.storage.db import init_schema
-from app.storage.repository import Repository
+from app.storage.session import DataSession as Repository
 
 BALANCE = json.loads((ROOT / 'config' / 'balance.json').read_text(encoding='utf-8'))
 
