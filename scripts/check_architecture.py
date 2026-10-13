@@ -29,7 +29,7 @@ def check(path,source):
     relative=path.relative_to(ROOT).as_posix()
     errors=[]
     for line,target in dependencies(path,source):
-        if relative.startswith('app/ui/') and (target.startswith('app.storage') or target in ('sqlite3','psycopg','redis')):
+        if relative.startswith('app/ui/') and target.startswith(('app.storage','sqlite3','psycopg','redis')):
             errors.append(f'{relative}:{line}: UI must use presenter/query interfaces: {target}')
         if relative in PURE_FILES and target.startswith(('PySide6','sqlite3','urllib','http','socket','app.storage','app.integrations')):
             errors.append(f'{relative}:{line}: domain cannot depend on infrastructure: {target}')

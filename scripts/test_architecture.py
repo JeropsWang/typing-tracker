@@ -185,6 +185,7 @@ class TransactionTests(unittest.TestCase):
 
 class FileRecoveryTests(unittest.TestCase):
     def setUp(self):
+        (ROOT/'.local').mkdir(exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(dir=ROOT/'.local')
         self.addCleanup(self.temp.cleanup)
         self.path=Path(self.temp.name)/'app.db'
@@ -258,6 +259,7 @@ class AdmissionCacheTests(unittest.TestCase):
 
 class WorkerTests(unittest.TestCase):
     def setUp(self):
+        (ROOT/'.local').mkdir(exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(dir=ROOT/'.local');self.addCleanup(self.temp.cleanup)
         self.app=DesktopApplication(self.temp.name,BALANCE,{})
         self.addCleanup(self.app.close)

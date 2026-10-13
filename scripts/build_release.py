@@ -114,7 +114,13 @@ def verify_executable(exe: Path, source: Path) -> dict:
             if normalize(pyz.extract(module)) != normalize(compile(path.read_bytes(), str(path), 'exec', dont_inherit=True)):
                 raise ValueError(f'Packaged code differs from source: {module}')
             checked.append(module)
-    for required in ('app', 'app.ui.main_window', 'app.ui.settings_dialog', 'app.services.ai_service'):
+    required_modules = ['app','app.ui.main_window','app.ui.settings_dialog']
+    if (source / 'app/bootstrap/application.py').is_file():
+        required_modules.extend(('app.integrations.ai.service','app.bootstrap.application',
+                                 'app.modules.tracking.domain','app.modules.growth.settlement'))
+    else:
+        required_modules.append('app.services.ai_service')
+    for required in required_modules:
         if required not in checked:
             raise ValueError(f'Missing packaged module: {required}')
     main = source / 'main.py'

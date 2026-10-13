@@ -19,6 +19,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 class DesktopWorkflowTests(unittest.TestCase):
     def setUp(self):
+        (ROOT/'.local').mkdir(exist_ok=True)
         self.temp=tempfile.TemporaryDirectory(dir=ROOT/'.local')
         self.application=DesktopApplication(self.temp.name,BALANCE,{})
         self.queries=DesktopQueries(self.application)

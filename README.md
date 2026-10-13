@@ -129,6 +129,7 @@ Lv.45 解锁 AI 生成，提前体验需训练券；英语与范文生成共用�
 ## 验证与构建
 
 ```powershell
+.venv\Scripts\python.exe -B scripts/check_architecture.py
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_*.py' -v
 .venv\Scripts\python.exe -B scripts/selftest.py
 .venv\Scripts\python.exe -B scripts/preview_ui.py --interactive
@@ -143,20 +144,25 @@ Windows Release 生成安装 EXE、免安装 ZIP、源码提交清单和 SHA-256
 发布 Release 后，`Windows release assets` 工作流自动构建并上传附件；旧版本缺少附件时，在 Actions 手动运行并填写对应标签（如 `v0.9.0` 或 `v0.9.1`）。标签中的源码版本必须一致，标签应指向该版本提交；安装包不进入 Git。
 本地构建先安装 `requirements-release.txt` 和 Inno Setup 6，再运行 `python scripts/build_release.py --help` 查看参数。历史版本使用独立的干净源码目录，构建工具与应用源码分开读取。
 
+## 维护与架构文档
+
+维护入口见 [docs/README.md](docs/README.md)：[项目架构](docs/architecture.md)、[AI 协作指南](docs/agent.md) 和 [验证记录](docs/validation.md)。AI 工具开始任务时先阅读根目录 [AGENTS.md](AGENTS.md)。
+
 ## 代码边界
 
 ```text
-app/core/          键盘统计、TSF、计数与计分规则
-app/services/      打卡、挑战、成就、AI、设置、导出等业务
-app/storage/       公共 SQLite 仓储和迁移
-app/english/       词库、拼写会话、学习服务与独立存储
-app/companion/     角色状态、情绪事件、离线作品仓储与格式校验
-app/ui/companion/  角色显示、宿主切换、设置与二创工坊
-app/ui/english/    英语页面和拆分的训练组件
-app/ui/widgets/    导航、表单、头像、排行榜、纸张与动效组件
-app/ui/assets/     运行必需的插画、头像、SVG 与图标
-config/            数值配置和内置词库
-scripts/           构建、导入、隔离预览与回归测试
+app/bootstrap/    应用装配、数据库工作线程、异步命令与展示读模型
+app/modules/      tracking / practice / english / growth / companion / profile / reporting
+app/workflows/    跨模块用例、原子检查点、提交通知与导出
+app/storage/      SQLite 连接、版本迁移、事务工作单元和内部数据会话
+app/integrations/ AI 协议、请求结果、网络适配与生成准入
+app/core/         Windows 键盘/TSF 适配、基础工具及兼容入口
+app/services/     历史服务导入的兼容入口
+app/ui/           Widgets、Presenter、异步回传、页面和公共组件
+app/ui/assets/    运行必需的插画、头像、SVG 与图标
+config/           数值配置和内置词库
+scripts/          构建、导入、隔离预览、架构检查与回归测试
+docs/             项目架构、AI 维护指南和验证记录
 ```
 
 计划、预览与交付过程记录保存在 `.local/`，不进入 Git；依赖、缓存、数据库和构建产物同样忽略。
