@@ -116,3 +116,21 @@ $env:PYTHONIOENCODING = 'utf-8'
 修复旧 CI 自检中以自然日设置挑战经验上限的夹具：改用挑战时钟与 AppCalendar 应用日。旧 [9475c4e CI](https://github.com/JeropsWang/typing-tracker/actions/runs/38342543898) 的 230 项回归成功，自检在 UTC 凌晨 3 点失败于每日经验上限；产品计分代码未改变。本机常规自检与仅注入凌晨 3 点挑战时钟的自检各 103 项通过，更新专项 17 项、架构检查通过。
 
 新工具 `scripts/verify_release_updates.py` 可使用源码或已验证冻结包内的更新模块，匿名读取正式 latest、模拟旧版本号、实际下载校验安装包，再以真实 GitHub SHA256SUMS 和相同的已下载字节验证回退；不会运行安装器。正式发布后的在线结果与链接将记录在 Release 和本次交付中。0.9.4 旧正式包没有自动更新功能，首次进入 0.9.5 需手动安装。
+
+## 2026-10-13 0.9.5 正式发布与在线更新验证
+
+[PR #7](https://github.com/JeropsWang/typing-tracker/pull/7) 已合并，标签 `v0.9.5` 对应源码 `2ac856b3dd9484a8390681a088c9a99eab1b6b6b`。[正式 Release](https://github.com/JeropsWang/typing-tracker/releases/tag/v0.9.5) 已公开，latest API 返回该版本，四个附件齐全，非草稿、非预发布。后续验证文档提交不改变此标签和附件。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| [master 回归与自检](https://github.com/JeropsWang/typing-tracker/actions/runs/38393122536) | 259 项回归、103 项自检全部通过 |
+| [正式构建与发布](https://github.com/JeropsWang/typing-tracker/actions/runs/38393242342) | 干净 Windows 安装、卸载、0.9.2/0.9.3/0.9.4 升级及数据保留检查通过；实际安装路径的冻结更新模块识别为安装版 |
+| 源码在线更新 | 匿名访问 GitHub；模拟当前版本 0.9.4 时发现 0.9.5，真实下载安装包并验证大小、GitHub digest 与 SHA256SUMS 回退；当前版本 0.9.5 无重复更新 |
+| 正式便携包在线更新 | 先验证 ZIP 的 GitHub digest，读取其中实际发布 EXE 的冻结更新模块；同样通过旧版本检测、真实安装包下载及两种校验；正确识别为便携版 |
+| 本机数据与安装操作 | 使用隔离缓存；两次在线验证均未启动安装器，未修改真实用户数据库 |
+
+安装包为 `Sariana-0.9.5-windows-x64-setup.exe`，大小 107590289 字节，SHA-256 为 `038c0d8d4e63b6a69602b44e5a8dfc50c4e34b235945bc4c483d3d3636ae723a`。便携 ZIP 大小 105859269 字节，SHA-256 为 `35a95746420f6ceafe1ab8c12f56afce2a9445068958ee46e57c6e9dfbef27a4`。构建 manifest 的源码提交与标签一致。
+
+本机报告留在忽略目录 `.local/release-0.9.5/live-source-report.json` 和 `.local/release-0.9.5/live-frozen-report.json`；可按 [更新说明](updates.md) 使用 `scripts/verify_release_updates.py` 复现。SHA256SUMS 回退读取真实 GitHub 校验附件，复用同一次下载的安装包字节。
+
+这些结果补充了先前未完成的在线下载、冻结包和干净 Windows 安装升级验证。完整 GUI 的确认退出、安装向导交接及重新启动仍未人工操作验证；真实 IME、多显示器与 Windows DPI 体验仍待人工检查。旧 0.9.4 正式包没有更新功能，首次升级 0.9.5 必须手动安装；模拟旧版本号验证的是 0.9.5 更新实现。
