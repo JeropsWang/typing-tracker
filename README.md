@@ -1,4 +1,4 @@
-# Sariana · 伴你成长 0.9.4
+# Sariana · 伴你成长 0.9.5
 
 **陪你打字，陪你成长。**
 
@@ -8,6 +8,10 @@ Sariana（原打字管家 TypingTracker）是 Windows 本地桌面陪伴、打�
 
 ## 本版改进
 
+- 0.9.5 英语支持标准／大／特大字号、错词纠正与轮末复测，以及 1／3／7／14／30 天间隔复习。
+- 语句跟打显示错词、漏词和多词位置，可直接重练本机材料。
+- 新增 GitHub 正式版本检查、安装包下载与 SHA-256 校验，确认保存后退出并打开安装向导。
+- 数据库升级到版本 2，保留升级前备份和失败回滚；学习成绩与复习排期一起提交。
 - 0.9.4 新增键盘侠：15 秒随意输入，按累计 tw/分钟自动结算并生成本机历史榜。
 - 英语 AI 语句改为单词对齐正确率，空格、大小写和句间标点不再导致后续单词连串误判；错词、漏词、多词仍扣分。
 - 新增混乱模块，使用已配置的模型生成荒诞短文，正文最多 60 字（含标点与空格）。
@@ -26,8 +30,9 @@ Sariana（原打字管家 TypingTracker）是 Windows 本地桌面陪伴、打�
 
 ## 运行
 
-仅支持 Windows。安装版运行 `Sariana-0.9.4-windows-x64-setup.exe`；免安装版解压整个 `Sariana-0.9.4-windows-x64-portable.zip` 后运行 `Sariana.exe`。
+仅支持 Windows。安装版运行 `Sariana-0.9.5-windows-x64-setup.exe`；免安装版解压整个 `Sariana-0.9.5-windows-x64-portable.zip` 后运行 `Sariana.exe`。
 发布附件含构建清单和 SHA-256 校验文件；升级前从托盘退出旧版本，卸载保留 `%APPDATA%\TypingTracker` 中的记录。
+0.9.4 及更早正式版本没有自动更新入口，首次升级到 0.9.5 请下载并运行安装包；0.9.5 起可在设置 → 数据备份 → 应用更新检查后续版本。
 为兼容旧版，数据目录继续使用原名称；安装版会复用旧安装位置并替换程序和快捷方式。免安装版请完整解压到新文件夹，继续沿用同一份本机记录。
 
 源码运行需要 Python 3.10+：
@@ -74,6 +79,8 @@ AI 语句跟打的单词正确率按编辑距离对齐：`1 − 错误词数 / m
 忽略大小写、空白和句间标点，词内撇号和连字符保留；错词、漏词和多词各计一个错误。
 此规则仅用于英语语句，普通范文练习仍为逐字正确率，首页仍为被动估算正确率。
 
+完成语句后显示错词、漏词和多词位置；「再练这一句」复用已保存材料，不重新调用 AI。
+
 ### 键盘侠与混乱
 
 在「训练」页顶部切换模块。键盘侠点击开始立即计时，15 秒后自动结算：汉字 2tw，其他字符 1tw，速度为累计 tw × 4（tw/分钟）。
@@ -89,8 +96,16 @@ AI 语句跟打的单词正确率按编辑距离对齐：`1 − 错误词数 / m
 这些是考试参考词库，不表示官方最新完整大纲。来源版本、数量与文件哈希见 `config/vocabulary/manifest.json`，保留 `LICENSE-ECDICT.txt`。
 
 选择词库后，每轮根据中文释义输入单词。使用提示或查看答案会记为辅助作答，进入待复习；再次独立答对后移出待复习。
+答错或辅助作答后可以先正确输入一次，也可以跳过纠正；纠正不记成绩，轮末每个相关词再默写一次。首次独立答对率与复测结果分别展示，保留原始错误记录。
+「今日到期」按应用日安排 1／3／7／14／30 天间隔复习；每词每天最多晋级一档，失败或辅助完成重新安排。旧学习数据自动迁移，迁移前保留数据库备份。
+英语页支持标准／大／特大三档字号，默认大；记住选择，空间不足时改为上下布局并允许滚动。
 AI 语句使用当前词库的目标词生成英文句子，成功校验后保存，可从历史材料再次跟打。
 英语学习结果独立保存，本版不额外发放英语练习经验。
+
+### 应用更新
+
+设置 → 数据备份 → 应用更新：默认每天最多自动检查一次 GitHub 正式版本，也可手动检查。安装版点击下载后校验安装包大小与 SHA-256；确认退出时先保存统计，再打开原安装向导。保存失败保持运行并允许重试。
+便携版提供新版 ZIP 下载入口，源码运行只提供版本信息。没有静默安装或强制重启；详细机制与验证范围见 [更新说明](docs/updates.md)。
 
 ### AI 与隐私
 
@@ -129,6 +144,7 @@ Lv.45 解锁 AI 生成，提前体验需训练券；英语与范文生成共用�
 ## 验证与构建
 
 ```powershell
+.venv\Scripts\python.exe -B scripts/check_architecture.py
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_*.py' -v
 .venv\Scripts\python.exe -B scripts/selftest.py
 .venv\Scripts\python.exe -B scripts/preview_ui.py --interactive
@@ -141,22 +157,28 @@ AI 自动化测试使用模拟响应，真实模型效果取决于所配置的�
 
 Windows Release 生成安装 EXE、免安装 ZIP、源码提交清单和 SHA-256 校验文件。安装版支持升级，卸载保留本机记录。
 发布 Release 后，`Windows release assets` 工作流自动构建并上传附件；旧版本缺少附件时，在 Actions 手动运行并填写对应标签（如 `v0.9.0` 或 `v0.9.1`）。标签中的源码版本必须一致，标签应指向该版本提交；安装包不进入 Git。
+0.9.5 起也支持先建草稿，再手动运行工作流并启用 `publish_draft`；安装、旧版升级验证与附件上传成功后才公开，避免用户看到没有安装包的新版本。
 本地构建先安装 `requirements-release.txt` 和 Inno Setup 6，再运行 `python scripts/build_release.py --help` 查看参数。历史版本使用独立的干净源码目录，构建工具与应用源码分开读取。
+
+## 维护与架构文档
+
+维护入口见 [docs/README.md](docs/README.md)：[项目架构](docs/architecture.md)、[AI 协作指南](docs/agent.md) 和 [验证记录](docs/validation.md)。AI 工具开始任务时先阅读根目录 [AGENTS.md](AGENTS.md)。
 
 ## 代码边界
 
 ```text
-app/core/          键盘统计、TSF、计数与计分规则
-app/services/      打卡、挑战、成就、AI、设置、导出等业务
-app/storage/       公共 SQLite 仓储和迁移
-app/english/       词库、拼写会话、学习服务与独立存储
-app/companion/     角色状态、情绪事件、离线作品仓储与格式校验
-app/ui/companion/  角色显示、宿主切换、设置与二创工坊
-app/ui/english/    英语页面和拆分的训练组件
-app/ui/widgets/    导航、表单、头像、排行榜、纸张与动效组件
-app/ui/assets/     运行必需的插画、头像、SVG 与图标
-config/            数值配置和内置词库
-scripts/           构建、导入、隔离预览与回归测试
+app/bootstrap/    应用装配、数据库工作线程、异步命令与展示读模型
+app/modules/      tracking / practice / english / growth / companion / profile / reporting
+app/workflows/    跨模块用例、原子检查点、提交通知与导出
+app/storage/      SQLite 连接、版本迁移、事务工作单元和内部数据会话
+app/integrations/ AI 协议、请求结果、网络适配与生成准入
+app/core/         Windows 键盘/TSF 适配、基础工具及兼容入口
+app/services/     历史服务导入的兼容入口
+app/ui/           Widgets、Presenter、异步回传、页面和公共组件
+app/ui/assets/    运行必需的插画、头像、SVG 与图标
+config/           数值配置和内置词库
+scripts/          构建、导入、隔离预览、架构检查与回归测试
+docs/             项目架构、AI 维护指南和验证记录
 ```
 
 计划、预览与交付过程记录保存在 `.local/`，不进入 Git；依赖、缓存、数据库和构建产物同样忽略。

@@ -37,7 +37,7 @@ from app.services.exp_service import (  # noqa: E402
     cumulative_cost, level_and_progress, level_from_exp,
 )
 from app.storage.db import connect_db, init_schema  # noqa: E402
-from app.storage.repository import Repository  # noqa: E402
+from app.storage.session import DataSession as Repository  # noqa: E402
 
 BALANCE = json.loads((ROOT / 'config' / 'balance.json').read_text(encoding='utf-8'))
 
@@ -216,6 +216,7 @@ def main() -> int:
         # 补签卡：06-09 连签 5，06-10 断，补签后连签恢复
         # 补签卡：06-20 连签 5，06-21 断，补签后连签恢复
         repo.add_checkin('2026-06-20', 5, 20, 0)
+        repo.add_reward('makeup_card',1,'selftest')
         r = cs.apply_makeup_card('2026-06-21', today_iso='2026-06-22')
         check('补签恢复连签', r is not None and r['streak'] == 6)
         check('未来日期补签被拒', cs.apply_makeup_card('2026-06-30',
@@ -293,8 +294,9 @@ def main() -> int:
                                      'base': 20}, BALANCE)
         check('未破纪录不标新', not r3['is_best'])
         # 每日经验上限 200
-        from datetime import date as _date
-        repo.set_setting('challenge_exp_date', _date.today().isoformat())
+        from app.modules.tracking.api import AppCalendar
+        challenge_day = AppCalendar(int(repo.get_setting('day_start_hour', '4'))).day(csvc.clock.now())
+        repo.set_setting('challenge_exp_date', challenge_day)
         repo.set_setting('challenge_exp_today', '190')
         r4 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
                                      'elapsed_seconds': 60, 'tw': 5,

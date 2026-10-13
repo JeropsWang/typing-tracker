@@ -5,18 +5,19 @@ from PySide6.QtCore import QObject, QPoint, QRect, Qt, QTimer, QEvent
 from PySide6.QtWidgets import QApplication, QMenu
 from shiboken6 import isValid
 
-from ...companion.models import CompanionEvent, STATES, format_line
-from ...companion.packs import DEFAULT_PACK, PackStore
-from ...companion.runtime import Runtime, REACTIONS
-from ...services.exp_service import level_and_progress
+from ...modules.companion.api import CompanionEvent, STATES, format_line
+from ...modules.companion.api import DEFAULT_PACK, PackStore
+from ...modules.companion.api import Runtime, REACTIONS
+from ..presenters import QueryPresenter
 from .desktop import available_screens, clamp_position
 from .view import CompanionView
 
 
 class CompanionController(QObject):
-    def __init__(self, window, repo, data_dir):
+    def __init__(self,window,repo,data_dir,*,activity_provider=None):
         super().__init__(window)
-        self.window, self.repo = window, repo
+        self.window, self.presenter = window, QueryPresenter(repo)
+        self.activity_provider = activity_provider or window.activity_provider
         self.store = PackStore(data_dir)
         self.runtime = Runtime()
         self.view = CompanionView(window)
@@ -68,17 +69,17 @@ class CompanionController(QObject):
             self.window.show_toast('角色作品', self.warning)
 
     def sync_settings(self):
-        self.enabled = self.repo.get_setting('companion_enabled', '1') != '0'
-        self.bubbles = self.repo.get_setting('companion_bubbles', '1') != '0'
-        self.motion = self.repo.get_setting('reduced_motion', '0') != '1'
-        self.runtime.set_frequency(self.repo.get_setting('companion_frequency', 'normal'))
+        self.enabled = self.presenter.get_setting('companion_enabled', '1') != '0'
+        self.bubbles = self.presenter.get_setting('companion_bubbles', '1') != '0'
+        self.motion = self.presenter.get_setting('reduced_motion', '0') != '1'
+        self.runtime.set_frequency(self.presenter.get_setting('companion_frequency', 'normal'))
         try:
-            size = int(self.repo.get_setting('companion_size', '160'))
+            size = int(self.presenter.get_setting('companion_size', '160'))
         except ValueError:
             size = 160
         self.view.set_character_size(size)
-        self._values['nickname'] = self.repo.get_setting('nickname', '打字新星') or '打字新星'
-        mode = self.repo.get_setting('companion_mode', 'window')
+        self._values['nickname'] = self.presenter.get_setting('nickname', '打字新星') or '打字新星'
+        mode = self.presenter.get_setting('companion_mode', 'window')
         self.switch_mode(mode if mode in ('window', 'desktop') else 'window', persist=False)
         self._last_display = None
         self._tick()
@@ -88,7 +89,7 @@ class CompanionController(QObject):
             return
         drag = None
         if persist:
-            self.repo.set_setting('companion_mode', mode)
+            self.presenter.set_setting('companion_mode', mode)
         if self.mode != mode:
             self._save_position()
             drag = self.view.drag_context() if keep_drag else None
@@ -110,8 +111,7 @@ class CompanionController(QObject):
             self.view.resume_drag(drag)
 
     def _practicing(self):
-        return any(bool(getattr(getattr(self.window, name, None), '_running', False))
-                   for name in ('_challenge_page', '_english_page'))
+        return self.activity_provider.activity().practicing
 
     def sync_visibility(self):
         if not self._started or self._stopped:
@@ -119,8 +119,8 @@ class CompanionController(QObject):
         visible = self.enabled and not self._hidden and (
             self.mode == 'desktop' or (self.window.isVisible() and not self.window.isMinimized()))
         self.runtime.set_visible(visible)
-        snap = self.window._engine.snapshot()
-        self.runtime.update_activity(snap['day'], snap['typed'], self._practicing())
+        activity = self.activity_provider.activity()
+        self.runtime.update_activity(activity.day,activity.typed,activity.practicing)
         if self.mode == 'window':
             if self.view._dragging:
                 self.view.move(self._clamp_window(self.view.pos()))
@@ -140,15 +140,12 @@ class CompanionController(QObject):
     def _tick(self):
         if self._stopped:
             return
-        snap = self.window._engine.snapshot()
-        self.runtime.update_activity(snap['day'], snap['typed'], self._practicing())
+        activity = self.activity_provider.activity()
+        self.runtime.update_activity(activity.day,activity.typed,activity.practicing)
         now = time.monotonic()
         if now - self._metric_at >= 1:
-            level, _, _ = level_and_progress(self.repo.get_exp(), self.window._balance)
-            if self._last_level is not None and level > self._last_level:
-                self.handle_event(CompanionEvent('level', {'level': level}, f'level:{level}'))
-            self._last_level = level
-            self._values.update(level=level, streak=self.repo.get_streak(snap['day']))
+            summary=self.activity_provider.growth()
+            self._values.update(level=summary.level,streak=summary.streak)
             self._metric_at = now
         self._render()
 
@@ -195,7 +192,7 @@ class CompanionController(QObject):
 
     def apply_pack(self, pack_id):
         pack = self.store.load(pack_id)
-        self.repo.set_settings({'companion_pack': pack_id, 'companion_revision': pack.revision})
+        self.presenter.set_settings({'companion_pack': pack_id, 'companion_revision': pack.revision})
         self.pack = pack
         self._last_display = None
         self._render()
@@ -205,7 +202,7 @@ class CompanionController(QObject):
         self.sync_visibility()
 
     def show_companion(self):
-        self.repo.set_setting('companion_enabled', '1')
+        self.presenter.set_setting('companion_enabled', '1')
         self.enabled = True
         self._hidden = False
         self.sync_visibility()
@@ -223,7 +220,7 @@ class CompanionController(QObject):
 
     def toggle_random(self):
         value = 'normal' if self.runtime.frequency == 'off' else 'off'
-        self.repo.set_setting('companion_frequency', value)
+        self.presenter.set_setting('companion_frequency', value)
         self.runtime.set_frequency(value)
 
     def _drag(self, point):
@@ -238,9 +235,9 @@ class CompanionController(QObject):
 
     def _save_position(self):
         if self.mode == 'desktop':
-            self.repo.set_setting('companion_position', json.dumps([self.view.x(), self.view.y()]))
+            self.presenter.set_setting('companion_position', json.dumps([self.view.x(), self.view.y()]))
         else:
-            self.repo.set_setting('companion_window_position', json.dumps([self.view.x(), self.view.y()]))
+            self.presenter.set_setting('companion_window_position', json.dumps([self.view.x(), self.view.y()]))
 
     def _clamp_window(self, point):
         return QPoint(max(0, min(point.x(), self.window.width() - self.view.width())),
@@ -250,7 +247,7 @@ class CompanionController(QObject):
         point = QPoint(max(0, self.window.width() - self.view.width() - 12),
                        max(50, self.window.height() - 145 - self.view.height()))
         try:
-            raw = json.loads(self.repo.get_setting('companion_window_position', 'null'))
+            raw = json.loads(self.presenter.get_setting('companion_window_position', 'null'))
             if isinstance(raw, list) and len(raw) == 2 and all(type(v) is int for v in raw):
                 point = QPoint(*raw)
         except (ValueError, TypeError):
@@ -261,7 +258,7 @@ class CompanionController(QObject):
         area = available_screens()[0]
         point = QPoint(area.right() - self.view.width() - 30, area.bottom() - self.view.height() - 30)
         try:
-            raw = json.loads(self.repo.get_setting('companion_position', 'null'))
+            raw = json.loads(self.presenter.get_setting('companion_position', 'null'))
             if isinstance(raw, list) and len(raw) == 2 and all(type(v) is int for v in raw):
                 point = QPoint(*raw)
         except (ValueError, TypeError):

@@ -2,14 +2,17 @@
 import time
 import uuid
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
-from ...english.service import EnglishSaveError, EnglishService
+from PySide6.QtWidgets import QBoxLayout, QButtonGroup, QComboBox, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
+from ...modules.english.api import EnglishSaveError, sentence_alignment
+from ...bootstrap.features import english_presenter
+from ..tasks import TaskBridge, finish_network_result
 from ..palette import P
 from ..widgets.design import PaperPage, PageHeading
 from .library import LibraryPanel
 from .spelling import SpellingPanel
 from .sentences import SentencePanel
 from .requests import SentenceRequest
+from .typography import english_type
 
 
 class EnglishPage(PaperPage):
@@ -19,7 +22,18 @@ class EnglishPage(PaperPage):
 
     def __init__(self, repo, balance, ai_service, parent=None, *, test_session=None):
         super().__init__(parent)
-        self.service = EnglishService(repo, test_session=test_session)
+        self.service = english_presenter(repo,test_session)
+        self._tasks = TaskBridge(self)
+        self._spelling_saving = False
+        self._reveal_pending = False
+        self._sentence_saving = False
+        self._sentence_pending = None
+        self._font_saving = False
+        self._font_key = self.service.get_setting('english_font_size', 'large')
+        if self._font_key not in ('standard', 'large', 'extra'):
+            self._font_key = 'large'
+        self._pending_material = None
+        self._material_saving = False
         self._balance, self._ai_service = balance, ai_service
         self._mode = 'spelling'
         self._running = False
@@ -34,7 +48,7 @@ class EnglishPage(PaperPage):
         modes = QHBoxLayout()
         self.mode_buttons = {}
         self._mode_group = QButtonGroup(self)
-        for mode, title in [('spelling', '单词拼写'), ('sentence', 'AI 语句'), ('review', '待复习')]:
+        for mode, title in [('spelling', '单词拼写'), ('sentence', 'AI 语句'), ('review', '错词复习'), ('due', '今日到期')]:
             button = QPushButton(title)
             button.setCheckable(True)
             button.setProperty('growthTab', True)
@@ -44,11 +58,22 @@ class EnglishPage(PaperPage):
             modes.addWidget(button)
         self.mode_buttons['spelling'].setChecked(True)
         modes.addStretch()
-        note = QLabel('一点一点，把陌生敲熟。')
-        note.setProperty('textRole', 'paperMuted')
-        modes.addWidget(note)
         self.body.addLayout(modes)
-        row = QHBoxLayout()
+        type_row = QHBoxLayout()
+        self.type_note = QLabel('一点一点，把陌生敲熟。')
+        self.type_note.setProperty('textRole', 'paperMuted')
+        type_row.addWidget(self.type_note, 1)
+        type_row.addWidget(QLabel('字号'))
+        self.font_combo = QComboBox()
+        self.font_combo.setAccessibleName('英语字号')
+        for key, label in [('standard', '标准'), ('large', '大'), ('extra', '特大')]:
+            self.font_combo.addItem(label, key)
+        self.font_combo.setCurrentIndex(self.font_combo.findData(self._font_key))
+        self.font_combo.currentIndexChanged.connect(self._font_changed)
+        type_row.addWidget(self.font_combo)
+        self.body.addLayout(type_row)
+        row = QBoxLayout(QBoxLayout.LeftToRight)
+        self._study_row = row
         row.setSpacing(23)
         self.stack = QStackedWidget()
         self.stack.setMinimumHeight(505)
@@ -59,6 +84,7 @@ class EnglishPage(PaperPage):
         row.addWidget(self.stack, 1)
         self.library = LibraryPanel()
         sidebar = QWidget()
+        self._sidebar = sidebar
         offset = QVBoxLayout(sidebar)
         offset.setContentsMargins(0, 24, 0, 0)
         offset.addWidget(self.library, 0, Qt.AlignTop)
@@ -70,14 +96,75 @@ class EnglishPage(PaperPage):
         self.spelling.submit_requested.connect(self._submit_spelling)
         self.spelling.hint_requested.connect(self._hint)
         self.spelling.reveal_requested.connect(self._reveal)
+        self.spelling.correction_skipped.connect(lambda: self._correct(skip=True))
         self.sentences.generate_requested.connect(self._generate)
         self.sentences.targets_requested.connect(self._choose_targets)
         self.sentences.settings_requested.connect(self.settings_requested.emit)
         self.sentences.start_requested.connect(self._start_sentence)
         self.sentences.finish_requested.connect(self._finish_sentence)
+        self.sentences.retry_requested.connect(self._start_sentence)
         self.sentences.material_changed.connect(self._reset_sentence)
         self.sentences.input.textChanged.connect(self._sentence_progress)
         self._deck_changed()
+        self._apply_type()
+
+    def _font_changed(self):
+        if self._font_saving:
+            return
+        old, key = self._font_key, self.font_combo.currentData()
+        self._font_saving = True
+        self.font_combo.setEnabled(False)
+        def saved(_):
+            self._font_saving = False
+            self.font_combo.setEnabled(True)
+            self._font_key = key
+            self.type_note.setText('一点一点，把陌生敲熟。')
+            self._apply_type()
+        def failed(_):
+            self._font_saving = False
+            self.font_combo.setEnabled(True)
+            self.font_combo.blockSignals(True)
+            self.font_combo.setCurrentIndex(self.font_combo.findData(old))
+            self.font_combo.blockSignals(False)
+            self.type_note.setText('字号未保存，请重试。')
+        try:
+            self._tasks.resolve(self.service.set_font_size(key), saved, failed)
+        except Exception as error:
+            failed(error)
+
+    def _apply_type(self):
+        t = english_type(self._font_key)
+        self.paper.setObjectName('englishPaper')
+        self.paper.setStyleSheet(f'''QWidget#englishPaper QLabel {{font-size:{t.body}px;}}
+            QWidget#englishPaper QLabel[textRole="paperMuted"] {{font-size:{t.helper}px;}}
+            QWidget#englishPaper QPushButton, QWidget#englishPaper QComboBox {{font-size:{t.body}px;min-height:40px;}}''')
+        self.spelling.set_type(self._font_key)
+        self.sentences.set_type(self._font_key)
+        self.library.set_type(self._font_key)
+        self._arrange_study()
+
+    def _arrange_study(self):
+        if not hasattr(self, '_study_row'):
+            return
+        stacked = self.paper.width() < 820 or (self._font_key == 'extra' and self.paper.width() < 980)
+        self._study_row.setDirection(QBoxLayout.TopToBottom if stacked else QBoxLayout.LeftToRight)
+        self.library.setFixedWidth(max(254, self.paper.width() - 60) if stacked else 280)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._arrange_study()
+
+    def _set_saving_controls(self, saving):
+        for button in self.mode_buttons.values():
+            button.setEnabled(not saving)
+        self.library.deck_combo.setEnabled(not saving)
+        self.library.round_combo.setEnabled(not saving)
+        self.spelling.start_button.setEnabled(not saving)
+        if saving:
+            for button in (self.spelling.submit_button, self.spelling.hint_button,
+                           self.spelling.reveal_button, self.spelling.skip_button):
+                button.setEnabled(False)
+            self.spelling.answer.setReadOnly(True)
 
     def _set_running(self, running):
         if self._running != running:
@@ -85,10 +172,13 @@ class EnglishPage(PaperPage):
             self.running_changed.emit(running)
 
     def _set_mode(self, mode):
+        if self._spelling_saving or self._sentence_saving or self._material_saving:
+            return
         self._cancel_request()
         self._reset_sentence()
         self.service.session = None
         self.spelling.set_active(False)
+        self.spelling.skip_button.hide()
         self._set_running(False)
         self._mode = mode
         self.stack.setCurrentWidget(self.sentences if mode == 'sentence' else self.spelling)
@@ -101,6 +191,7 @@ class EnglishPage(PaperPage):
         self._reset_sentence()
         self.service.session = None
         self.spelling.set_active(False)
+        self.spelling.skip_button.hide()
         self.spelling.meaning.setPlainText('词库已选好，开始新的一轮吧。')
         self._set_running(False)
         self._choose_targets()
@@ -108,69 +199,154 @@ class EnglishPage(PaperPage):
         self.sentences.set_history(self.service.sentence_history(self.library.deck))
 
     def refresh(self):
-        self.library.set_summary(self.service.summary(self.library.deck))
-        self.library.avatar.set_preset(self.service.repo.get_setting('avatar_preset', 'default'))
+        plan = self.service.review_plan(self.library.deck)
+        self.library.set_summary(self.service.summary(self.library.deck), plan)
+        self.mode_buttons['due'].setText(f"今日到期 {plan['due_count']}")
+        self.library.avatar.set_preset(self.service.get_setting('avatar_preset', 'default'))
 
     def _start_spelling(self):
+        if self._spelling_saving or self._sentence_saving or self._material_saving:
+            return
+        self._reveal_pending = False
         try:
-            session = self.service.start(self.library.deck, self.library.count, review=self._mode == 'review')
+            session = self.service.start(self.library.deck, self.library.count,
+                                         review=self._mode == 'review', due=self._mode == 'due')
         except ValueError as exc:
             self.spelling.feedback.setText(str(exc))
             return
         self._set_running(True)
-        self.spelling.show_word(session.current, 0, len(session.words))
+        self._show_word(session)
         self.spelling.start_button.setText('重新开始这一轮')
 
     def _submit_spelling(self):
+        if self._spelling_saving:
+            return
         session = self.service.session
         if session is None or session.finished:
+            return
+        if session.correcting:
+            self._correct()
             return
         if session.result is not None:
             if self.service.advance():
                 self._set_running(True)
-                self.spelling.show_word(session.current, session.index, len(session.words))
+                self._show_word(session)
             else:
-                independent = sum(r['independent'] for r in session.results)
+                view = self.service.spelling_view()
                 self.spelling.set_active(False)
-                self.spelling.feedback.setText(f'这一轮完成！独立答对 {independent} / {len(session.words)}。\n待复习词已经留好了，下次继续。')
+                self.spelling.feedback.setText(f'这一轮完成！首次独立答对 {view.first_correct} / {view.first_total}。\n'
+                    f'纠正 {view.corrected} 次 · 跳过 {view.correction_skipped} 次\n'
+                    f'复测独立答对 {view.retest_correct} / {view.retest_total}，复习安排已保存。')
                 self._set_running(False)
                 self.result_saved.emit({'id': f"spelling:{session.results[-1]['id']}",
-                                        'accuracy': independent / max(1, len(session.words))})
+                                        'accuracy': view.first_correct / max(1, view.first_total)})
             return
         try:
             result = self.service.submit(self.spelling.answer.text())
         except EnglishSaveError as exc:
             self.spelling.feedback.setText(str(exc))
             return
+        if isinstance(result, dict) and not result.get('accepted'):
+            if result.get('error'):
+                self.spelling.feedback.setText(result['error'])
+            return
+        self._spelling_saving=True
+        self._set_saving_controls(True)
+        self._tasks.resolve(result,lambda result:self._spelling_saved(session,result),self._spelling_failed)
+
+    def _spelling_saved(self,session,result):
+        self._spelling_saving=False
+        self._reveal_pending=False
+        self._set_saving_controls(False)
+        confirm=getattr(self.service,'confirm_saved',None)
+        if confirm:
+            confirm()
+        if session is not self.service.session:
+            return
         if result.get('accepted'):
-            self._set_running(False)
-            self.spelling.show_result(session.current, result)
+            self._set_running(session.correcting)
+            self.spelling.show_result(session.current,result)
+            if session.correcting:
+                self.spelling.show_correction(session.current)
             self.refresh()
         elif result.get('error'):
+            self.spelling.set_active(True)
             self.spelling.feedback.setText(result['error'])
 
+    def _spelling_failed(self,error):
+        self._spelling_saving=False
+        self._set_saving_controls(False)
+        self.spelling.set_active(True)
+        self.spelling.answer.setReadOnly(True)
+        self.spelling.hint_button.setEnabled(False)
+        self.spelling.reveal_button.setEnabled(self._reveal_pending)
+        self.spelling.submit_button.setText('重试保存 →')
+        self.spelling.feedback.setText('本次成绩未保存，输入已保留，请重试。')
+
     def _hint(self):
+        if self._spelling_saving:
+            return
         first = self.service.hint()
         if first:
             self.spelling.feedback.setText(f'首字母是 {first}。这一题会记为辅助完成。')
 
     def _reveal(self):
-        try:
-            answer = self.service.reveal()
-        except EnglishSaveError as exc:
-            self.spelling.feedback.setText(str(exc))
+        if self._spelling_saving:
             return
-        if answer:
-            session = self.service.session
-            self._set_running(False)
-            self.spelling.show_result(session.current, session.result)
+        self._reveal_pending = True
+        try:
+            answer=self.service.reveal()
+        except EnglishSaveError as error:
+            self._spelling_failed(error)
+            return
+        session=self.service.session
+        self._spelling_saving=True
+        self._set_saving_controls(True)
+        self._tasks.resolve(answer,lambda answer:self._revealed(session,answer),self._spelling_failed)
+
+    def _revealed(self,session,answer):
+        self._spelling_saving=False
+        self._reveal_pending=False
+        self._set_saving_controls(False)
+        confirm=getattr(self.service,'confirm_saved',None)
+        if confirm:
+            confirm()
+        if answer and session is self.service.session:
+            self._set_running(session.correcting)
+            self.spelling.show_result(session.current,session.result)
+            if session.correcting:
+                self.spelling.show_correction(session.current)
             self.refresh()
+
+    def _show_word(self, session):
+        self.spelling.show_word(session.current, session.index, len(session.words))
+        if session.phase == 'retest':
+            self.spelling.progress.setText(f'轮末复测 {session.index - session.first_total + 1} / {len(session.words) - session.first_total}')
+
+    def _correct(self, *, skip=False):
+        if self._spelling_saving:
+            return
+        session = self.service.session
+        if session and self.service.correct(self.spelling.answer.text(), skip=skip):
+            self.spelling.skip_button.hide()
+            self._submit_spelling()
+        elif session and session.correcting:
+            self.spelling.feedback.setText(f'再核对一次：{session.current.word}。也可以跳过纠正。')
 
     def _choose_targets(self):
         self._targets = tuple(w.word for w in self.service.catalog.sample(self.library.deck, 3))
         self.sentences.targets.setText('本轮目标词  /  ' + '  ·  '.join(self._targets))
 
     def _generate(self):
+        if self._sentence_saving or self._spelling_saving:
+            return
+        if self._sentence_pending is not None:
+            self.sentences.status.setText('上次成绩尚未保存，请先重试记录。')
+            return
+        if self._pending_material is not None:
+            if not self._material_saving:
+                self._save_generated()
+            return
         if self._request is not None:
             return
         allowed, reason = self.service.ai_access(self._ai_service, self._balance)
@@ -186,31 +362,70 @@ class EnglishPage(PaperPage):
         self.sentences.set_busy(True)
         self.sentences.usage_label.begin_request()
         self.sentences.status.setText('正在生成；只有有效材料保存成功才会使用训练券。')
-        request.start()
+        try:
+            request.start()
+        except Exception as error:
+            self._request=None
+            self.sentences.set_busy(False)
+            self.sentences.status.setText(str(error))
+            request.deleteLater()
 
     @Slot(str, bool, object)
-    def _generated(self, request_id, ok, result):
-        request = self._request
-        if request is None or request_id != request.id or request.deck != self.library.deck:
+    def _generated(self,request_id,ok,result):
+        request=self._request
+        if request is None or request_id!=request.id or request.deck!=self.library.deck:
             return
-        self._request = None
-        self.sentences.set_busy(False)
+        self._request=None
         self.sentences.usage_label.set_usage(request.usage)
-        try:
-            if not ok:
-                self.sentences.status.setText(str(result))
-                return
-            self.service.save_generated(request.deck, request.topic, list(request.words), result,
-                                        self._balance, test_mode=request.test_mode)
-        except Exception as exc:
-            self.sentences.status.setText(f'材料未保存，训练券未使用：{exc}')
-            return
-        finally:
+        if not ok:
+            finish_network_result(request)
             request.deleteLater()
-        self.sentences.set_history(self.service.sentence_history(request.deck))
-        self.sentences.status.setText('语句已经收好。选一句，开始跟打吧。')
+            self.sentences.set_busy(False)
+            self.sentences.status.setText(str(result))
+            return
+        self._pending_material=(request,result)
+        self._save_generated()
+
+    def _save_generated(self):
+        request,result=self._pending_material
+        self._material_saving=True
+        self._set_saving_controls(True)
+        self.sentences.set_busy(True)
+        try:
+            saved=self.service.save_generated(request.deck,request.topic,list(request.words),result,
+                self._balance,test_mode=request.test_mode,operation_id=request.id)
+        except Exception as error:
+            self._material_failed(error)
+            return
+        self._tasks.resolve(saved,self._material_saved,self._material_failed)
+
+    def _material_failed(self,error):
+        self._material_saving=False
+        self._set_saving_controls(False)
+        self.sentences.set_busy(False)
+        self.sentences.status.setText(f'材料未保存，训练券未使用：{error}。点击生成按钮重试保存。')
+
+    def _material_saved(self,_):
+        if self._pending_material is None:
+            return
+        request,result=self._pending_material
+        self._pending_material=None
+        self._material_saving=False
+        self._set_saving_controls(False)
+        finish_network_result(request)
+        deck=request.deck
+        request.deleteLater()
+        self.sentences.set_busy(False)
+        if deck==self.library.deck:
+            self.sentences.set_history(self.service.sentence_history(deck))
+            self.sentences.status.setText('语句已经收好。选一句，开始跟打吧。')
 
     def _cancel_request(self):
+        if self._pending_material is not None and not self._material_saving:
+            request=self._pending_material[0]
+            request.cancel()
+            request.deleteLater()
+            self._pending_material=None
         if self._request is not None:
             self.sentences.usage_label.set_usage(self._request.usage)
             self._request.cancel()
@@ -221,32 +436,66 @@ class EnglishPage(PaperPage):
 
     def _reset_sentence(self):
         self._sentence_run = None
+        self._sentence_pending = None
+        self.sentences.input.setReadOnly(False)
         self.sentences.set_running(False)
+        self.sentences.generate_button.setEnabled(True)
+        self.sentences.shuffle_button.setEnabled(True)
         self._set_running(False)
 
     def _start_sentence(self):
         reference = self.sentences.reference_text
-        if not reference or self._sentence_run is not None or self._request is not None:
+        if (not reference or self._sentence_run is not None or self._request is not None
+                or self._sentence_saving or self._material_saving or self._pending_material is not None):
             return
         self._sentence_run = (uuid.uuid4().hex, self.library.deck, reference, time.monotonic())
         self.sentences.set_running(True)
+        self.scroll.ensureWidgetVisible(self.sentences.input)
         self.sentences.status.setText('照着英文手动输入，完成后记录这一次。')
         self._set_running(True)
 
     def _finish_sentence(self):
-        if self._sentence_run is None:
+        if self._sentence_run is None or self._sentence_saving:
             return
         answer = self.sentences.input.toPlainText()
         if not answer.strip():
             self.sentences.status.setText('先输入句子，再记录这一次。')
             return
         event_id, deck, reference, started = self._sentence_run
+        if self._sentence_pending is None:
+            self._sentence_pending = (event_id, deck, reference, answer, time.monotonic() - started,
+                                      sentence_alignment(answer, reference))
+        event_id, deck, reference, answer, elapsed, _ = self._sentence_pending
+        self._sentence_saving = True
+        self._set_saving_controls(True)
+        self.sentences.input.setReadOnly(True)
+        self.sentences.finish_button.setEnabled(False)
+        self.sentences.generate_button.setEnabled(False)
+        self.sentences.shuffle_button.setEnabled(False)
         try:
-            result = self.service.record_sentence(deck, reference, answer, time.monotonic() - started, event_id)
-        except EnglishSaveError as exc:
-            self.sentences.status.setText(str(exc))
+            result = self.service.record_sentence(deck, reference, answer, elapsed, event_id)
+        except Exception as exc:
+            self._sentence_failed(exc)
             return
+        self._tasks.resolve(result,lambda result:self._sentence_saved(event_id,result),
+                            self._sentence_failed)
+
+    def _sentence_failed(self, error):
+        self._sentence_saving = False
+        self._set_saving_controls(False)
+        self.sentences.finish_button.setEnabled(True)
+        self.sentences.status.setText('本次成绩未保存，输入已保留，请重试。')
+
+    def _sentence_saved(self,event_id,result):
+        self._sentence_saving = False
+        self._set_saving_controls(False)
+        if self._sentence_run is None or self._sentence_run[0] != event_id:
+            return
+        tokens = self._sentence_pending[-1]
         self._reset_sentence()
+        self.sentences.generate_button.setEnabled(True)
+        self.sentences.shuffle_button.setEnabled(True)
+        self.sentences.show_alignment(tokens)
         self.sentences.status.setText(f"这一句完成 · 单词正确率 {result['accuracy']:.1%} · 错误词数 {result['errors']} · 用时 {result['elapsed']:.1f} 秒")
         if result['saved']:
             self.result_saved.emit({'id': f'sentence:{event_id}', 'accuracy': result['accuracy']})
@@ -264,6 +513,7 @@ class EnglishPage(PaperPage):
         self.library.apply_theme()
         self.spelling.apply_theme()
         self.sentences.apply_theme()
+        self._apply_type()
         self.paper.update()
 
     def hideEvent(self, event):
@@ -275,6 +525,27 @@ class EnglishPage(PaperPage):
 
     def showEvent(self, event):
         super().showEvent(event)
+        self.refresh()
         session = self.service.session
-        spelling_active = session is not None and not session.finished and session.result is None
+        spelling_active = session is not None and not session.finished and (session.result is None or session.correcting)
         self._set_running(self._sentence_run is not None or spelling_active)
+
+    def update_exit_status(self):
+        saving = self._spelling_saving or self._sentence_saving or self._material_saving or self._font_saving
+        session = self.service.session
+        unfinished = bool((session and not session.finished) or self._sentence_run or self._request
+                          or self._pending_material or self._sentence_pending)
+        return saving, unfinished
+
+    def discard_for_update(self):
+        if self.update_exit_status()[0]:
+            raise RuntimeError('学习结果正在保存，请稍候。')
+        self._cancel_request()
+        self.service.session = None
+        if hasattr(self.service, 'pending_result'):
+            self.service.pending_result = None
+            self.service.pending_session = None
+        self._reset_sentence()
+        self.spelling.set_active(False)
+        self.spelling.skip_button.hide()
+        self._set_running(False)

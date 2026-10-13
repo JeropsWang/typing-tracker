@@ -13,6 +13,8 @@
 - 解锁后的奖励仍由用户在卡片上手动领取（AchievementService.claim），领取后刷新。
 """
 from __future__ import annotations
+from ..presenters import QueryPresenter
+from ..tasks import TaskBridge
 
 import json
 from pathlib import Path
@@ -266,7 +268,8 @@ class AchievementsPage(QWidget):
 
     def __init__(self, repo, balance, ach_service, parent=None):
         super().__init__(parent)
-        self._repo = repo
+        self._presenter = QueryPresenter(repo)
+        self._tasks = TaskBridge(self)
         self._balance = balance
         self._ach = ach_service
         self._compact = None
@@ -566,7 +569,9 @@ class AchievementsPage(QWidget):
         return frame
 
     def _do_claim(self, code):
-        granted = self._ach.claim(code)
+        self._tasks.resolve(self._ach.claim(code),self._claimed)
+
+    def _claimed(self,granted):
         if granted:
             self.claimed.emit()
             self.refresh()

@@ -10,6 +10,8 @@
 - 页头用交付的转曲艺术标题 `ArtHeading('growth')`（成长三页共用同一 role）
 """
 from __future__ import annotations
+from ..presenters import QueryPresenter
+from ..tasks import TaskBridge
 
 from datetime import date, timedelta
 
@@ -121,7 +123,8 @@ class ProfilePage(QWidget):
     def __init__(self, repo, balance, engine, ach_service, reward_service,
                  avatar_dir=None, parent=None):
         super().__init__(parent)
-        self._repo = repo
+        self._presenter = QueryPresenter(repo)
+        self._tasks = TaskBridge(self)
         self._balance = balance
         self._engine = engine
         self._ach = ach_service
@@ -341,19 +344,19 @@ class ProfilePage(QWidget):
 
     # ---------- 刷新 ----------
     def refresh(self):
-        nickname = self._repo.get_setting('nickname', '打字新星')
-        signature = self._repo.get_setting('signature', '键盘上的舞者 ✨')
-        self._avatar.set_preset(self._repo.get_setting('avatar_preset', 'default'))
+        nickname = self._presenter.get_setting('nickname', '打字新星')
+        signature = self._presenter.get_setting('signature', '键盘上的舞者 ✨')
+        self._avatar.set_preset(self._presenter.get_setting('avatar_preset', 'default'))
         if self._avatar_dir is not None:
             img = self._avatar_dir / 'avatar.png'
             self._avatar.set_image(
-                img if img.exists() and self._repo.get_setting('avatar_image', '') == '1'
+                img if img.exists() and self._presenter.get_setting('avatar_image', '') == '1'
                 else None)
         self._nick_label.setText(nickname)
         self._sig_label.setText(signature)
 
-        from ...services.exp_service import band_title, level_and_progress
-        exp = self._repo.get_exp()
+        from ...modules.growth.api import band_title, level_and_progress
+        exp = self._presenter.get_exp()
         level, progress, _ = level_and_progress(exp, self._balance)
         band = band_title(level, self._balance)
         self._level_badge.setText(f'Lv.{level}')
@@ -365,7 +368,7 @@ class ProfilePage(QWidget):
             f'称号段位：{band}　·　经验 {exp:,}　·　升级进度 {round(progress * 100)}%')
 
         today = date.fromisoformat(self._engine.current_day())
-        streak = self._repo.get_streak(today.isoformat()) or self._repo.get_streak(
+        streak = self._presenter.get_streak(today.isoformat()) or self._presenter.get_streak(
             (today - timedelta(days=1)).isoformat())
         # 🔥 在微软雅黑下可能渲染成空白方框：改用文字表达连签
         self._streak_badge.setText(f'连签 {streak} 天')
@@ -374,14 +377,14 @@ class ProfilePage(QWidget):
             f' background: {rgba(P.accent_rose, 0.28)}; border-radius: 10px;'
             f' padding: 6px 12px;')
 
-        life = self._repo.get_lifetime() or {}
+        life = self._presenter.get_lifetime() or {}
         self._stat_values['total_typed'].setText(f'{life.get("total_typed", 0):,}')
         self._stat_values['total_valid'].setText(
             f'{max(0, life.get("total_typed", 0) - life.get("total_deleted", 0)):,}')
         self._stat_values['total_tw'].setText(f'{life.get("total_tw", 0):,}')
         self._stat_values['total_minutes'].setText(
             f'{life.get("total_active_minutes", 0):,}')
-        checkin_days = self._repo.get_checkins('0000-01-01', '9999-12-31')
+        checkin_days = self._presenter.get_checkins('0000-01-01', '9999-12-31')
         self._stat_values['checkin_days'].setText(str(len(checkin_days)))
 
         titles = self._rewards.titles()
@@ -450,7 +453,7 @@ class ProfilePage(QWidget):
             holder.resize(holder.width(), max(holder.height(), needed + top))
 
     def _build_titles(self, level: int, band: str, titles: list) -> None:
-        active = self._repo.get_setting('active_title', '')
+        active = self._presenter.get_setting('active_title', '')
         _clear_layout(self._titles_box)
         all_titles = [f'Lv.{level} {band}'] + list(titles)
         for idx, title in enumerate(all_titles):
@@ -500,8 +503,7 @@ class ProfilePage(QWidget):
                         radius=max(10, radius - 4))
 
     def _equip_title(self, title: str) -> None:
-        self._repo.set_setting('active_title', title)
-        self.refresh()
+        self._tasks.resolve(self._presenter.set_setting('active_title',title),lambda _:self.refresh())
 
     # ---------- 版式 ----------
     def _is_compact_now(self) -> bool:

@@ -45,7 +45,7 @@ class LayoutRegression(unittest.TestCase):
         from app.services.checkin_service import CheckinService
         from app.services.reward_service import RewardService
         from app.storage.db import connect_db, init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.theme.theme_manager import ThemeManager
         from app.ui.main_window import MainWindow
         root = Path(__file__).resolve().parents[1]
@@ -92,7 +92,7 @@ class LayoutRegression(unittest.TestCase):
         from app.services.ai_service import AIService
         from app.services.challenge_service import ChallengeService
         from app.storage.db import connect_db, init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.theme.theme_manager import ThemeManager
         from app.ui.pages.challenge import ChallengePage
         conn = connect_db(':memory:')

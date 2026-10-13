@@ -1,10 +1,11 @@
 """词库便签：选择与进度展示，不访问数据库。"""
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QComboBox, QLabel, QVBoxLayout
-from ...english.catalog import DECKS
+from ...modules.english.api import DECKS
 from ..widgets.avatar import AvatarPortrait
 from ..widgets.scrapbook import ScrapbookCard
 from ..palette import P
+from .typography import english_type
 
 
 class LibraryPanel(ScrapbookCard):
@@ -12,6 +13,7 @@ class LibraryPanel(ScrapbookCard):
 
     def __init__(self, parent=None):
         super().__init__('rose', parent)
+        self._type = english_type('large')
         self.setFixedWidth(254)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 29, 27, 27)
@@ -52,11 +54,21 @@ class LibraryPanel(ScrapbookCard):
     def count(self):
         return self.round_combo.currentData()
 
-    def set_summary(self, result):
+    def set_summary(self, result, plan=None):
         accuracy = result['accuracy']
         rate = '—' if accuracy is None else f'{accuracy:.0%}'
-        self.summary.setText(f"已练 {result['trained']} 词 · 待复习 {result['review_count']}\n独立答对率 {rate}")
+        due = f"\n今日到期 {(plan or {}).get('due_count', 0)} 词"
+        if plan and plan['next_day']:
+            due += f"\n下次复习 {plan['next_day']}"
+        self.summary.setText(f"已练 {result['trained']} 词 · 错词 {result['review_count']}\n独立答对率 {rate}" + due)
+
+    def set_type(self, key):
+        self._type = english_type(key)
+        self.apply_theme()
 
     def apply_theme(self):
-        self.setStyleSheet(f'LibraryPanel QLabel {{color:{P.paper_text}; background:transparent;}}')
+        t = self._type
+        self.setStyleSheet(f'''LibraryPanel QLabel {{color:{P.paper_text}; background:transparent;font-size:{t.body}px;}}
+            LibraryPanel QLabel[textRole="paperMuted"] {{font-size:{t.helper}px;color:{P.paper_muted};}}
+            LibraryPanel QComboBox {{font-size:{t.body}px;min-height:40px;}}''')
         self.update()

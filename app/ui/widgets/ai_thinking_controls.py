@@ -1,8 +1,8 @@
 """AI 思考草稿、兼容协议提示与会话彩蛋；不读写数据库。"""
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
-from ...services.ai_protocol import PROTOCOLS, THINKING_LIMIT, thinking_policy
-from ...services.ai_service import AIService
+from ...integrations.ai.protocol import PROTOCOLS, THINKING_LIMIT, thinking_policy
+from ...integrations.ai.api import AIService
 from ..palette import P
 from .design import PaperField
 

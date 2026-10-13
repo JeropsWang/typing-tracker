@@ -217,6 +217,8 @@ class KeyboardHook:
         if tid:
             user32.PostThreadMessageW(tid, WM_QUIT, 0, 0)
             self._thread.join(timeout=3)
+        if self._poller is not None:
+            self._poller.join(timeout=3)
 
     def _thread_main(self):
         self._proc_ref = HOOKPROC(self._callback)

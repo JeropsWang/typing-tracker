@@ -1,12 +1,12 @@
 """Keyboard warrior: cumulative manually entered characters in 15 seconds."""
-import sqlite3
+from ...bootstrap.features import keyboard_presenter
+from ..tasks import TaskBridge
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView, QHeaderView, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem,
 )
-from ...core.keyboard_warrior import KeyboardSession
-from ...services.keyboard_warrior_service import KeyboardWarriorService
+from ...modules.practice.api import KeyboardSession
 from .design import PaperPage
 from .training_workspace import PracticeInput
 from ..palette import P
@@ -34,7 +34,9 @@ class KeyboardWarriorPanel(PaperPage):
 
     def __init__(self, repo, balance, parent=None):
         super().__init__(parent)
-        self.service = KeyboardWarriorService(repo)
+        self.service = keyboard_presenter(repo)
+        self._tasks = TaskBridge(self)
+        self._saving = False
         self.balance = balance
         self.session = None
         self._pending = False
@@ -132,13 +134,27 @@ class KeyboardWarriorPanel(PaperPage):
             self._save()
 
     def _save(self):
+        if self._saving:
+            return
         result = self.session.result()
         try:
             saved = self.service.record(self.session)
-        except sqlite3.Error:
-            self.status.setText('成绩保存失败，本轮结果已保留，点击重试保存。')
-            self.start_button.setText('重试保存')
+        except Exception as error:
+            self._save_failed(error)
             return
+        self._saving=True
+        self.start_button.setEnabled(False)
+        self._tasks.resolve(saved,lambda value:self._saved(value,result),self._save_failed)
+
+    def _save_failed(self,error):
+        self._saving=False
+        self.start_button.setEnabled(True)
+        self.status.setText('成绩保存失败，本轮结果已保留，点击重试保存。')
+        self.start_button.setText('重试保存')
+
+    def _saved(self,saved,result):
+        self._saving=False
+        self.start_button.setEnabled(True)
         self.speed.setText(f"本轮累计 {result['tw']:g} tw · 速度 {result['speed']:.1f} tw/分")
         self.status.setText('15 秒完成，成绩已加入本机历史榜。' if saved else '本轮没有输入，未生成成绩。')
         self.session = None

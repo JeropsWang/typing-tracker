@@ -17,6 +17,8 @@
 - 绘图区高度用「上下限区间 + 尺度系数（`design.scale_factor`）」而不是固定像素。
 """
 from __future__ import annotations
+from ..presenters import QueryPresenter
+from ..tasks import TaskBridge
 
 from datetime import date, timedelta
 
@@ -146,7 +148,8 @@ class _InsightPanel(QFrame):
 class ReportsPage(QWidget):
     def __init__(self, repo, engine, balance, parent=None):
         super().__init__(parent)
-        self._repo = repo
+        self._presenter = QueryPresenter(repo)
+        self._tasks = TaskBridge(self)
         self._engine = engine
         self._balance = balance
         self._hm_last_build = 0.0
@@ -183,7 +186,7 @@ class ReportsPage(QWidget):
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
-        self._timer.start(10_000)
+        self._dirty = True
 
     # ---------- 构造 ----------
     @staticmethod
@@ -322,12 +325,24 @@ class ReportsPage(QWidget):
     # ---------- 统一刷新入口 ----------
     def refresh(self, *_):
         if not self.isVisible():
+            self._dirty = True
             return
+        self._dirty = False
         self._refresh_trend()
         self._refresh_hours()
         self._refresh_reports()
         self._refresh_heatmap()
         self._sync_plot_empty_geometry()
+
+    def data_changed(self):
+        self._dirty=True
+        if self.isVisible():
+            self.refresh()
+
+    def showEvent(self,event):
+        super().showEvent(event)
+        if self._dirty:
+            self.refresh()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -552,7 +567,7 @@ class ReportsPage(QWidget):
             disc.toggle.setMinimumHeight(height)
 
     def _unit(self) -> str:
-        return self._repo.get_setting('unit_name', self._balance['unit']['name'])
+        return self._presenter.get_setting('unit_name', self._balance['unit']['name'])
 
     # ---------- 关键指标 ----------
     def _refresh_metrics(self, summary, unit):
@@ -574,8 +589,8 @@ class ReportsPage(QWidget):
         today = date.fromisoformat(self._engine.current_day())
         n = self._range_combo.currentData() or 7
         start = today - timedelta(days=n - 1)
-        days = self._repo.get_daily_range(_dstr(start), _dstr(today))
-        self._refresh_metrics(self._repo.get_summary(_dstr(start), _dstr(today)), self._unit())
+        days = self._presenter.get_daily_range(_dstr(start), _dstr(today))
+        self._refresh_metrics(self._presenter.get_summary(_dstr(start), _dstr(today)), self._unit())
 
         factor = self._view_combo.currentData() or 1.0
         view = self._view_combo.currentText()
@@ -668,7 +683,7 @@ class ReportsPage(QWidget):
     def _refresh_hours(self):
         today = date.fromisoformat(self._engine.current_day())
         start = today - timedelta(days=6)
-        rows = self._repo.get_hourly_stats(_dstr(start), _dstr(today))
+        rows = self._presenter.get_hourly_stats(_dstr(start), _dstr(today))
         tw = [0] * 24
         for r in rows:
             h = int(r['hour'])
@@ -736,17 +751,13 @@ class ReportsPage(QWidget):
     def _refresh_heatmap(self):
         import time
         now = time.monotonic()
-        # 热力图重建成本高：建好之后 60 秒内不重复（主题/紧凑度变化会作废缓存）
-        if self._hm_ready and now - self._hm_last_build < 60:
-            return
         self._hm_last_build = now
-        self._hm_ready = True
 
         today = date.fromisoformat(self._engine.current_day())
         y = today.year
         first = date(y, 1, 1)
         last = date(y, 12, 31)
-        data = self._repo.get_heatmap(f'{y}-01-01', f'{y}-12-31')
+        data = self._presenter.get_heatmap(f'{y}-01-01', f'{y}-12-31')
         max_tw = max(data.values()) if data else 0
         has_record = any(v and v > 0 for v in data.values())
         # 纸张上的空态色：主题 empty 多在深色背景上取值，纸面上改用很低不透明度的墨色
@@ -763,6 +774,22 @@ class ReportsPage(QWidget):
             if r <= 0.75:
                 return 2
             return 3
+
+        if self._hm_ready and getattr(self,'_hm_year',None)==y:
+            for day,(cell,old_level,old_tw) in tuple(self._hm_cells.items()):
+                tw=data.get(day,0) or 0
+                lv=level(tw)
+                if lv!=old_level:
+                    color=empty_color if lv<0 else self._hm_levels[lv]
+                    cell.setStyleSheet(f'background:{color}; border-radius:3px;')
+                if tw!=old_tw:
+                    cell.setToolTip(f'{day}：{tw} tw' if lv>=0 else f'{day}：无记录')
+                self._hm_cells[day]=(cell,lv,tw)
+            self._hm_empty_label.setVisible(not has_record)
+            return
+        self._hm_ready=True
+        self._hm_year=y
+        self._hm_cells={}
 
         total_days = (last - first).days
         col_of = {first + timedelta(days=i): i // 7 for i in range(total_days + 1)}
@@ -798,6 +825,7 @@ class ReportsPage(QWidget):
             cell.setStyleSheet(f'background:{color}; border-radius:3px;')
             tip = f'{day.isoformat()}：{tw} tw' if lv >= 0 else f'{day.isoformat()}：无记录'
             cell.setToolTip(tip)
+            self._hm_cells[day.isoformat()]=(cell,lv,tw)
             self._hm_lay.addWidget(cell, day.weekday() + 1, col_of[day] + 1)
 
         self._hm_lay.setRowStretch(8, 1)
@@ -870,7 +898,7 @@ class ReportsPage(QWidget):
     def _refresh_reports(self):
         unit = self._unit()
         periods = self._periods()
-        sums = {key: self._repo.get_summary(start, end) for key, (start, end) in periods.items()}
+        sums = {key: self._presenter.get_summary(start, end) for key, (start, end) in periods.items()}
         for key, body in self._cards.items():
             body.setText(self._card_text(sums[key], unit))
 

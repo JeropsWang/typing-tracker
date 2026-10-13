@@ -33,6 +33,10 @@ class EnglishUITests(UIFixture):
         page.mode_buttons['spelling'].click()
         page.spelling.start_button.click()
         answer = page.service.session.current.word
+        QTest.keyClick(page.spelling.answer, Qt.Key_Return)
+        self.assertFalse(page.spelling.answer.isReadOnly(), '空输入应保留作答能力')
+        self.assertTrue(page.spelling.submit_button.isEnabled())
+        self.assertEqual(page.service.summary('cet4')['attempts'], 0)
         page.spelling.answer.setText(answer)
         QTest.keyClick(page.spelling.answer, Qt.Key_Return)
         self.assertEqual(page.service.summary('cet4')['attempts'], 1)
@@ -104,11 +108,95 @@ class EnglishUITests(UIFixture):
         translation = page.sentences.translation
         self.assertLessEqual(translation.heightForWidth(translation.width()), translation.height(),
                              '长释义需要完整展示或提供滚动，不应被固定行高裁切')
+        page.scroll.ensureWidgetVisible(page.sentences.input)
+        APP.processEvents()
         input_bottom = page.sentences.input.mapTo(window, page.sentences.input.rect().bottomLeft()).y()
+        page.scroll.ensureWidgetVisible(page.sentences.finish_button)
+        APP.processEvents()
         action_bottom = page.sentences.finish_button.mapTo(window, page.sentences.finish_button.rect().bottomLeft()).y()
         nav_top = window._nav.mapTo(window, window._nav.rect().topLeft()).y()
         self.assertLess(input_bottom, nav_top)
         self.assertLess(action_bottom, nav_top)
+
+    def test_correction_retest_and_font_choices_are_persisted(self):
+        window, page = self.page()
+        # One original word gives one bounded retest after correction.
+        from app.modules.english.api import SpellingSession, Word
+        page.service.session = SpellingSession([Word('apple', '苹果')], learning=True,
+                                                day_provider=page.service.application_day)
+        page.spelling.show_word(page.service.session.current, 0, 1)
+        page.spelling.answer.setText('aple')
+        page.spelling.submit_button.click()
+        self.assertTrue(page.service.session.correcting)
+        self.assertTrue(page.spelling.skip_button.isVisible())
+        self.assertEqual(page.service.summary('cet4')['attempts'], 1)
+        page.spelling.answer.setText('apple')
+        page.spelling.submit_button.click()
+        self.assertEqual(page.service.summary('cet4')['attempts'], 1)
+        self.assertEqual(page.service.session.phase, 'retest')
+        self.assertNotIn('apple', page.spelling.feedback.text())
+        page.spelling.answer.setText('apple')
+        page.spelling.submit_button.click()
+        page.spelling.submit_button.click()
+        self.assertEqual(page.service.summary('cet4')['attempts'], 2)
+        self.assertIn('首次独立答对 0 / 1', page.spelling.feedback.text())
+        self.assertIn('复测独立答对 1 / 1', page.spelling.feedback.text())
+        for key, size in [('standard', 24), ('large', 28), ('extra', 32)]:
+            page.font_combo.setCurrentIndex(page.font_combo.findData(key))
+            APP.processEvents()
+            self.assertEqual(self.repo.get_setting('english_font_size'), key)
+            self.assertIn(f'font:{size}px', page.spelling.answer.styleSheet())
+            page.scroll.ensureWidgetVisible(page.spelling.start_button)
+            APP.processEvents()
+            bottom = page.spelling.start_button.mapTo(window, page.spelling.start_button.rect().bottomLeft()).y()
+            self.assertLess(bottom, window._nav.mapTo(window, window._nav.rect().topLeft()).y())
+
+    def test_sentence_error_feedback_and_retry_use_existing_material(self):
+        _, page = self.page()
+        page.mode_buttons['sentence'].click()
+        page.sentences.set_history([dict(id=1, topic='核对', created_at='2026-10-13', words=['go'],
+            sentences=[dict(text='We go home.', translation='我们回家。')])])
+        page.sentences.start_button.click()
+        original_id = page._sentence_run[0]
+        page.sentences.input.setPlainText('We home.')
+        page.sentences.finish_button.click()
+        self.assertIn('漏词 go', page.sentences.errors.text())
+        self.assertTrue(page.sentences.retry_button.isVisible())
+        passes = self.repo.count_ai_passes()
+        page.sentences.retry_button.click()
+        self.assertNotEqual(page._sentence_run[0], original_id)
+        self.assertIsNone(page._request)
+        self.assertEqual(self.repo.count_ai_passes(), passes)
+        page.sentences.input.setPlainText('We go home.')
+        page.sentences.finish_button.click()
+        self.assertEqual(len(self.repo.english.export()['attempts']), 2)
+        self.assertNotIn('answer', self.repo.english.export()['attempts'][0])
+
+    def test_material_save_blocks_starting_a_second_sentence_run(self):
+        from concurrent.futures import Future
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        _, page = self.page()
+        page.mode_buttons['sentence'].click()
+        page.sentences.set_history([dict(id=1, topic='原材料', created_at='2026-10-13', words=['go'],
+            sentences=[dict(text='We go home.', translation='我们回家。')])])
+        request = SimpleNamespace(deck='cet4',topic='新材料',words=('go',),test_mode=False,
+                                  id='material-command',cancel=Mock(),deleteLater=Mock())
+        pending = Future()
+        page._pending_material = (request, [])
+        with patch.object(page.service, 'save_generated', return_value=pending):
+            page._save_generated()
+            page._start_sentence()
+            self.assertIsNone(page._sentence_run)
+            self.assertFalse(page.library.deck_combo.isEnabled())
+            pending.set_exception(OSError('isolated save failure'))
+            APP.processEvents()
+        self.assertFalse(page._material_saving)
+        page._start_sentence()
+        self.assertIsNone(page._sentence_run, '未保存材料仍需重试或取消，不能覆盖另一轮练习')
+        page._cancel_request()
+        page._start_sentence()
+        self.assertIsNotNone(page._sentence_run)
 
     def test_minimize_and_tray_restore_preserve_active_practice(self):
         window, page = self.page()

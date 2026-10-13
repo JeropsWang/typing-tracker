@@ -22,7 +22,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QThread, QTimer
 from PySide6.QtGui import QImage, QColor
 from PySide6.QtWidgets import QApplication, QMessageBox
 from app.storage.db import connect_db, init_schema
-from app.storage.repository import Repository
+from app.storage.session import DataSession as Repository
 from app.services.ai_service import AIService
 from app.services.challenge_service import ChallengeService
 from app.ui.pages.challenge import ChallengePage

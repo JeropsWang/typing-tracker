@@ -79,7 +79,7 @@ class SpellingTests(unittest.TestCase):
 class EnglishStorageTests(unittest.TestCase):
     def test_failed_reveal_keeps_question_unconfirmed(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
@@ -96,7 +96,7 @@ class EnglishStorageTests(unittest.TestCase):
 
     def test_failed_spelling_and_reveal_remain_retryable(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
@@ -135,7 +135,7 @@ class EnglishStorageTests(unittest.TestCase):
 
     def test_capitalized_word_uses_stable_review_key(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
@@ -179,7 +179,7 @@ class EnglishStorageTests(unittest.TestCase):
 
     def test_old_database_and_backup_include_english(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.services.export_service import export_all
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
@@ -220,7 +220,7 @@ class EnglishAITests(unittest.TestCase):
     def test_ai_failure_does_not_spend_pass(self):
         from app.english.service import EnglishService
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row
         self.addCleanup(conn.close)

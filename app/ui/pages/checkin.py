@@ -12,6 +12,8 @@
 - 业务仍走既有服务（CheckinService / RewardService），页面不写 SQL
 """
 from __future__ import annotations
+from ..presenters import QueryPresenter
+from ..tasks import TaskBridge
 
 import json
 from datetime import date, timedelta
@@ -251,7 +253,8 @@ class CheckinPage(QWidget):
     def __init__(self, repo, balance, checkin_service, reward_service, engine,
                  parent=None):
         super().__init__(parent)
-        self._repo = repo
+        self._presenter = QueryPresenter(repo)
+        self._tasks = TaskBridge(self)
         self._balance = balance
         self._checkin = checkin_service
         self._rewards = reward_service
@@ -591,16 +594,16 @@ class CheckinPage(QWidget):
     # ---------- 刷新 ----------
     def refresh(self, *_):
         today = date.fromisoformat(self._engine.current_day())
-        streak = self._repo.get_streak(_dstr(today)) or self._repo.get_streak(
+        streak = self._presenter.get_streak(_dstr(today)) or self._presenter.get_streak(
             _dstr(today - timedelta(days=1)))
         cards = self._rewards.count('makeup_card')
         boost = self._rewards.count('exp_boost')
         titles = self._rewards.titles()
-        signed_today = self._repo.has_checkin(_dstr(today))
+        signed_today = self._presenter.has_checkin(_dstr(today))
 
         self._streak_value.setText(str(streak))
         first = today.replace(day=1)
-        month_rows = self._repo.get_checkins(_dstr(first), _dstr(today))
+        month_rows = self._presenter.get_checkins(_dstr(first), _dstr(today))
         month_best = max((r['streak'] for r in month_rows.values()), default=0)
         self._streak_meta.setText(
             f'{today.strftime("%m月%d日")}　本月已签 {len(month_rows)} 天'
@@ -610,13 +613,13 @@ class CheckinPage(QWidget):
             f'　本月最高连签 {month_best} 天')
 
         self._build_strip(today)
-        signed_today = self._repo.has_checkin(_dstr(today))
+        signed_today = self._presenter.has_checkin(_dstr(today))
         self._build_status(signed_today, streak)
         self._build_calendar()
         self._build_milestones()
         self._build_inventory(boost, cards, titles)
 
-        missed = not self._repo.has_checkin(_dstr(today - timedelta(days=1)))
+        missed = not self._presenter.has_checkin(_dstr(today - timedelta(days=1)))
         self._repair_btn.setEnabled(bool(missed and cards > 0))
         self._repair_btn.setText(
             '使用补签卡补签昨天' if missed else '昨日已打卡')
@@ -710,7 +713,7 @@ class CheckinPage(QWidget):
         _clear_layout(self._strip_grid)
 
         days = [today - timedelta(days=STRIP_DAYS - 1 - i) for i in range(STRIP_DAYS)]
-        rows = self._repo.get_checkins(_dstr(days[0]), _dstr(days[-1]))
+        rows = self._presenter.get_checkins(_dstr(days[0]), _dstr(days[-1]))
         signed = sum(1 for d in days if _dstr(d) in rows)
         # 「已签 n/7」并入连签行的辅助文字，省掉一行标题
         self._strip_summary = f'最近 7 天已签 {signed} / {STRIP_DAYS} 天'
@@ -778,7 +781,7 @@ class CheckinPage(QWidget):
         today = date.fromisoformat(self._engine.current_day())
         first = self._month
         last = date(first.year, first.month + 1, 1) - timedelta(days=1)
-        rows = self._repo.get_checkins(_dstr(first), _dstr(last))
+        rows = self._presenter.get_checkins(_dstr(first), _dstr(last))
         self._month_label.setText(f'{first.year} 年 {first.month} 月')
 
         for i, weekday in enumerate(WEEKDAYS):
@@ -825,7 +828,7 @@ class CheckinPage(QWidget):
         cfg = self._balance['checkin']
         milestones = cfg.get('milestones', [])
         rewards = cfg.get('milestone_rewards', {})
-        granted = self._repo.get_setting('milestone_granted', '[]')
+        granted = self._presenter.get_setting('milestone_granted', '[]')
         try:
             granted = json.loads(granted)
         except (ValueError, TypeError):
@@ -941,21 +944,24 @@ class CheckinPage(QWidget):
             self._boost_btn.setEnabled(boost > 0)
 
     def _use_boost(self):
-        if self._rewards.use_exp_boost(30):
-            self.refresh()
+        self._boost_btn.setEnabled(False)
+        self._tasks.resolve(self._rewards.use_exp_boost(30),lambda _:self.refresh(),
+                            lambda error:self._action_failed(error))
 
     def _repair(self):
         today = date.fromisoformat(self._engine.current_day())
         missed = _dstr(today - timedelta(days=1))
-        if not self._repo.has_checkin(missed):
+        if not self._presenter.has_checkin(missed):
             ret = QMessageBox.question(
                 self, '补签', f'使用 1 张补签卡补签 {missed}？\n补签后连签天数恢复延续。')
             if ret == QMessageBox.Yes:
                 # 先补签成功再扣卡（曾先扣卡后补签，失败时吞卡，v0.8.9 修复）
-                r = self._checkin.apply_makeup_card(missed, today_iso=_dstr(today))
-                if r:
-                    self._repo.use_reward('makeup_card')
-                    self.refresh()
+                self._tasks.resolve(self._checkin.apply_makeup_card(missed,today_iso=_dstr(today)),
+                                    lambda _:self.refresh(),self._action_failed)
+
+    def _action_failed(self,error):
+        self.refresh()
+        QMessageBox.warning(self,'操作未保存','数据未修改，请稍后重试。')
 
     # ---------- 版式 ----------
     def _is_compact_now(self) -> bool:

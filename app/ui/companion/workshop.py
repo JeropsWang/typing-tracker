@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QListWidget, QListWidgetItem, QPushButton, QFileDialog, QMessageBox,
     QScrollArea, QTabWidget, QSplitter, QMenu,
 )
-from ...companion.validation import image_size, safe_path
+from ...modules.companion.api import image_size, safe_path
 from .editor import StateEditor
 from .preview import CreationPreview
 from .artwork import sprite_icon

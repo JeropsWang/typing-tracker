@@ -9,6 +9,11 @@ on:
         description: 'Existing release tag to build or backfill (e.g. v0.9.1)'
         required: true
         type: string
+      publish_draft:
+        description: 'Publish an existing draft only after build and installer checks succeed'
+        required: false
+        default: false
+        type: boolean
   pull_request:
     paths:
       - '.github/workflows/windows-release.yml'
@@ -134,6 +139,24 @@ jobs:
           } else {
             Write-Output 'Historical build: same-brand upgrade check is not applicable'
           }
+      - name: Verify upgrade from Sariana 0.9.4
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $taskManifest = Get-Content -LiteralPath 'release-output/payload/release-manifest.json' | ConvertFrom-Json
+          if ($taskManifest.product_name -eq 'Sariana' -and [version]$taskManifest.version -ge [version]'0.9.5') {
+            $taskHeaders = @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GH_TOKEN" }
+            $taskPrevious = Invoke-RestMethod -Uri 'https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v0.9.4' -Headers $taskHeaders
+            $taskAsset = @($taskPrevious.assets | Where-Object name -eq 'Sariana-0.9.4-windows-x64-setup.exe')
+            if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw '0.9.4 installer missing' }
+            if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw '0.9.4 installer digest missing' }
+            $taskExpectedHash = $Matches[1]
+            $taskPreviousSetup = Join-Path $env:RUNNER_TEMP 'Sariana-0.9.4-setup.exe'
+            Invoke-WebRequest -Uri ($taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id) -OutFile $taskPreviousSetup
+            if ((Get-FileHash -LiteralPath $taskPreviousSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw '0.9.4 installer checksum mismatch' }
+            ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/sariana-094-upgrade-smoke" -UpgradeFromSetup $taskPreviousSetup
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release-assets
@@ -160,3 +183,10 @@ jobs:
         run: |
           gh release view "$RELEASE_TAG" --repo "$GH_REPO"
           gh release upload "$RELEASE_TAG" assets/* --repo "$GH_REPO" --clobber
+      - name: Publish verified draft
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --draft=false --latest

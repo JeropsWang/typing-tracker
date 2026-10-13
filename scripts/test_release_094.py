@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 class SentenceAccuracyTests(unittest.TestCase):
     def setUp(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
         self.conn = sqlite3.connect(':memory:')
         self.conn.row_factory = sqlite3.Row
@@ -59,7 +59,7 @@ class KeyboardSessionTests(unittest.TestCase):
 
     def test_leaderboard_is_persistent_and_duplicate_finish_is_idempotent(self):
         from app.storage.db import init_schema
-        from app.storage.repository import Repository
+        from app.storage.session import DataSession as Repository
         from app.services.keyboard_warrior_service import KeyboardWarriorService
         conn = sqlite3.connect(':memory:')
         conn.row_factory = sqlite3.Row

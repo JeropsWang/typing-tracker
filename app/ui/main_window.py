@@ -1,18 +1,20 @@
 """主窗口：今日概览 + 1 秒刷新 + 关闭即驻留托盘 + 星空背景/动效/弹窗。"""
 from __future__ import annotations
+from .presenters import QueryPresenter
+from .tasks import TaskBridge
 
 import json
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, Qt, QTimer, QObject, Signal, Slot
 from PySide6.QtWidgets import (
     QButtonGroup, QFrame, QHBoxLayout, QMainWindow, QPushButton, QSystemTrayIcon, QTabWidget,
     QVBoxLayout, QWidget,
 )
 
 from .. import APP_DISPLAY_NAME, APP_NAME, __version__
-from ..services.exp_service import band_title, level_and_progress
+from ..modules.growth.api import band_title, level_and_progress
 from .assets.icons import icon as svg_icon
 from .dashboard import Dashboard
 from .palette import P
@@ -23,7 +25,8 @@ from .pages.profile import ProfilePage
 from .pages.reports import ReportsPage
 from .english.page import EnglishPage
 from .settings_dialog import SettingsDialog
-from ..services.ai_access import AITestSession
+from ..modules.growth.api import AITestSession
+from ..modules.companion.api import ActivityProvider
 from .widgets.checkin_popup import CheckinPopup
 from .widgets.confetti import ConfettiOverlay
 from .widgets.design import (
@@ -66,11 +69,14 @@ class MainWindow(QMainWindow):
     def __init__(self, engine, repo, balance, tray=None,
                  checkin=None, rewards=None, achievements=None,
                  theme_manager=None, challenge=None, ai_service=None,
-                 data_dir=None):
+                 data_dir=None, application=None):
         super().__init__()
         self.setProperty('stageChromeHeight', WINDOW_CHROME_HEIGHT)
+        self._application = application
+        self.activity_provider = ActivityProvider(engine,repo,balance)
         self._engine = engine
-        self._repo = repo
+        self._presenter = QueryPresenter(repo)
+        self._tasks = TaskBridge(self)
         self._balance = balance
         self._tray = tray
         self._theme_mgr = theme_manager
@@ -127,14 +133,14 @@ class MainWindow(QMainWindow):
             self._tabs.setTabIcon(5, svg_icon('zap', '#94A3B8'))
         self._english_page = EnglishPage(repo, balance, ai_service, test_session=self._ai_session)
         self._english_page.settings_requested.connect(lambda: self.open_settings(section='ai'))
-        self._english_page.running_changed.connect(self._sync_motion)
+        self._english_page.running_changed.connect(lambda running:self._practice_changed('english',running))
         self._tabs.addTab(self._english_page, '英语')
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._tabs.tabBar().hide()
         self._dashboard.training_requested.connect(self.open_training)
         self._dashboard._practice_btn.setEnabled(hasattr(self, '_challenge_page'))
         if hasattr(self, '_challenge_page'):
-            self._challenge_page.running_changed.connect(self._sync_motion)
+            self._challenge_page.running_changed.connect(lambda running:self._practice_changed('practice',running))
 
         # 导航映射保留页面对象及原服务边界，旧页面索引供现有脚本兼容。
         self._navigation = {
@@ -231,7 +237,7 @@ class MainWindow(QMainWindow):
 
         if data_dir is not None:
             from .companion.controller import CompanionController
-            self._companion = CompanionController(self, repo, data_dir)
+            self._companion = CompanionController(self,repo,data_dir,activity_provider=self.activity_provider)
             if hasattr(self, '_challenge_page'):
                 self._challenge_page.result_saved.connect(self._companion_result)
             self._english_page.result_saved.connect(self._companion_result)
@@ -239,11 +245,39 @@ class MainWindow(QMainWindow):
                 self._tray.bind_companion(self._companion)
             self._companion.start()
 
+        if application is not None:
+            self._event_bridge = ApplicationEvents(self)
+            self._event_bridge.changed.connect(self._application_changed,Qt.QueuedConnection)
+            self._unsubscribe=application.events.subscribe(self._event_bridge.changed.emit)
+            self.destroyed.connect(lambda _:self._unsubscribe())
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.refresh)
         self._timer.start(1000)
         self.refresh()
         self._on_tab_changed(self._tabs.currentIndex())
+
+    @Slot(object)
+    def _application_changed(self,event):
+        if event.topic=='level':
+            previous,level=event.payload['previous'],event.payload['level']
+            self.notify('升级！',f'Lv.{previous} → Lv.{level}','level')
+        elif event.topic=='achievement':
+            self.notify('成就',f'解锁「{event.payload["name"]}」，到成就页领取奖励','achievement')
+        elif event.topic in ('saved','save_failed'):
+            self._dashboard.set_persistence_status(self._application.last_saved_at,self._application.save_error)
+        if event.topic in ('tracking','growth','profile','practice','english'):
+            self.refresh()
+            if event.topic in ('tracking','profile'):
+                self._reports.data_changed()
+            for name in ('_checkin_page','_ach_page','_profile_page','_english_page'):
+                page=getattr(self,name,None)
+                if page is not None and page.isVisible():
+                    page.refresh()
+            if event.topic=='profile':
+                if self._companion:
+                    self._companion.sync_settings()
+                if self._hook:
+                    self._hook.set_excluded_apps(self.load_excluded_apps())
 
     def _on_reward_granted(self):
         self.refresh()
@@ -385,7 +419,7 @@ class MainWindow(QMainWindow):
     def show_checkin_popup(self, result: dict) -> None:
         """每日签到弹窗（居中显示，动态动画）。"""
         if self._companion is not None:
-            from ..companion.models import CompanionEvent
+            from ..modules.companion.api import CompanionEvent
             self._companion.handle_event(CompanionEvent('checkin', {'streak': result['streak']},
                                                        f"checkin:{result['date']}"))
         if not self.isVisible():
@@ -422,14 +456,14 @@ class MainWindow(QMainWindow):
     def notify(self, title: str, msg: str, kind: str = 'star') -> None:
         """兼容旧调用：统一走小弹窗。"""
         if self._companion is not None and kind in ('achievement', 'encourage', 'milestone'):
-            from ..companion.models import CompanionEvent
+            from ..modules.companion.api import CompanionEvent
             self._companion.handle_event(CompanionEvent('achievement' if kind == 'milestone' else kind,
                                                        event_id=f'{self._engine.current_day()}:{kind}:{msg}'))
         self.show_toast(title, msg, kind)
 
     def _companion_result(self, result):
         if self._companion is not None:
-            from ..companion.models import CompanionEvent
+            from ..modules.companion.api import CompanionEvent
             kind = ('record' if result.get('is_best') else
                     'encourage' if result.get('accuracy', 1) < .8 else 'finished')
             payload = {'accuracy': f"{result['accuracy']:.0%}"}
@@ -470,22 +504,22 @@ class MainWindow(QMainWindow):
         if not self.isVisible():
             return  # 驻留托盘时停止每秒刷新（UI 与 SQL 都省）
         snap = self._engine.snapshot()
-        exp = self._repo.get_exp()
+        exp = self._presenter.get_exp()
         level, progress, _ = level_and_progress(exp, self._balance)
-        title = band_title(level, self._balance, _load_bands(self._balance, self._repo))
-        active = self._repo.get_setting('active_title', '')
+        title = band_title(level, self._balance, _load_bands(self._balance, self._presenter))
+        active = self._presenter.get_setting('active_title', '')
         if active:
             title = active
-        unit = self._repo.get_setting('unit_name', self._balance['unit']['name'])
-        streak = current_streak(self._repo, self._engine.current_day())
+        unit = self._presenter.get_setting('unit_name', self._balance['unit']['name'])
+        streak = current_streak(self._presenter, self._engine.current_day())
         self._dashboard.refresh(snap, level, progress, title, streak, unit,
                                 exp=exp)
         # 导航左侧用户摘要（紧凑窗口自动隐藏）
-        nickname = self._repo.get_setting('nickname', '') or '打字新星'
+        nickname = self._presenter.get_setting('nickname', '') or '打字新星'
         self._nav.set_summary(nickname, f'Lv.{level} · {title}')
 
         # 升级检测 → 小弹窗
-        if self._last_level is not None and level > self._last_level:
+        if self._application is None and self._last_level is not None and level > self._last_level:
             self.show_toast('🎉 升级！',
                             f'Lv.{self._last_level} → Lv.{level}　称号「{title}」',
                             kind='level')
@@ -515,7 +549,7 @@ class MainWindow(QMainWindow):
 
     def load_excluded_apps(self) -> set:
         """读取排除程序列表（主线程调用），供钩子快照。"""
-        text = self._repo.get_setting('excluded_apps') or ''
+        text = self._presenter.get_setting('excluded_apps') or ''
         return {line.strip().lower() for line in text.splitlines() if line.strip()}
 
     def _summary_text(self, snap, unit) -> str:
@@ -535,10 +569,13 @@ class MainWindow(QMainWindow):
             self._tabs.setCurrentWidget(self._challenge_page)
 
     def _motion_active(self):
-        running = any(bool(getattr(getattr(self, name, None), '_running', False))
-                      for name in ('_challenge_page', '_english_page'))
+        running = self.activity_provider.activity().practicing
         return (self.isVisible() and not self.isMinimized() and not running
-                and self._repo.get_setting('reduced_motion', '0') != '1')
+                and self._presenter.get_setting('reduced_motion', '0') != '1')
+
+    def _practice_changed(self,source,running):
+        self.activity_provider.set_practicing(source,running)
+        self._sync_motion()
 
     def _sync_motion(self, *_):
         active = self._motion_active()
@@ -563,7 +600,7 @@ class MainWindow(QMainWindow):
         self._sync_motion()
 
     def open_settings(self, checked=False, *, section=''):
-        dlg = SettingsDialog(self._repo, self._balance, self,
+        dlg = SettingsDialog(self._presenter, self._balance, self,
                              theme_manager=self._theme_mgr,
                              data_dir=self._data_dir, test_session=self._ai_session)
         if section == 'ai':
@@ -592,3 +629,7 @@ class MainWindow(QMainWindow):
         if event.type() == event.Type.WindowStateChange:
             self._sync_motion()
         super().changeEvent(event)
+
+
+class ApplicationEvents(QObject):
+    changed=Signal(object)

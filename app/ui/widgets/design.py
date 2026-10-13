@@ -179,8 +179,9 @@ class PaperSurface(QFrame):
     #: 墨影相对纸张的偏移 (dx, dy) 与圆角，配方第 86 行（仅回退路径使用）
     SHADOW_DX, SHADOW_DY, SHADOW_RADIUS = 4, 10, 10
 
-    def __init__(self, parent=None, *, compact: bool = False):
+    def __init__(self, parent=None, *, compact: bool = False, opaque: bool = False):
         super().__init__(parent)
+        self._opaque = opaque
         self.setProperty('paperSurface', True)
         self.set_compact(compact)
 
@@ -220,6 +221,8 @@ class PaperSurface(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect())
+        if self._opaque:
+            painter.fillRect(rect,QColor(P.paper))
         # 交付纹理优先：透明撕边向外延伸，纸张边界 = 控件矩形
         if paper_texture().draw(painter, rect):
             painter.end()

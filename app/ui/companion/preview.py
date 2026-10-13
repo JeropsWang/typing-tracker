@@ -3,9 +3,9 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QRect, QSize, Signal
 from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QComboBox, QPushButton, QToolButton
-from ...companion.models import STATES, format_line
-from ...companion.packs import Sprite
-from ...companion.runtime import REACTIONS
+from ...modules.companion.api import STATES, format_line
+from ...modules.companion.api import Sprite
+from ...modules.companion.api import REACTIONS
 from .artwork import sprite_icon
 from .view import CompanionView
 

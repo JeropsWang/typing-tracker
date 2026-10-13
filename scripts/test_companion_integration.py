@@ -36,8 +36,8 @@ class CompanionIntegrationTests(UIFixture):
         page._start()
         before = window._companion.runtime.sample().token
         with patch.object(page._svc, 'record', side_effect=OSError('save failed')):
-            with self.assertRaises(OSError):
-                page._finish(page._current_text(), page._current_text())
+            page._finish(page._current_text(),page._current_text())
+            self.assertIn('重试保存',page._start_btn.text())
         self.assertEqual(window._companion.runtime.sample().token, before)
 
     def test_english_sentence_save_drives_reaction_once(self):

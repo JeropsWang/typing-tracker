@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QText
 from .design import PaperPage
 from .ai_usage import TokenUsageLabel
 from ..palette import P
+from ..tasks import begin_network, cancel_network, finish_network_result
 
 
 class ChaosRequest(QObject):
@@ -21,20 +22,11 @@ class ChaosRequest(QObject):
         self._thread = None
 
     def start(self):
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._thread.start()
+        begin_network(self,self.service,lambda:self.service.generate_chaos(self.topic),
+                      lambda result:self.done.emit(self.id,result.ok,result.body if result.ok else result.error))
 
     def cancel(self):
-        self._valid = False
-
-    def _run(self):
-        ok, result = self.service.generate_chaos(self.topic)
-        self.usage = self.service.last_usage
-        if self._valid:
-            try:
-                self.done.emit(self.id, ok, result)
-            except RuntimeError:
-                pass
+        cancel_network(self)
 
 
 class ChaosPanel(PaperPage):
@@ -98,7 +90,13 @@ class ChaosPanel(PaperPage):
         self.generate_button.setText('脑洞正在转弯…')
         self.status.setText('正在生成一段最多 60 字的胡言乱语。')
         self.usage_label.begin_request()
-        request.start()
+        try:
+            request.start()
+        except Exception as error:
+            self.request=None
+            request.deleteLater()
+            self._idle()
+            self.status.setText(str(error))
 
     def _done(self, request_id, ok, result):
         if self.request is None or self.request.id != request_id:
@@ -107,6 +105,7 @@ class ChaosPanel(PaperPage):
         request = self.request
         self.request = None
         self._idle()
+        finish_network_result(request)
         request.deleteLater()
         if ok:
             self.output.setPlainText(result)

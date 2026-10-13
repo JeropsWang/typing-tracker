@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout, QWidget
 from ..palette import P
 from ..widgets.motion import FeedbackSpark
+from .typography import english_type
 
 
 class SpellingPanel(QWidget):
@@ -10,9 +11,11 @@ class SpellingPanel(QWidget):
     submit_requested = Signal()
     hint_requested = Signal()
     reveal_requested = Signal()
+    correction_skipped = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._type = english_type('large')
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(14)
@@ -53,6 +56,11 @@ class SpellingPanel(QWidget):
         self.feedback.setWordWrap(True)
         self.feedback.setMinimumHeight(60)
         layout.addWidget(self.feedback)
+        self.skip_button = QPushButton('跳过纠正 →')
+        self.skip_button.setProperty('buttonRole', 'quiet')
+        self.skip_button.clicked.connect(self.correction_skipped.emit)
+        self.skip_button.hide()
+        layout.addWidget(self.skip_button, 0, Qt.AlignLeft)
         layout.addStretch()
         self.start_button = QPushButton('开始这一轮 →')
         self.start_button.setProperty('buttonRole', 'primary')
@@ -70,6 +78,7 @@ class SpellingPanel(QWidget):
         self.submit_button.setText('下一词 →' if judged else '提交 →')
 
     def show_word(self, word, index, total):
+        self.skip_button.hide()
         self.progress.setText(f'单词 {index + 1:02d} / {total:02d}')
         self.meaning.setPlainText(word.meaning)
         self.answer.clear()
@@ -90,12 +99,32 @@ class SpellingPanel(QWidget):
         self.feedback.setText(f'{prefix}\n{word.word}{phonetic}')
         self.answer.setFocus()
 
+    def show_correction(self, word):
+        self.answer.clear()
+        self.set_active(True)
+        self.hint_button.setEnabled(False)
+        self.reveal_button.setEnabled(False)
+        self.submit_button.setText('确认纠正 →')
+        self.skip_button.show()
+        self.feedback.setText(f'答案：{word.word}  /{word.phonetic}/\n正确输入一次，再继续。纠正不计成绩；轮末会隐藏答案再测。')
+        self.answer.setFocus()
+
+    def set_type(self, key):
+        self._type = english_type(key)
+        self.apply_theme()
+
     def set_motion_enabled(self, enabled):
         self.spark.set_motion_enabled(enabled)
 
     def apply_theme(self):
+        t = self._type
         for button in (self.submit_button, self.start_button):
             button.setStyleSheet('QPushButton {min-height:44px;max-height:44px;padding:0 18px;}')
-        self.meaning.setStyleSheet(f'QTextBrowser {{background:transparent; color:{P.paper_text}; border:none; font-size:21px;}}')
-        self.answer.setStyleSheet(f'QLineEdit {{background:{P.surface};color:{P.surface_text};border:1px solid {P.primary};border-radius:14px;min-height:52px;max-height:52px;padding:0 16px;font:22px Consolas;}}')
-        self.feedback.setStyleSheet(f'color:{P.paper_muted}; background:transparent;')
+        self.meaning.setFixedHeight(t.meaning * 5 + 20)
+        self.answer.setFixedHeight(t.answer + 34)
+        self.meaning.setStyleSheet(f'QTextBrowser {{background:transparent; color:{P.paper_text}; border:none; font-size:{t.meaning}px;}}')
+        self.answer.setStyleSheet(f'QLineEdit {{background:{P.surface};color:{P.surface_text};border:1px solid {P.primary};border-radius:14px;min-height:{t.answer + 32}px;max-height:{t.answer + 32}px;padding:0 16px;font:{t.answer}px Consolas;}}')
+        self.progress.setStyleSheet(f'color:{P.paper_text};background:transparent;font-size:{t.body}px;')
+        self.feedback.setStyleSheet(f'color:{P.paper_muted}; background:transparent;font-size:{t.helper}px;')
+        for button in self.findChildren(QPushButton):
+            button.setStyleSheet(f'QPushButton {{min-height:44px;padding:0 16px;font-size:{t.body}px;}}')
