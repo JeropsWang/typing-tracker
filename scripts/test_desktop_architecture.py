@@ -61,6 +61,34 @@ class DesktopWorkflowTests(unittest.TestCase):
         self.assertTrue(pump_until(lambda:session.result is not None))
         self.assertEqual(page.service.summary(page.library.deck)['attempts'],1)
         self.assertTrue(session.result['independent'])
+
+    def test_english_schedule_failure_retries_same_attempt_before_correction(self):
+        page = self.window._english_page
+        self.window._tabs.setCurrentWidget(page)
+        page._start_spelling()
+        session = page.service.session
+        self.application.worker.submit(lambda context: context['repo']._conn.execute(
+            "CREATE TRIGGER reject_review BEFORE INSERT ON english_review_schedule BEGIN SELECT RAISE(FAIL,'test'); END;"
+        )).result(5)
+        page.spelling.answer.setText('incorrect')
+        page._submit_spelling()
+        prepared = dict(session._prepared)
+        self.assertFalse(page.library.deck_combo.isEnabled())
+        self.assertTrue(pump_until(lambda: not page._spelling_saving))
+        self.assertIsNone(session.result)
+        self.assertFalse(session.correcting)
+        self.assertEqual(page.service.summary(page.library.deck)['attempts'], 0)
+        self.assertEqual(page.service.review_plan(page.library.deck)['due_count'], 0)
+        self.application.worker.submit(lambda context: context['repo']._conn.execute('DROP TRIGGER reject_review')).result(5)
+        page._submit_spelling()
+        self.assertTrue(pump_until(lambda: session.result is not None))
+        self.assertEqual(session.result, prepared)
+        self.assertTrue(session.correcting)
+        self.assertEqual(page.service.summary(page.library.deck)['attempts'], 1)
+        self.assertEqual(page.service.review_plan(page.library.deck)['due_count'], 1)
+        page.spelling.answer.setText(session.current.word)
+        page._correct()
+        self.assertEqual(page.service.summary(page.library.deck)['attempts'], 1)
     def test_settings_commit_updates_cached_profile(self):
         dialog=SettingsDialog(self.queries,BALANCE,theme_manager=self.theme,data_dir=self.temp.name)
         dialog._nick_edit.setText('异步保存')

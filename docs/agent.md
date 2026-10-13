@@ -30,12 +30,13 @@ rg -n '相关类名|相关方法|业务关键词' app scripts
 | 统计丢失、重启、日切 | tracking API/domain、workflows/checkpoint、storage/db | 保存失败、同分钟续写、跨日、确认丢失 |
 | 经验、打卡、道具、成就 | growth API、对应服务、growth 仓储 | 原子回滚、日上限、重复领取、数量消费 |
 | 普通训练、纪录、键盘侠 | practice API、ui/presenters、训练页面 | 稳定操作 ID、保存失败重试、不提前庆祝 |
-| 英语拼写、复习、造句 | english API、bootstrap/features、英语页面 | 成功保存后确认作答、取消结果、单词评分 |
+| 英语拼写、复习、造句 | english API、bootstrap/features、英语页面 | 首次/纠正/复测分离、排期原子性、日切、取消结果、单词评分 |
 | AI 协议、用量、并发 | integrations/ai、ui/tasks、请求包装类 | 配置快照、共享 gate、迟到结果、保存重试不再计费 |
 | 设置、头像 | profile API、bootstrap/features、settings_dialog | 草稿取消、提交失败、头像补偿、异步关闭 |
 | 小伙伴、作品包 | companion API、ActivityProvider、ui/companion | 公共活动状态、拖动、模式、素材校验与动效 |
 | 报表与性能 | reporting API、bootstrap/read_models、reports | 缓存失效、隐藏后刷新、格子复用、无 UI SQL |
 | 旧库升级和发布 | storage/db、build_release、工作流与安装脚本 | 版本迁移、迁移备份、包内代码/素材、安装升级 |
+| 自动更新 | integrations/updates、ui/updates、bootstrap/application、main | 校验/取消、最终保存失败重试、安装交接授权、真实 Windows 安装 |
 
 ## 实现时遵守的边界
 
@@ -104,3 +105,5 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 交付说明应包含：具体行为变化、接口/迁移影响、运行的命令与结果、既有失败、人工或发布验证限制。说明代码处于工作区还是已提交；只有明确要求时才提交、推送、创建正式发布或上传附件。
 
 修改边界、目录、线程、事务、恢复、构建或验证命令时更新 [architecture.md](architecture.md)；修改维护流程时更新这份指南。运行记录写入 [validation.md](validation.md)，注明样本与环境，不把本机性能数值当成所有机器的保证。
+
+英语交互参考见 [english-research.md](english-research.md)，更新机制见 [updates.md](updates.md)。更新回归使用模拟 GitHub 响应和隔离数据，不启动真实安装包；干净 Windows 环境另测安装向导、钩子恢复和升级后数据保留。

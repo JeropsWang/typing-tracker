@@ -40,6 +40,8 @@ class EnglishPresenter(EnglishService):
         return _map_future(future,lambda _:self.pending_session.current.word)
 
     def _persist(self,result):
+        if self.pending_result is not None and self.pending_result['id'] == result['id']:
+            result = self.pending_result
         self.pending_result=result
         self.pending_session=self.session
         future=self.application.record_attempt(dict(result,deck=self.deck))
@@ -49,6 +51,7 @@ class EnglishPresenter(EnglishService):
         if self.pending_result is not None:
             self.pending_session.confirm(self.pending_result)
             self.pending_result=None
+            self.pending_session=None
 
     def save_generated(self,*args,**kwargs):
         return self.application.english_commands.save_generated(*args,**kwargs)

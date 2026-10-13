@@ -4,13 +4,14 @@ from datetime import datetime
 import json
 import threading
 from ..modules.reporting.api import QueryCache
+from ..modules.english.api import review_plan
 
 TABLES = {
  'profile': ('settings',),
  'growth': ('lifetime','rewards','checkin_log','achievements','settings'),
  'tracking': ('lifetime','daily_stats','minute_stats','settings'),
  'practice': ('challenge_history','ai_texts','keyboard_warrior_history'),
- 'english': ('english_progress','english_sentences'),
+ 'english': ('english_progress','english_sentences','english_review_schedule'),
 }
 
 class ReadModels:
@@ -147,6 +148,8 @@ class EnglishQueries:
         self.models=models
     def review_keys(self,deck):
         return {r['word'] for r in self.models.rows('english_progress') if r['deck']==deck and r['needs_review']}
+    def review_plan(self,deck,day):
+        return review_plan(self.models.rows('english_review_schedule'),deck,day)
     def summary(self,deck):
         rows=[r for r in self.models.rows('english_progress') if r['deck']==deck]
         attempts=sum(r['attempts'] for r in rows)

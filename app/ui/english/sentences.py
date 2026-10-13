@@ -1,11 +1,12 @@
 """AI 语句组件：材料选择与跟打展示；网络、判分、存储在页面服务层。"""
 import html
 import re
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTextBrowser, QVBoxLayout, QWidget
 from ..widgets.training_workspace import PracticeInput
 from ..widgets.ai_usage import TokenUsageLabel
 from ..palette import P
+from .typography import english_type
 
 
 class SentencePanel(QWidget):
@@ -15,9 +16,11 @@ class SentencePanel(QWidget):
     start_requested = Signal()
     finish_requested = Signal()
     material_changed = Signal()
+    retry_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._type = english_type('large')
         self._history = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -95,6 +98,15 @@ class SentencePanel(QWidget):
         self.status.setWordWrap(True)
         self.status.setMinimumHeight(40)
         layout.addWidget(self.status)
+        self.errors = QLabel()
+        self.errors.setTextFormat(Qt.RichText)
+        self.errors.setWordWrap(True)
+        self.errors.hide()
+        layout.addWidget(self.errors)
+        self.retry_button = QPushButton('再练这一句 →')
+        self.retry_button.clicked.connect(self.retry_requested.emit)
+        self.retry_button.hide()
+        layout.addWidget(self.retry_button, 0)
         layout.addStretch()
         self.apply_theme()
 
@@ -120,6 +132,8 @@ class SentencePanel(QWidget):
         self._select_sentence()
 
     def _select_sentence(self, *_):
+        self.errors.hide()
+        self.retry_button.hide()
         sentence = self.sentence_combo.currentData() or {}
         text = sentence.get('text', '选好词，生成一段属于这一轮的英文。')
         pack_index = self.history_combo.currentIndex()
@@ -155,14 +169,49 @@ class SentencePanel(QWidget):
             control.setEnabled(not running)
         self.start_button.setEnabled(not running and bool(self.reference_text))
         if running:
+            self.errors.hide()
+            self.retry_button.hide()
             self.input.clear()
             self.input.setFocus()
 
+    def show_alignment(self, tokens):
+        parts = []
+        for token in tokens:
+            kind = token['kind']
+            typed, expected = html.escape(token['typed']), html.escape(token['expected'])
+            if kind == 'equal':
+                parts.append(expected)
+            elif kind == 'wrong':
+                parts.append(f'<span style="color:{P.danger_on_paper}">错词 {typed} → {expected}</span>')
+            elif kind == 'missing':
+                parts.append(f'<span style="color:{P.danger_on_paper}">漏词 {expected}</span>')
+            else:
+                parts.append(f'<span style="color:{P.danger_on_paper}">多词 {typed}</span>')
+        self.errors.setText('核对：' + ' · '.join(parts))
+        self.errors.show()
+        self.retry_button.show()
+
+    def set_type(self, key):
+        self._type = english_type(key)
+        self.apply_theme()
+
     def apply_theme(self):
+        t = self._type
         self.usage_label.apply_theme()
         for button in (self.generate_button, self.start_button, self.finish_button):
             button.setStyleSheet('QPushButton {min-height:44px;max-height:44px;padding:0 18px;}')
-        self.reference.setStyleSheet(f'QTextBrowser {{background:rgba(180,166,186,55);color:{P.paper_text};border:none;border-radius:12px;padding:8px;font:19px Georgia;}}')
-        self.input.setStyleSheet(f'QPlainTextEdit {{background:{P.surface};color:{P.surface_text};border:1px solid {P.primary};border-radius:14px;padding:10px;font:18px Consolas;}}')
-        self.translation.setStyleSheet(f'QTextBrowser {{color:{P.paper_muted};background:transparent;border:none;padding:0;}}')
-        self.status.setStyleSheet(f'color:{P.paper_muted};background:transparent;')
+        self.reference.setFixedHeight(t.sentence * 3 + 24)
+        self.input.setFixedHeight(t.sentence * 3 + 30)
+        self.translation.setFixedHeight(t.body * 3 + 12)
+        self.reference.setStyleSheet(f'QTextBrowser {{background:rgba(180,166,186,55);color:{P.paper_text};border:none;border-radius:12px;padding:8px;font:{t.sentence}px Georgia;}}')
+        self.input.setStyleSheet(f'QPlainTextEdit {{background:{P.surface};color:{P.surface_text};border:1px solid {P.primary};border-radius:14px;padding:10px;font:{t.sentence}px Consolas;}}')
+        self.translation.setStyleSheet(f'QTextBrowser {{color:{P.paper_muted};background:transparent;border:none;padding:0;font-size:{t.body}px;}}')
+        self.status.setStyleSheet(f'color:{P.paper_muted};background:transparent;font-size:{t.helper}px;')
+        for widget in self.findChildren(QLabel):
+            if widget is not self.usage_label:
+                widget.setStyleSheet(f'color:{P.paper_text};background:transparent;font-size:{t.helper}px;')
+        for button in self.findChildren(QPushButton):
+            button.setStyleSheet(f'QPushButton {{font-size:{t.body}px;min-height:44px;padding:0 16px;}}')
+        for combo in self.findChildren(QComboBox):
+            combo.setStyleSheet(f'QComboBox {{font-size:{t.body}px;min-height:40px;}}')
+        self.topic.setStyleSheet(f'QLineEdit {{font-size:{t.body}px;min-height:40px;}}')

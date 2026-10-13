@@ -56,3 +56,52 @@
 - 未在 Python 3.10 上运行本次回归；3.10+ 为源码兼容目标，实际验证环境为 3.13.7。
 
 维护和复现命令见 [agent.md](agent.md)，架构与迁移约束见 [architecture.md](architecture.md)。未来验证追加结果时保留版本、环境、样本及未验证项，不能只把本次日期改成新日期。
+
+
+## 2026-10-13 英语学习与 GitHub 更新
+
+在 `dev` 工作区实现，未提交、推送或发布。使用 Python 3.13.7、PySide6 6.11.2，`QT_QPA_PLATFORM=offscreen`。所有数据库、预览与下载测试均为隔离数据；未修改用户真实数据。REA 的网站动作与 Evidence ID 见 [英语研究](english-research.md)。
+
+| 检查 | 实际结果 | 范围 |
+| --- | --- | --- |
+| 架构导入检查 | 通过 | 新增复习纯规则也加入检查集合 |
+| 英语、真实桌面工作线程、更新联合专项 | 53/53 通过 | `test_english_learning`、`test_english_training`、`test_english_ui`、`test_desktop_architecture`、当时 16 项 `test_updates` |
+| 最终更新专项 | 17/17 通过 | 增补配置写入失败后仍限制自动检查频率；校验、取消、最终保存失败重试、安装授权与关闭失败 |
+| 材料保存互斥及旧材料跟打补测 | 2/2 通过 | 不允许在生成材料等待保存时开始另一轮；旧材料可正常练习 |
+| 字号与纠正/复测补测 | 1/1 通过 | 三档字号持久化、首次成绩与复测分离 |
+| 空输入与 Enter 提交补测 | 1/1 通过 | 空作答不进入保存锁定，后续输入与提交仍可用 |
+| 全量回归 | 257 项，255 通过，2 项 error | 运行时的完整测试集合；随后只对新调整补测，没有宣称重新跑过最终全量 |
+| 自检 | 103 项通过 | 本机模拟 HTTP、输入适配与钩子安装/卸载冒烟，没有真实 AI 请求或按键注入 |
+| 文档本地链接、Git 空白检查 | 通过 | README、维护指南、架构、研究与更新说明 |
+| 离屏视觉检查 | 已完成 | 1440×1024 主窗口的大/特大英语、900×640 独立英语页的上下布局、820×640 更新设置页 |
+
+全量命令：
+
+```powershell
+$env:QT_QPA_PLATFORM = 'offscreen'
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
+# 在隔离临时目录配置 TEMP/TMP；本机模拟 HTTP 需要允许回环连接。
+.local\runtime\python\python.exe -B -m unittest discover -s scripts -p 'test_*.py' -v
+.local\runtime\python\python.exe -B scripts/selftest.py
+.local\runtime\python\python.exe -B scripts/check_architecture.py
+```
+
+`.local/runtime/python/` 是本机已有运行时，不是仓库随附环境；新克隆按 [agent.md](agent.md) 创建 `.venv`。全量回归日志、最终专项日志、自检日志与预览留在忽略目录 `.local/english-preview/`，没有把本机产物提交到 Git。
+
+### 环境问题与失败复核
+
+第一次受限运行的本机 HTTP 请求被沙箱拒绝（WinError 10013），中止后改用允许回环连接的执行环境重跑；AI 服务相关测试与自检随后通过。初次系统临时目录还出现 WinError 5，改用隔离临时目录后英语数据库测试通过。
+
+完整 257 项运行仍出现两个既有小伙伴用例异常：
+
+- `test_final_revision_read_failure_preserves_old_pointer` 在准备旧素材包时 `os.replace` 报 WinError 5；改用新的系统隔离临时目录，整个 `test_companion_packs.py` 的 7 项均通过。
+- `test_write_failure_keeps_draft_and_previous_saved_creation` 的首次 `save_draft()` 返回 None，随后出现 AttributeError；同一用例单独重跑通过。没有定位该次首次保存失败的底层原因，不把它描述为已证明的目录权限问题。
+
+小伙伴实现与这两个既有测试未修改。独立重跑通过不能把原全量结果改写为全绿，也不能证明没有环境相关偶发问题。
+
+### 未验证项
+
+未构建本次冻结包和安装包，未执行真实跨版本安装、卸载、UAC 或安装后数据保留检查；安装交接测试使用假进程/假安装包。没有完成更新失败后的真实全局输入钩子恢复、真实中文 IME、多显示器与 Windows DPI 人工体验，也没有执行在线 GitHub 安装包下载。离屏预览不是这些场景的替代证据。
+
+数据库迁移 2 已用隔离库验证版本 0 初始化、版本 1 增量升级、历史数据保留、升级前备份和失败原子回滚。没有升级用户真实数据库。发布前按 [更新说明](updates.md) 与 [维护指南](agent.md) 在干净 Windows 环境完成剩余人工验证。

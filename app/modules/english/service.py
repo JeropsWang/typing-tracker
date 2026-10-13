@@ -3,6 +3,7 @@ from .catalog import VocabularyCatalog
 from .session import SpellingSession
 from .ai import validate_sentences
 from .scoring import sentence_accuracy
+from ..tracking.api import AppCalendar, SystemClock
 from ..growth.api import level_and_progress
 from ..growth.api import AITestSession
 import uuid
@@ -15,21 +16,39 @@ class EnglishSaveError(RuntimeError):
 
 
 class EnglishService:
-    def __init__(self, repo, catalog=None, *, test_session=None):
+    def __init__(self, repo, catalog=None, *, test_session=None, clock=None):
         self.repo = repo
         self.storage = repo.english
         self.catalog = catalog or VocabularyCatalog()
         self.session = None
         self.deck = 'cet4'
         self.test_session = test_session or AITestSession()
+        self.clock = clock or SystemClock()
 
-    def start(self, deck, count=20, review=False):
+    def application_day(self):
+        hour = int(self.repo.get_setting('day_start_hour', '4'))
+        return AppCalendar(hour).day(self.clock.now())
+
+    def review_plan(self, deck):
+        return self.storage.review_plan(deck, self.application_day())
+
+    def start(self, deck, count=20, review=False, *, due=False):
         keys = self.storage.review_keys(deck) if review else None
-        words = self.catalog.sample(deck, count, keys)
+        if due:
+            plan = self.review_plan(deck)
+            keys = plan['due_words'][:count]
+            known = {w.key: w for w in self.catalog.load(deck)}
+            words = tuple(known[key] for key in keys if key in known)
+        else:
+            words = self.catalog.sample(deck, count, keys)
         if not words:
+            if due:
+                next_day = plan['next_day'] or '暂无安排'
+                raise ValueError(f'今日没有到期词；下次复习：{next_day}。也可以主动练习错词。')
             raise ValueError('这套词库还没有待复习词；先开始一轮拼写吧。')
         self.deck = deck
-        self.session = SpellingSession(words)
+        self.session = SpellingSession(words, learning=True, due_review=due,
+                                       day_provider=self.application_day)
         return self.session
 
     def submit(self, answer):
@@ -54,6 +73,11 @@ class EnglishService:
         return self.session.current.word
 
     def _save_attempt(self, event):
+        return self.record_attempt(event)
+
+    def record_attempt(self, event):
+        event = dict(event)
+        event.setdefault('app_day', self.application_day())
         try:
             with self.repo.transaction():
                 saved=self.storage.record_attempt(event)
@@ -65,6 +89,12 @@ class EnglishService:
 
     def advance(self):
         return self.session.advance() if self.session else False
+
+    def correct(self, answer='', *, skip=False):
+        return self.session.correct(answer, skip=skip) if self.session else False
+
+    def spelling_view(self):
+        return self.session.view() if self.session else None
 
     def summary(self, deck):
         return self.storage.summary(deck)
@@ -104,3 +134,8 @@ class EnglishService:
 
     def get_setting(self,key,default=None):
         return self.repo.get_setting(key,default)
+
+    def set_font_size(self, size):
+        if size not in ('standard', 'large', 'extra'):
+            raise ValueError('请选择标准、大或特大字号。')
+        return self.repo.set_setting('english_font_size', size)

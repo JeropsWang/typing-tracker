@@ -29,11 +29,18 @@ class DesktopApplication:
         self.balance=balance
         self.definitions=definitions
         self.data_dir=Path(data_dir)
+        from .. import __version__
+        from ..integrations.updates import UpdateService
+        self.update_service=UpdateService(self.data_dir/'update-cache',__version__)
         self._defaults=defaults or {}
         self._checkpoint_pending=None
         self._closing=False
         self._closed=False
         self._checkpoint_lock=__import__('threading').Lock()
+        self._command_lock=__import__('threading').Lock()
+        self._pending_commands=set()
+        self._update_preparing=False
+        self._update_ready=False
         self.last_saved_at=None
         self.save_error=None
         self.worker=ApplicationWorker(self._initialize,lambda context:context['repo'].close())
@@ -96,11 +103,77 @@ class DesktopApplication:
         self._closing=True
 
     def _submit(self,action):
-        if self._closing:
+        with self._command_lock:
+            if self._closing:
+                future=Future()
+                future.set_exception(RuntimeError('应用正在退出，不再接受新任务。'))
+                return future
+            future=self.worker.submit(action)
+            self._pending_commands.add(future)
+        def completed(value):
+            with self._command_lock:
+                self._pending_commands.discard(value)
+        future.add_done_callback(completed)
+        return future
+
+    def has_pending_commands(self):
+        with self._command_lock:
+            return any(not future.done() for future in self._pending_commands)
+
+    def prepare_update_exit(self):
+        """Drain accepted commands and commit final statistics without closing the worker.
+
+        The shell must stop input hooks and timers before calling this. Failure leaves
+        dirty counter state and the database worker intact, ready for a retry.
+        """
+        with self._command_lock:
+            if self._closed or self._update_preparing:
+                future=Future()
+                future.set_exception(RuntimeError('应用已关闭或正在准备更新。'))
+                return future
+            self._closing=True
+            self._update_preparing=True
+            self._update_ready=False
+        def prepare(context):
+            from ..workflows.checkpoint import CheckpointWriter
+            try:
+                checkpoint=self.counter.prepare_checkpoint()
+                if checkpoint is not None:
+                    saved=CheckpointWriter(context['repo'],self.balance).save(checkpoint)
+                    self.counter.acknowledge(checkpoint)
+                    self.last_saved_at=saved
+                    self.save_error=None
+                    self.events.publish(Change('saved',saved))
+                unlocks=context['achievements'].check_all(self.counter)
+                for item in unlocks:
+                    self.events.publish(Change('achievement',item))
+                self._update_ready=True
+                return self.last_saved_at
+            except Exception as error:
+                self.save_error=str(error)
+                self.events.publish(Change('save_failed',dict(error=str(error),last_saved_at=self.last_saved_at)))
+                self.cancel_update_exit()
+                raise
+        return self.worker.submit(prepare)
+
+    def cancel_update_exit(self):
+        if not self._closed:
+            with self._command_lock:
+                self._closing=False
+                self._update_preparing=False
+                self._update_ready=False
+
+    def finish_update_exit(self):
+        """Close asynchronously only after prepare_update_exit succeeded."""
+        from ..integrations.updates.service import background
+        if not self._update_preparing or not self._update_ready:
             future=Future()
-            future.set_exception(RuntimeError('应用正在退出，不再接受新任务。'))
+            future.set_exception(RuntimeError('尚未完成更新前的保存。'))
             return future
-        return self.worker.submit(action)
+        def finish():
+            self.worker.close()
+            self._closed=True
+        return background(finish)
 
     def command(self,service,method,*args,**kwargs):
         return self._submit(lambda context:getattr(context[service],method)(*args,**kwargs))
@@ -114,18 +187,15 @@ class DesktopApplication:
                                   operation_id=operation_id,test_mode=test_mode))
     def record_attempt(self,event):
         def action(context):
-            repo=context['repo']
-            with repo.transaction():
-                saved=repo.english.record_attempt(event)
-                if saved:
-                    repo.uow.changed('english')
-                return saved
+            return context['english'].record_attempt(event)
         return self._submit(action)
     def export(self,out_dir):
         from ..workflows.export import export_all
         return self._submit(lambda context:export_all(context['repo'],out_dir))
 
     def flush(self):
+        if self._update_preparing:
+            return None
         with self._checkpoint_lock:
             if self._checkpoint_pending is not None and not self._checkpoint_pending.done():
                 return self._checkpoint_pending

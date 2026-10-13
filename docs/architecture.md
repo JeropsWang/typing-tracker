@@ -14,6 +14,7 @@ Sariana 是 Windows 本机桌面应用，使用 Python、PySide6 Widgets、pyqtg
 | `app/workflows/` | 跨模块用例、检查点、提交通知和导出 | 原子性、幂等、提交后的副作用 |
 | `app/storage/` | 连接、版本迁移、工作单元、内部数据会话 | 旧库兼容、回滚、备份 |
 | `app/integrations/ai/` | AI 协议、传输、请求结果和生成准入控制 | 配置快照、用量、超时、取消 |
+| `app/integrations/updates/` | GitHub 版本查询、附件校验和安装进程交接 | HTTPS、取消、校验、退出授权 |
 | `app/ui/` | Widgets、Presenter、Qt 异步桥接、主题和图表 | 输入法、保存状态、结果失效、布局 |
 | `app/core/` | Windows 输入/TSF 适配、基础工具及旧入口 | 隐私、组字、不重复计数 |
 | `config/` | 奖励配置、成就定义、内置词库 | 业务口径与资源路径 |
@@ -27,7 +28,7 @@ Sariana 是 Windows 本机桌面应用，使用 Python、PySide6 Widgets、pyqtg
 | --- | --- |
 | tracking | 输入计数、统计快照、日切；`daily_stats` 的统计列、`minute_stats`、`lifetime` 的统计列 |
 | practice | 普通范文、逐字评分、成绩和纪录、键盘侠；`challenge_history`、`ai_texts`、`keyboard_warrior_history` |
-| english | 词库、拼写会话、单词对齐评分、复习和英语材料；`english_attempts`、`english_progress`、`english_sentences` |
+| english | 词库、拼写会话、单词对齐评分、复习和英语材料；`english_attempts`、`english_progress`、`english_sentences`、`english_review_schedule` |
 | growth | 等级、经验、打卡、成就、库存、奖励上限和资格；`growth_daily`、`rewards`、`checkin_log`、`achievements`、经验相关列 |
 | companion | 活动/情绪状态、互动、作品包；数据目录中的 `companion/packs/` |
 | profile | 昵称、签名、头像和配置保存；个人资料配置及头像文件 |
@@ -114,7 +115,7 @@ flowchart TD
 
 ## 迁移、扩展与验证
 
-`storage/db.py` 使用 `PRAGMA user_version` 管理版本，当前为 1。旧库升级前用 SQLite Backup API 在同一数据目录的 `migration-backups/` 创建备份，再执行原子增量迁移；失败回滚并停止启动。未来变更新增迁移版本，不能只修改初始 `schema.sql`，因为已升级的数据库不会重新运行旧迁移。原数据目录和单实例锁名继续兼容 TypingTracker。
+`storage/db.py` 使用 `PRAGMA user_version` 管理版本，当前为 2。旧库升级前用 SQLite Backup API 在同一数据目录的 `migration-backups/` 创建备份，再执行原子增量迁移；失败回滚并停止启动。未来变更新增迁移版本，不能只修改初始 `schema.sql`，因为已升级的数据库不会重新运行旧迁移。原数据目录和单实例锁名继续兼容 TypingTracker。
 
 新增功能依次确认：数据/规则所属模块 → 扩展该模块公开 API → 用例与事务 → 仓储 → 启动注入/读模型 → Presenter → Widgets → 边界测试。新增跨模块能力由 workflows 编排，不直接导入另一模块的内部仓储。
 
@@ -127,3 +128,17 @@ flowchart TD
 - `.github/workflows/regression.yml`：Windows 回归；`.github/workflows/windows-release.yml`：冻结包、安装/升级验证与发布流程。
 
 完整操作命令与 AI 任务模板见 [agent.md](agent.md)。
+
+## 英语学习与间隔复习
+
+拼写会话以纯状态机区分首次作答、纠正和轮末复测；`SpellingView` 是不可变展示状态。纠正输入不存成绩，首次错误不会被覆盖，每个需复测词只追加一次真实作答。准备的结果（含操作 ID 与应用日）在保存重试中保持不变；保存成功后 Presenter 才确认题目。UI 通过现有 profile 设置保存三档英语字号，使用 Widgets 与页面滚动保持可读性。
+
+`english_review_schedule` 在迁移 2 新增，记录词库、单词、阶段、到期应用日和上次晋级日。记录作答与排期一起提交，重复 ID 不重排；排期纯规则接受应用日，不读取时钟。english 服务复用 tracking API 的 AppCalendar 和可注入时钟，展示查询从读模型计算今日到期，不在 UI 读取 SQL。版本 0 先执行原迁移 1 再执行迁移 2，版本 1 只执行增量迁移；迁移前使用原有 Backup API。
+
+语句错误定位通过新增 `sentence_alignment` 与既有评分使用相同规范化和单词编辑距离；输入正文和对齐结果只用于当前界面，不进入学习记录。重练复用已保存材料，创建新的稳定作答 ID，不产生新的 AI 请求。
+
+## GitHub 更新与退出
+
+更新服务由 bootstrap 装配，独立网络线程检查版本与下载安装包，Qt TaskBridge 把状态回传 UI。自动检查每天最多一次；新版本通过应用通知提示，失败只更新设置状态。设置的「数据备份」分组包含更新入口，设置草稿开关仍在用户保存后生效。
+
+安装前阻止在途学习保存，并对未完成学习要求明确放弃。停止采集后 `prepare_update_exit()` 在 ApplicationWorker 排空已受理命令并提交最终检查点；失败保持数据库线程、脏统计和重试能力，shell 恢复采集。成功才通过 `finish_update_exit()` 关闭数据库线程，授权本次隐藏安装辅助进程，释放单实例锁并退出。辅助进程等待主进程实际结束、验证授权标记和安装包后打开现有安装向导；关闭后的安装准备失败会安全退出并提示重新启动，不恢复已关闭工作线程。详细协议和人工验证范围见 [updates.md](updates.md)。

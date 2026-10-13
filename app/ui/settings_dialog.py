@@ -13,6 +13,7 @@
 from __future__ import annotations
 from .presenters import QueryPresenter
 from .tasks import TaskBridge
+from .updates import UpdatesWidget
 
 from pathlib import Path
 from PySide6.QtCore import QBuffer, QIODevice, QRectF, QSize, Qt, QTimer
@@ -419,6 +420,8 @@ class SettingsDialog(QDialog):
         self._data_dir_note.setWordWrap(True)
         self._data_dir_note.setProperty('textRole', 'paperMuted')
         layout.addWidget(self._data_dir_note)
+        self._updates_widget = UpdatesWidget(self._presenter, getattr(self.parent(), '_updates', None))
+        layout.addWidget(self._updates_widget)
         layout.addStretch()
 
     def _check_row(self, checkbox, hint):
@@ -887,6 +890,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
                       reduced_motion='0' if self._motion.isChecked() else '1')
         values.update({f'ai_{key}': value for key, value in config.items()})
         values.update(self._companion_settings.values())
+        values.update(self._updates_widget.values())
         if self._theme_mgr:
             values['theme_id'] = self._theme_combo.currentData()
         try:

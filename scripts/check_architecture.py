@@ -6,7 +6,7 @@ import sys
 ROOT=Path(__file__).resolve().parents[1]
 PURE_FILES={'app/modules/tracking/domain.py','app/modules/tracking/clock.py',
             'app/modules/practice/domain.py','app/modules/practice/keyboard_session.py',
-            'app/modules/english/session.py','app/modules/english/scoring.py',
+            'app/modules/english/session.py','app/modules/english/scoring.py','app/modules/english/review.py',
             'app/modules/companion/models.py','app/modules/companion/runtime.py'}
 
 

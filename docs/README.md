@@ -8,4 +8,6 @@
 
 仓库根目录的 [AGENTS.md](../AGENTS.md) 是 AI 维护入口。`docs/agent.md` 是完整说明，不应假设任意工具会自动读取这个文件；开始任务时明确要求工具阅读它。
 
+英语交互参考与 REA 证据见 [english-research.md](english-research.md)；GitHub 检查、下载校验与更新退出流程见 [updates.md](updates.md)。
+
 代码是实现事实的来源。修改接口、模块边界、迁移或验证命令时，同步更新相关文档。验证记录见 [validation.md](validation.md)，记录结果和未验证项，不把未运行的检查写成通过。

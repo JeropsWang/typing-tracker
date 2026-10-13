@@ -25,6 +25,9 @@ from app.theme.theme_manager import ThemeManager
 from app.ui.assets.app_icon import app_icon
 from app.ui.main_window import MainWindow
 from app.ui.tray import TrayIcon
+from app.ui.updates import UpdateController, UpdateExitCoordinator, update_exit_status, discard_learning_for_update
+from app.integrations.updates import launch_installer_helper, run_installer_helper
+from app.integrations.updates.service import background
 
 try:
     from app.core.keyboard_hook import KeyboardHook
@@ -61,6 +64,7 @@ def default_settings(balance) -> dict:
         'ai_model': '',
         'ai_thinking': '0',
         'ai_thinking_protocol': 'auto',
+        'updates_auto_check': '1',
     }
 
 
@@ -85,7 +89,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog=APP_NAME, description=APP_TAGLINE)
     parser.add_argument('--data-dir', default=str(DEFAULT_DATA_DIR),
                         help='数据目录（默认 %%APPDATA%%/TypingTracker）')
+    parser.add_argument('--run-update-installer', help=argparse.SUPPRESS)
+    parser.add_argument('--update-parent-pid', type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument('--update-sha256', default='', help=argparse.SUPPRESS)
+    parser.add_argument('--update-size', type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument('--update-authorization', default='', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.run_update_installer:
+        try:
+            return run_installer_helper(args)
+        except Exception as error:
+            helper_app=QApplication(sys.argv)
+            QMessageBox.warning(None,APP_NAME,f'更新安装未启动：{error}\n可以重新打开应用后重试。')
+            return 1
 
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
@@ -148,14 +164,25 @@ def main() -> int:
     theme_manager.register_reports(window._reports)
     theme_manager.register_window(window)
     theme_manager.apply(theme_manager.current_id())
+    updates=UpdateController(application,application.update_service,window)
+    window._updates=updates
+    update_state={'in_progress':False}
     tray.show_requested.connect(window.show_and_raise)
     tray.settings_requested.connect(window.open_settings)
-    tray.quit_requested.connect(app.quit)
+    tray.quit_requested.connect(lambda:app.quit() if not update_state['in_progress'] else None)
 
     def toast(title: str, msg: str, kind: str = 'star'):
         print(f'[{title}] {msg}')
         window.notify(title, msg, kind)
         tray.showMessage(title, msg, QSystemTrayIcon.Information, 4000)
+
+    notified_versions = set()
+    def notify_update():
+        release = updates.release
+        if release is not None and release.version not in notified_versions:
+            notified_versions.add(release.version)
+            toast('版本更新', f'发现新版 {release.version}，在设置 → 数据备份 → 应用更新中查看。')
+    updates.changed.connect(notify_update)
 
     # 打卡弹窗在窗口就绪后再弹（曾用 QTimer.singleShot 引用未定义变量）
     if checkin_result:
@@ -209,6 +236,8 @@ def main() -> int:
                   'exp': '经验', 'ai_pass': 'AI 训练券'}
 
     def on_roll():
+        if window._english_page.isVisible():
+            window._english_page.refresh()
         if engine.check_rollover():
             application.flush()
             def checked(result):
@@ -226,7 +255,99 @@ def main() -> int:
     roll_timer.timeout.connect(on_roll)
     roll_timer.start(30_000)
 
+    def resume_after_update_error(error):
+        nonlocal hook,tsf
+        if application._closed:
+            QMessageBox.warning(window,'更新未开始',f'统计已保存，但安装准备失败：{error}\n请重新打开应用后重试。')
+            updates.shutdown()
+            lock.unlock()
+            app.quit()
+            return
+        application.cancel_update_exit()
+        updates.status=f'更新前保存或准备失败：{error}。应用保持运行，可以重试。'
+        updates.changed.emit()
+        flush_timer.start(2_000)
+        roll_timer.start(30_000)
+        excluded=window.load_excluded_apps()
+        def restart_input():
+            new_hook=new_tsf=None
+            if KeyboardHook is not None:
+                new_hook=KeyboardHook(on_char=engine.handle_char,on_delete=engine.handle_delete,on_ime=engine.handle_ime)
+                new_hook.set_excluded_apps(excluded)
+                new_hook.start()
+                try:
+                    from app.core.tsf_hook import TsfHook
+                    new_tsf=TsfHook(on_commit=new_hook.on_tsf_commit)
+                    if new_tsf.start():
+                        new_hook.attach_tsf(new_tsf)
+                except Exception:
+                    pass
+            return new_hook,new_tsf
+        def restarted(result):
+            nonlocal hook,tsf
+            hook,tsf=result
+            window.set_hook(hook)
+            window.set_hook_status(hook is not None and hook._hook is not None)
+            restore_update_controls()
+        def restore_update_controls():
+            update_state['in_progress']=False
+            window.setEnabled(True)
+            tray.contextMenu().setEnabled(True)
+            updates.set_paused(False)
+        def restart_failed(exc):
+            window.set_hook_status(False)
+            restore_update_controls()
+        window._tasks.resolve(background(restart_input),restarted,
+                              restart_failed)
+        QMessageBox.warning(window,'更新未开始',updates.status)
+
+    def stop_update_input():
+        if tsf is not None:
+            tsf.stop()
+        if hook is not None:
+            hook.stop()
+
+    def update_closed():
+        if window._companion is not None:
+            window._companion.shutdown()
+        updates.shutdown()
+        lock.unlock()
+        app.quit()
+
+    update_exit=UpdateExitCoordinator(application,stop_update_input,
+        lambda installer:launch_installer_helper(installer,data_dir),
+        update_closed,resume_after_update_error,window)
+
+    def request_update_install(installer):
+        if update_state['in_progress']:
+            return
+        saving,unfinished=update_exit_status(window)
+        if saving:
+            QMessageBox.information(window,'请等待保存','有学习结果或设置正在保存，请保存完成后再安装更新。')
+            return
+        message=('存在未完成练习或未保存的学习结果。退出会放弃这些内容，已保存的成绩会保留。\n\n'
+                 if unfinished else '')+'确认保存统计、退出应用并打开新版安装向导？'
+        if QMessageBox.question(window,'安装更新',message,QMessageBox.Yes|QMessageBox.No,QMessageBox.No)!=QMessageBox.Yes:
+            return
+        if update_exit_status(window)[0]:
+            QMessageBox.information(window,'请等待保存','有任务正在保存，请完成后再安装。')
+            return
+        update_state['in_progress']=True
+        updates.set_paused(True)
+        tray.contextMenu().setEnabled(False)
+        if unfinished:
+            discard_learning_for_update(window)
+        window.setEnabled(False)
+        flush_timer.stop()
+        roll_timer.stop()
+        update_exit.begin(installer)
+
+    updates.install_requested.connect(request_update_install)
+
     def cleanup():
+        updates.shutdown()
+        if application._closed:
+            return
         application.stop_accepting()
         flush_timer.stop()
         roll_timer.stop()
