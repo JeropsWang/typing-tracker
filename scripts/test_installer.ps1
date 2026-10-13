@@ -64,6 +64,11 @@ try {
     if ($taskRecord.DisplayVersion -ne $taskManifest.version) { throw 'Uninstall record version mismatch' }
     if ($taskManifest.product_name -and -not $taskRecord.DisplayName.StartsWith($taskManifest.product_name)) { throw 'Uninstall display name mismatch' }
     if ($taskRecord.InstallLocation.TrimEnd('\') -ne $taskInstallDir) { throw 'Installation location changed' }
+    if ([version]$taskManifest.version -ge [version]'0.9.5' -and $taskManifest.product_name -eq 'Sariana') {
+        $taskUpdaterCheck = Join-Path $PSScriptRoot 'verify_release_updates.py'
+        python -B $taskUpdaterCheck --exe $taskInstalledExe --expected-package-version $taskManifest.version --detect-installation-only --require-installed
+        if ($LASTEXITCODE -ne 0) { throw 'Frozen updater installation detection failed' }
+    }
     if ($taskExeName -ne 'TypingTracker.exe' -and (Test-Path -LiteralPath (Join-Path $taskInstallDir 'TypingTracker.exe'))) { throw 'Legacy executable remains after rename' }
     if ($UpgradeFromSetup) {
         if (Test-Path -LiteralPath $taskLegacyShortcut) { throw 'Legacy shortcut remains after rename' }

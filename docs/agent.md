@@ -84,6 +84,8 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 
 发布构建需要 Inno Setup 6。参考 `scripts/build_release.py --help` 和 README，使用明确源码版本生成冻结包。`scripts/test_installer.ps1` 涉及实际安装和卸载，并拒绝已经安装同产品的环境；在干净 Windows 测试机运行。构建成功与安装升级通过是两个结果，不合并表述。
 
+发布 0.9.5 起可先创建草稿，再手动运行 Windows Release 工作流，设置标签与 `publish_draft=true`；只有构建、安装与旧版本升级检查通过并上传附件后才公开。匿名在线更新检查用 `scripts/verify_release_updates.py`，缓存与报告放隔离目录；`--exe` 仅指向已验证的本仓库发布包，工具不会运行安装器。
+
 ## 数据迁移与缓存变更
 
 新增表/列时先确定数据归属，再新增版本迁移并增加旧库样本测试。迁移前在线备份，失败原子回滚；不用复制正在使用的裸 `app.db` 文件替代 Backup API。不要改旧版本迁移来假装已升级用户会自动补列。

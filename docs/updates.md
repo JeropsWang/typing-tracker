@@ -14,6 +14,10 @@
 
 GitHub 协议依据：[Releases REST API](https://docs.github.com/en/rest/releases/releases#get-the-latest-release)。
 
+0.9.4 及更早正式包没有更新功能，第一次进入 0.9.5 需要手动安装。在线验证使用新版本的更新代码并传入旧版本号，不把它描述成旧包已具备更新能力。
+
+发布 0.9.5 起可先创建草稿 Release，再手动运行 Windows 工作流，设置 `tag=v0.9.5`、`publish_draft=true`。构建、安装/卸载、0.9.2/0.9.3/0.9.4 升级检查全部成功并上传四个附件后，工作流才公开草稿并标为 latest。历史附件回填默认不公开草稿。工作流使用 GITHUB_TOKEN 发布，避免再次触发重复的发布构建；见 [GitHub 工作流触发规则](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)。
+
 ## 可重试退出
 
 Qt 协调器检查练习、未保存结果和正在提交的命令。提交中拒绝安装；未完成学习必须完成或明确选择放弃。确认后停止采集和周期任务，串行工作线程排空已受理命令，再提交最终统计。
@@ -30,5 +34,13 @@ $env:PYTHONPATH = '.deps' # 使用本仓库本地依赖时
 python -B -m unittest discover -s scripts -p 'test_updates.py' -v
 python -B scripts/check_architecture.py
 ```
+
+发布后的真实检查可用：
+
+```powershell
+python -B scripts/verify_release_updates.py --expected-version 0.9.5 --older-version 0.9.4 --cache-dir .local/release-update-check --output .local/release-update-check/result.json
+```
+
+该工具匿名访问 GitHub latest，实际下载并校验安装包，以真实 GitHub SHA256SUMS 加已下载的相同安装包字节验证回退，再确认当前版本不重复提示。不会启动安装器。可加 `--exe` 指向本仓库已验证的冻结程序，执行包内更新代码；安装烟测用 `--detect-installation-only --require-installed` 核对真实安装记录与冻结程序目录。
 
 测试使用内存 GitHub 响应和临时数据库，覆盖版本、受信任地址、缺少附件、SHA256SUMS 回退、限流、断网、取消、包损坏、安装类型、检查频率和真实数据库线程最终保存失败后重试。真实安装升级、UAC、安装向导显示、全局输入钩子恢复和安装后数据保留，需在干净 Windows 测试机按 [维护指南](agent.md) 验证；离屏测试不能替代这些验证。

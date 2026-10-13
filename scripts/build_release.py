@@ -118,6 +118,9 @@ def verify_executable(exe: Path, source: Path) -> dict:
     if (source / 'app/bootstrap/application.py').is_file():
         required_modules.extend(('app.integrations.ai.service','app.bootstrap.application',
                                  'app.modules.tracking.domain','app.modules.growth.settlement'))
+        if (source / 'app/integrations/updates/service.py').is_file():
+            required_modules.extend(('app.integrations.updates.service','app.ui.updates',
+                                     'app.modules.english.review'))
     else:
         required_modules.append('app.services.ai_service')
     for required in required_modules:

@@ -294,8 +294,9 @@ def main() -> int:
                                      'base': 20}, BALANCE)
         check('未破纪录不标新', not r3['is_best'])
         # 每日经验上限 200
-        from datetime import date as _date
-        repo.set_setting('challenge_exp_date', _date.today().isoformat())
+        from app.modules.tracking.api import AppCalendar
+        challenge_day = AppCalendar(int(repo.get_setting('day_start_hour', '4'))).day(csvc.clock.now())
+        repo.set_setting('challenge_exp_date', challenge_day)
         repo.set_setting('challenge_exp_today', '190')
         r4 = csvc.record('cn_star', {'typed_chars': 5, 'errors': 0,
                                      'elapsed_seconds': 60, 'tw': 5,
