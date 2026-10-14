@@ -16,6 +16,12 @@ on:
         required: false
         default: false
         type: boolean
+      tooling_ref:
+        # 新依赖的发布可锁定已核验工具提交；留空保留默认分支补编译旧标签的行为。
+        description: 'Build tooling ref; empty uses the default branch'
+        required: false
+        default: ''
+        type: string
   pull_request:
     paths:
       - '.github/workflows/windows-release.yml'
@@ -44,10 +50,10 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
-      # 正式发布使用默认分支工具回填旧标签；PR/push 验证当前提交的维护脚本。
+      # 手动发布可锁定工具版本；PR/push 验证当前提交，历史补编译默认使用默认分支。
       - uses: actions/checkout@v4
         with:
-          ref: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.sha || github.event.repository.default_branch }}
+          ref: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.sha || inputs.tooling_ref || github.event.repository.default_branch }}
           path: tooling
           persist-credentials: false
       - name: Validate release tag
