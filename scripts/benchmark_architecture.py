@@ -15,6 +15,7 @@ from app.storage.db import connect_db, init_schema
 
 
 def measure(samples=10):
+    """在隔离临时库中构造统计样本，测量检查点写入、快照汇总与小时查询耗时，关闭会话后返回毫秒指标。"""
     scratch=ROOT/'.local'
     scratch.mkdir(exist_ok=True)
     balance=json.loads((ROOT/'config/balance.json').read_text(encoding='utf-8'))
@@ -61,6 +62,7 @@ def measure(samples=10):
 
 
 def main():
+    """校验采样次数，执行隔离性能测量并按需把 JSON 指标写到指定文件。"""
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--samples',type=int,default=10)
     parser.add_argument('--output',type=Path)

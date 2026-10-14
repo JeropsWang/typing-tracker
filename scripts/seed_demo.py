@@ -21,6 +21,7 @@ DEFAULT_DATA_DIR = Path.home() / 'AppData' / 'Roaming' / 'TypingTracker'
 
 
 def main() -> int:
+    """按固定随机种子向指定数据库写入历史演示统计和打卡记录，不包含今天；默认路径会写产品数据，验工必须显式指定隔离目录。"""
     ap = argparse.ArgumentParser()
     ap.add_argument('--data-dir', default=str(DEFAULT_DATA_DIR))
     ap.add_argument('--days', type=int, default=120)

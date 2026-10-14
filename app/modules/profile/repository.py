@@ -4,11 +4,14 @@ from ...storage.store import Store
 
 
 class ProfileRepository(Store):
+    """工作线程使用的个人设置 SQL 仓储，不自行提交事务。"""
     def get_setting(self, key, default=None):
+        """查询设置键的文本值，缺失时返回传入默认值。"""
         row = self._conn.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
         return row['value'] if row else default
 
     def set_setting(self, key, value) -> None:
+        """写入单个设置键，最终提交由外层事务决定。"""
         self._conn.execute(
             'INSERT INTO settings(key,value) VALUES(?,?) '
             'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
@@ -22,4 +25,5 @@ class ProfileRepository(Store):
             [(key, str(value)) for key, value in values.items()])
 
     def settings(self):
+        """取得设置字典副本，供配置快照与启动装配。"""
         return dict(self._conn.execute("SELECT key,value FROM settings"))

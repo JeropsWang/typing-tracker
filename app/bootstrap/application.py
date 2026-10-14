@@ -15,15 +15,20 @@ from ..workflows.material import save_passage
 from .worker import ApplicationWorker
 
 class RemoteService:
+    """供 UI 使用的命令/查询代理：写命令发往 ApplicationWorker，查询读取脱离连接的模型。"""
     def __init__(self,application,name,queries,commands):
+        """登记业务服务名、只读能力和允许异步执行的命令集合。"""
         self._application,self._name,self._queries,self._commands=application,name,queries,set(commands)
     def __getattr__(self,name):
+        """命令转为工作线程调用，其余属性从只读能力取得，不暴露数据库连接。"""
         if name in self._commands:
             return lambda *args,**kwargs:self._application.command(self._name,name,*args,**kwargs)
         return getattr(self._queries,name)
 
 class DesktopApplication:
+    """桌面应用装配根，协调唯一数据库线程、展示模型、异步命令及最终统计提交。"""
     def __init__(self,data_dir,balance,definitions,defaults=None):
+        """创建事件/展示模型和工作线程，启动恢复后装配各模块对外命令代理。"""
         self.events=EventBus()
         self.models=ReadModels()
         self.balance=balance
@@ -59,6 +64,7 @@ class DesktopApplication:
         self.english_commands=RemoteService(self,'english',None,('save_generated','record_sentence'))
 
     def _initialize(self):
+        """在应用线程打开/迁移数据库并装配业务，发布初始模型后切断计数器的直接 SQL 保存入口。"""
         conn=connect_db(self.data_dir/'app.db')
         try:
             init_schema(conn)
@@ -86,10 +92,12 @@ class DesktopApplication:
             raise
 
     def _refresh(self,repo,topics):
+        """在数据库线程读取变化主题所属表，转换为独立行后替换展示模型。"""
         names={name for topic in topics for name in TABLES.get(topic,())}
         self.models.replace({name:[dict(r) for r in repo._conn.execute(f'SELECT * FROM {name}')] for name in names})
 
     def _changed(self,context,event):
+        """提交通知后先刷新只读模型再发布业务事件，升级反馈以已提交经验为依据。"""
         changes=event.payload if event.topic=='commit' else (event,)
         before=level_and_progress(self.models.get_exp(),self.balance)[0]
         self._refresh(context['repo'],{change.topic for change in changes})
@@ -100,9 +108,11 @@ class DesktopApplication:
             self.events.publish(Change('level',dict(previous=before,level=after)))
 
     def stop_accepting(self):
+        """标记退出准入关闭，不再接收新的应用命令。"""
         self._closing=True
 
     def _submit(self,action):
+        """持锁登记异步命令 Future，拒绝退出后的新请求，并在完成回调中移除在途记录。"""
         with self._command_lock:
             if self._closing:
                 future=Future()
@@ -111,12 +121,14 @@ class DesktopApplication:
             future=self.worker.submit(action)
             self._pending_commands.add(future)
         def completed(value):
+            """从在途命令集合移除已完成 Future，不在回调中等待其他任务。"""
             with self._command_lock:
                 self._pending_commands.discard(value)
         future.add_done_callback(completed)
         return future
 
     def has_pending_commands(self):
+        """检查是否仍有未完成写命令，供退出/更新流程决定是否可继续。"""
         with self._command_lock:
             return any(not future.done() for future in self._pending_commands)
 
@@ -135,6 +147,7 @@ class DesktopApplication:
             self._update_preparing=True
             self._update_ready=False
         def prepare(context):
+            """排空后提交最终检查点并确认版本；失败保留工作线程/脏计数并恢复可重试准入。"""
             from ..workflows.checkpoint import CheckpointWriter
             try:
                 checkpoint=self.counter.prepare_checkpoint()
@@ -157,6 +170,7 @@ class DesktopApplication:
         return self.worker.submit(prepare)
 
     def cancel_update_exit(self):
+        """更新准备失败时恢复命令准入和准备标记，前提是应用尚未最终关闭。"""
         if not self._closed:
             with self._command_lock:
                 self._closing=False
@@ -171,29 +185,38 @@ class DesktopApplication:
             future.set_exception(RuntimeError('尚未完成更新前的保存。'))
             return future
         def finish():
+            """在独立清理任务中等待应用线程关闭，再标记更新退出完成。"""
             self.worker.close()
             self._closed=True
         return background(finish)
 
     def command(self,service,method,*args,**kwargs):
+        """把指定业务服务/方法封装为工作线程命令，返回 Future。"""
         return self._submit(lambda context:getattr(context[service],method)(*args,**kwargs))
 
     def set_settings(self,values):
+        """异步提交一批个人设置，界面草稿不直接修改数据库。"""
         return self.command('settings','save',values)
     def set_setting(self,key,value):
+        """将单键设置写入转为统一异步批量提交。"""
         return self.set_settings({key:value})
     def save_passage(self,lang,topic,text,*,operation_id,test_mode=False):
+        """异步执行材料保存/资格消费的跨模块事务，沿用请求的稳定操作 ID。"""
         return self._submit(lambda context:save_passage(context['repo'],self.balance,lang,topic,text,
                                   operation_id=operation_id,test_mode=test_mode))
     def record_attempt(self,event):
+        """异步保存英语作答，UI 在 Future 成功后确认会话状态。"""
         def action(context):
+            """在数据库所属线程调用英语记录服务。"""
             return context['english'].record_attempt(event)
         return self._submit(action)
     def export(self,out_dir):
+        """将数据导出工作排到应用线程，避免 UI 同步访问数据库。"""
         from ..workflows.export import export_all
         return self._submit(lambda context:export_all(context['repo'],out_dir))
 
     def flush(self):
+        """捕获不可变统计检查点并合并重复保存请求，已有在途检查点不再排一份。"""
         if self._update_preparing:
             return None
         with self._checkpoint_lock:
@@ -203,6 +226,7 @@ class DesktopApplication:
             if checkpoint is None:
                 return None
             def write(context):
+                """在工作线程提交检查点；成功后确认版本/发布成就和保存状态，失败保留脏计数。"""
                 from ..workflows.checkpoint import CheckpointWriter
                 try:
                     saved=CheckpointWriter(context['repo'],self.balance).save(checkpoint)
@@ -222,6 +246,7 @@ class DesktopApplication:
             return self._checkpoint_pending
 
     def close(self):
+        """停止准入并等待最后统计保存，随后关闭工作线程及其数据库连接。"""
         if self._closed:
             return
         self.stop_accepting()

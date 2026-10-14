@@ -114,12 +114,14 @@ class _PaperTexture:
     """
 
     def __init__(self, path: Path, body_rect):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         self.path = path
         self.body = QRectF(*body_rect)
         self.image = None
         self._tried = False
 
     def ensure(self) -> bool:
+        """仅首次尝试读取纸张纹理，缓存缺失状态避免每次重绘重复磁盘读取。"""
         if not self._tried:
             self._tried = True
             if self.path.exists():
@@ -139,6 +141,7 @@ class _PaperTexture:
                       self.image.height() * sy)
 
     def draw(self, painter: QPainter, target_body: QRectF) -> bool:
+        """按已定义映射绘制纹理并返回是否成功，缺失素材允许调用方回退纯色。"""
         if not self.ensure():
             return False
         dest = self.destination(target_body)
@@ -163,6 +166,7 @@ def paper_texture() -> _PaperTexture:
 
 
 def has_paper_texture() -> bool:
+    """检查共用纸张纹理是否成功加载，不触发业务请求。"""
     return paper_texture().ensure()
 
 
@@ -180,12 +184,14 @@ class PaperSurface(QFrame):
     SHADOW_DX, SHADOW_DY, SHADOW_RADIUS = 4, 10, 10
 
     def __init__(self, parent=None, *, compact: bool = False, opaque: bool = False):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self._opaque = opaque
         self.setProperty('paperSurface', True)
         self.set_compact(compact)
 
     def set_compact(self, compact: bool) -> None:
+        """更新纸张布局与装饰的紧凑布局、间距和尺寸约束。"""
         self.setProperty('paperCompact', bool(compact))
         pad = paper_padding(compact)
         layout = self.layout()
@@ -218,6 +224,7 @@ class PaperSurface(QFrame):
         return path
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制纸张布局与装饰的可见内容，不在绘制回调执行业务提交。"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect())
@@ -239,7 +246,9 @@ class PaperSurface(QFrame):
 
 
 class Panel(QFrame):
+    """通用原生纸张面板，使用统一样式属性区分内容层。"""
     def __init__(self, parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setProperty('designPanel', True)
 
@@ -251,6 +260,7 @@ class PaperPage(QWidget):
     """
 
     def __init__(self, parent=None, *, compact: bool = False):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self._compact = bool(compact)
         outer = QVBoxLayout(self)
@@ -295,11 +305,13 @@ class PaperPage(QWidget):
         self._apply_width()
 
     def _apply_header_gap(self) -> None:
+        """按页面可用尺寸同步头图间距和高度，避免窄窗口标题挤压。"""
         stage = stage_layout_for(self)
         self.header.setContentsMargins(0, 0, 0, stage.blend(12, 24))
         self._header_wrap.setFixedHeight(stage.blend(138, 192))
 
     def set_compact(self, compact: bool) -> None:
+        """更新纸张布局与装饰的紧凑布局、间距和尺寸约束。"""
         compact = bool(compact)
         self._compact = compact
         self.paper.set_compact(compact)
@@ -320,6 +332,7 @@ class PaperPage(QWidget):
             self.paper.setFixedWidth(width)
 
     def resizeEvent(self, event):
+        """尺寸变化时重新计算头图/纸张宽度，保持原内容控件。"""
         if getattr(self, '_paper_w', None) is not None:
             if self._header_wrap.isVisible():
                 self._apply_header_gap()
@@ -328,7 +341,9 @@ class PaperPage(QWidget):
 
 
 class PageHeading(QWidget):
+    """页面标题和说明组合，保留普通文本的无障碍语义。"""
     def __init__(self, title, description='', parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -346,6 +361,7 @@ class PaperHeading(QWidget):
     """纸张上的标题 + 说明（正文 16px，标题 28px）。"""
 
     def __init__(self, title, description='', parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -371,6 +387,7 @@ class ArtTitle(QWidget):
     """
 
     def __init__(self, parent=None, *, role: str = 'training', lettering: str = ''):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.role = role if not lettering else ''
@@ -393,18 +410,22 @@ class ArtTitle(QWidget):
         self.update()
 
     def set_compact(self, compact: bool) -> None:
+        """更新纸张布局与装饰的紧凑布局、间距和尺寸约束。"""
         self._compact = bool(compact)
         self.setMinimumHeight(64 if compact else 120)
         self.updateGeometry()
         self.update()
 
     def sizeHint(self) -> QSize:  # noqa: N802 (Qt 命名)
+        """返回纸张布局与装饰控件期望的逻辑像素尺寸，供 Qt 布局测量。"""
         return QSize(650 if not self._compact else 415, 220 if not self._compact else 130)
 
     def has_artwork(self) -> bool:
+        """检查 SVG 艺术字渲染器是否有效。"""
         return self._renderer is not None and self._renderer.isValid()
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制纸张布局与装饰的可见内容，不在绘制回调执行业务提交。"""
         if not self.has_artwork():
             return
         p = QPainter(self)
@@ -431,6 +452,7 @@ class ArtHeading(QWidget):
     """
 
     def __init__(self, role: str, subtitle: str = '', parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -446,6 +468,7 @@ class ArtHeading(QWidget):
         self._sync_art_size()
 
     def _sync_art_size(self) -> None:
+        """按响应式开放度限制艺术字高度并保持原比例。"""
         stage = stage_layout_for(self)
         self.art.set_compact(stage.compact)
         height = stage.blend(90, 130)
@@ -453,6 +476,7 @@ class ArtHeading(QWidget):
         self.art.setFixedSize(width, round(width * 220 / 650))
 
     def resizeEvent(self, event):
+        """标题区改变尺寸时重新限制艺术字大小。"""
         super().resizeEvent(event)
         self._sync_art_size()
 
@@ -467,6 +491,7 @@ class Decoration(QWidget):
     """
 
     def __init__(self, name: str, parent=None, *, size: int | None = None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setFocusPolicy(Qt.NoFocus)
@@ -482,9 +507,11 @@ class Decoration(QWidget):
         self.setVisible(self._renderer is not None)
 
     def has_artwork(self) -> bool:
+        """判断装饰 SVG 是否有可用渲染器。"""
         return self._renderer is not None
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制纸张布局与装饰的可见内容，不在绘制回调执行业务提交。"""
         if self._renderer is None:
             return
         p = QPainter(self)
@@ -505,6 +532,7 @@ def decorate(parent, name: str, corner: str = 'top-right', *, margin: int = 12,
     widget.setProperty('decorMargin', int(margin))
 
     def reposition(*_):
+        """按角落/边距重新定位静态装饰，保持控件不响应鼠标。"""
         m = int(widget.property('decorMargin') or 12)
         w, h = widget.width(), widget.height()
         x = parent.width() - w - m if 'right' in corner else m
@@ -522,17 +550,21 @@ class _DecorFilter(QObject):
     """内部事件过滤器：父控件 resize 时把贴纸重新贴角。"""
 
     def __init__(self, widget, callback):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(widget)
         self._callback = callback
 
     def eventFilter(self, obj, event):
+        """父对象缩放时通知装饰重定位，其他事件交原控件处理。"""
         if event.type() == QEvent.Resize:
             self._callback()
         return False
 
 
 class Field(QWidget):
+    """输入标题、控件和辅助说明组合，建立标签关联与读屏名称。"""
     def __init__(self, title, control, hint='', parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -556,6 +588,7 @@ class PaperField(QWidget):
     """纸张上的字段：可见标签 + 控件（不用占位文本代替字段标签）。"""
 
     def __init__(self, title, control, hint='', parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -576,7 +609,9 @@ class PaperField(QWidget):
 
 
 class Disclosure(QWidget):
+    """保留内容状态的折叠区域，以按钮显式控制展开和收起。"""
     def __init__(self, title, parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self._title = title
         self._label = title
@@ -595,6 +630,7 @@ class Disclosure(QWidget):
         layout.addWidget(self.body)
 
     def _toggle(self, expanded):
+        """更新内容可见性和展开/收起按钮文案。"""
         self.body.setVisible(expanded)
         self.toggle.setText(self._label + (' · 收起' if expanded else ' · 展开'))
 
@@ -607,6 +643,7 @@ class Disclosure(QWidget):
         return self.toggle
 
     def set_toggle_label(self, label: str) -> None:
+        """替换折叠区标题并保留当前展开状态。"""
         self._label = label
         self.toggle.setText(label + (' · 收起' if self.toggle.isChecked() else ' · 展开'))
 
@@ -621,6 +658,7 @@ class StageArt(QWidget):
     """
 
     def __init__(self, parent=None):
+        """建立纸张布局与装饰组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setFixedSize(0, 0)

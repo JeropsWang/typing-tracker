@@ -16,6 +16,7 @@ ID_RE = re.compile(r'[a-z][a-z0-9_-]{0,63}\Z')
 
 
 def safe_path(name, *, manifest=False):
+    """校验包内相对素材路径和 Windows 文件名，拒绝绝对路径、越界、保留名及非白名单格式。"""
     if not isinstance(name, str) or not name or '\\' in name or ':' in name:
         raise ValueError('素材路径必须是包内的相对路径。')
     path = PurePosixPath(name)
@@ -35,6 +36,7 @@ def safe_path(name, *, manifest=False):
 
 
 def image_size(path):
+    """从有界内存字节解码素材，检查格式/尺寸/动画限制并返回宽高，不遗留打开的文件句柄。"""
     if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_FILE:
         raise ValueError('素材不存在、为链接或超过 10 MiB。')
     # Decode bounded bytes so an exception traceback cannot retain a Windows file handle.
@@ -54,6 +56,7 @@ def image_size(path):
 
 
 def validate_lines(lines):
+    """校验话术数量、字符长度与白名单变量，拒绝模板表达式/格式化扩展。"""
     if not isinstance(lines, list) or len(lines) > 50:
         raise ValueError('每个状态最多支持 50 条话术。')
     for line in lines:
@@ -72,6 +75,7 @@ def validate_lines(lines):
 
 
 def validate_manifest(manifest, root):
+    """复制并校验清单/资源/裁切/期限；待机素材无效时失败，其他素材无效则回退待机。"""
     if not isinstance(manifest, dict) or set(manifest) - {
             'schema_version', 'id', 'name', 'author', 'description', 'version', 'states', 'memes'}:
         raise ValueError('作品格式含未知字段。')

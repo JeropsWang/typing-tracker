@@ -20,8 +20,10 @@ _RNG = random.Random(11)
 
 
 class CheckinPopup(QFrame):
+    """只展示已提交打卡结果的短暂奖励提示，计数/粒子动画不发放业务奖励。"""
     def __init__(self, parent, result: dict, balance: dict, accent: str = '#f59e0b',
                  dark: bool = True):
+        """建立提交后打卡奖励提示组件的依赖与初始状态。"""
         super().__init__(parent)
         self._motion_enabled = True
         self._closing = False
@@ -124,6 +126,7 @@ class CheckinPopup(QFrame):
         self._tick.start(33)
 
     def _next_milestone(self, streak):
+        """查找大于当前连签数的下一档配置里程碑，无下一档返回 None。"""
         for m in self._balance['checkin'].get('milestones', []):
             if m > streak:
                 return m
@@ -131,6 +134,7 @@ class CheckinPopup(QFrame):
 
     # ---------- 动画 ----------
     def start_animation(self) -> None:
+        """允许动效时从轻微偏移滑入最终位置，静态模式直接停留原位置。"""
         target = self.pos()
         self._target = target
         if not self._motion_enabled:
@@ -141,6 +145,7 @@ class CheckinPopup(QFrame):
         self._anim.start()
 
     def _tick_count(self) -> None:
+        """将展示计数递增到已提交连签结果，达到目标后停止计时。"""
         target = self._result['streak']
         if self._count < target:
             self._count += 1
@@ -149,6 +154,7 @@ class CheckinPopup(QFrame):
             self._count_timer.stop()
 
     def _tick_particles(self) -> None:
+        """生成有界装饰粒子并推进视觉时间，不修改真实打卡数据。"""
         self._t += 0.033
         if len(self._particles) < 14 and _RNG.random() < 0.35:
             self._particles.append([
@@ -159,6 +165,7 @@ class CheckinPopup(QFrame):
         self.update()
 
     def paintEvent(self, event) -> None:
+        """在 Qt 主线程按当前状态绘制提交后打卡奖励提示的可见内容，不在绘制回调执行业务提交。"""
         super().paintEvent(event)
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -178,6 +185,7 @@ class CheckinPopup(QFrame):
 
     # ---------- 关闭 ----------
     def _close(self) -> None:
+        """标记正在关闭，动态模式完成短离场再销毁，静态模式立即释放。"""
         self._closing = True
         if not self._motion_enabled:
             self.deleteLater()
@@ -189,6 +197,7 @@ class CheckinPopup(QFrame):
         self._anim.start()
 
     def set_motion_enabled(self, enabled):
+        """减弱动态效果时停止计数/粒子/过渡并采用最终结果，关闭中的浮层直接销毁。"""
         self._motion_enabled = bool(enabled)
         if not enabled:
             self._anim.stop()
@@ -206,5 +215,6 @@ class CheckinPopup(QFrame):
             self._tick.start(33)
 
     def hideEvent(self, event):
+        """浮层隐藏后停止全部视觉计时器，避免托盘后台空转。"""
         self.set_motion_enabled(False)
         super().hideEvent(event)

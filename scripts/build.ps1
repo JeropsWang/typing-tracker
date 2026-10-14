@@ -1,5 +1,5 @@
-# Build script (M4): PyInstaller single-file exe
-# Usage: powershell -File scripts\build.ps1
+# 开发构建入口：在项目目录收集 Qt 运行库、配置和素材，生成单文件窗口版 exe。
+# 用法：powershell -File scripts\build.ps1；缺少 PyInstaller 时会联网下载到项目 .deps。
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -9,6 +9,7 @@ if (-not (Test-Path ".deps\PyInstaller")) {
     python scripts\fetch_deps.py pyinstaller pywin32-ctypes pefile altgraph pyinstaller-hooks-contrib setuptools
 }
 
+# 明确使用项目依赖和对应 PySide6 的 VC 运行库，避免冻结包在干净机器缺少 DLL。
 $env:PYTHONPATH = "$Root\.deps"
 $taskQtRuntimeDir = python -c "from pathlib import Path; import PySide6; print(Path(PySide6.__file__).parent)"
 if ($LASTEXITCODE -ne 0) { throw 'Cannot locate PySide6 runtime' }

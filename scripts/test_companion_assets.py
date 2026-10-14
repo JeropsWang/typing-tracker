@@ -7,7 +7,9 @@ from app.companion.packs import PackStore
 
 
 class BuiltinAssetTests(unittest.TestCase):
+    """内置角色完整性和透明素材的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_all_three_packs_have_ten_states_and_two_memes(self):
+        """验证三套内置作品各具十种状态、两项表情和有效透明素材。"""
         with tempfile.TemporaryDirectory() as data:
             packs = PackStore(data).list_packs()
             self.assertEqual({p.id for p in packs}, {'starlight', 'tsundere', 'slacker'})

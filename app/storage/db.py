@@ -11,6 +11,7 @@ SCHEMA_VERSION = 2
 
 
 def connect_db(db_path):
+    """创建 SQLite 连接并设置 WAL、FULL 同步、外键和等待期限，连接归创建线程所有。"""
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), timeout=2)
@@ -24,6 +25,7 @@ def connect_db(db_path):
 
 def _execute_schema(conn, source):
     # sqlite3.executescript implicitly commits, so do not use it in migrations.
+    """逐条执行完整 SQL 语句，避免 executescript 隐式提交破坏迁移事务。"""
     statement = ''
     for line in source.splitlines(keepends=True):
         statement += line
@@ -35,6 +37,7 @@ def _execute_schema(conn, source):
 
 
 def init_schema(conn):
+    """检查库版本、迁移前备份并原子升级；版本过新拒绝打开，失败回滚保留旧库。"""
     version = conn.execute('PRAGMA user_version').fetchone()[0]
     if version > SCHEMA_VERSION:
         raise RuntimeError('数据库版本高于当前程序，请使用更新版本。')

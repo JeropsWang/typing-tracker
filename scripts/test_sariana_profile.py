@@ -9,7 +9,9 @@ from app.ui.widgets.avatar import avatar_path
 
 
 class SarianaProfileTests(UIFixture):
+    """头像草稿及资料同步的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_avatar_tiles_show_full_portrait_and_label(self):
+        """验证头像选择块完整显示图像与文字标签。"""
         w = self.dialog()
         w.show()
         for _ in range(5):
@@ -20,6 +22,7 @@ class SarianaProfileTests(UIFixture):
         self.assertIn('::item:selected', w._sections.styleSheet())
 
     def test_five_presets_are_valid_and_default_is_sariana(self):
+        """验证五个头像预设有效，默认仍为 Sariana。"""
         from PySide6.QtGui import QImage
         self.assertEqual(len(AVATAR_PRESETS), 5)
         self.assertEqual(DEFAULT_AVATAR, 'default')
@@ -28,6 +31,7 @@ class SarianaProfileTests(UIFixture):
         self.assertEqual(avatar_path('unknown'), avatar_path(DEFAULT_AVATAR))
 
     def test_selection_is_draft_until_save_and_cancel_preserves_upload(self):
+        """验证头像选择只为草稿，取消保留原上传图片。"""
         self.repo.set_settings({'avatar_image': '1', 'avatar_preset': 'front'})
         w = self.dialog()
         w._profile_editor.picker.buttons['chibi'].click()
@@ -41,6 +45,7 @@ class SarianaProfileTests(UIFixture):
         self.assertEqual(self.repo.get_setting('avatar_image'), '')
 
     def test_saved_preset_appears_on_profile_and_clear_uses_default(self):
+        """验证保存头像预设显示在资料页，清除后使用默认。"""
         w = self.window()
         dlg = self.dialog()
         dlg._profile_editor.picker.buttons['chibi'].click()
@@ -55,6 +60,7 @@ class SarianaProfileTests(UIFixture):
         self.assertEqual(w._profile_page._avatar.preset, 'default')
 
     def test_leaderboard_orders_actual_scores_within_passage(self):
+        """验证同范文排行榜按单次实际分数排序。"""
         add = self.repo.add_challenge
         add('2026-10-08T10:00:00', 'cn_star', 30, 0, 50, 60, 1, 9999999, 100)
         add('2026-10-08T11:00:00', 'cn_star', 30, 0, 40, 60, .98, 9999999, 300)
@@ -70,6 +76,7 @@ class SarianaProfileTests(UIFixture):
         self.assertFalse(svc.leaderboard('missing'))
 
     def test_leaderboard_refreshes_after_finish_and_passage_switch(self):
+        """验证提交完成及范文切换后排行榜刷新到正确范围。"""
         page = self.training()
         self.repo.add_challenge('2026-10-08T10:00:00', 'cn_star', 20, 0, 20, 40, 1, 200, 200)
         page._refresh_recent()

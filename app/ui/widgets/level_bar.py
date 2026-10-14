@@ -14,7 +14,9 @@ DEFAULT_COLORS = ['#60a5fa', '#a78bfa', '#f472b6']
 
 
 class LevelBar(QWidget):
+    """只读等级经验进度条，星光仅视觉反馈，不代表奖励已发放。"""
     def __init__(self, parent=None):
+        """建立等级进度及星光反馈组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setFixedHeight(20)
         self._progress = 0.0
@@ -35,23 +37,28 @@ class LevelBar(QWidget):
 
     # ---------- 配置 ----------
     def set_progress(self, value: float) -> None:
+        """把展示比例限制为 0–1 并请求重绘。"""
         self._progress = max(0.0, min(1.0, float(value)))
         self.update()
 
     def set_colors(self, colors) -> None:
+        """接收至少两种有效渐变颜色，再刷新进度条。"""
         if isinstance(colors, list) and len(colors) >= 2:
             self._colors = [str(c) for c in colors]
         self.update()
 
     def set_glow(self, on: bool) -> None:
+        """切换进度条星光装饰开关，数值比例不变。"""
         self._glow = bool(on)
 
     def _tick(self) -> None:
+        """推进秒级装饰相位并重绘，不计算经验。"""
         self._t += 0.033
         self.update()
 
     # ---------- 绘制 ----------
     def paintEvent(self, event) -> None:
+        """在 Qt 主线程按当前状态绘制等级进度及星光反馈的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()

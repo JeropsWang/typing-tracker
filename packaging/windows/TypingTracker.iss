@@ -1,3 +1,5 @@
+; Windows 发布安装配置，由 build_release.py 显式传入版本、负载和输出目录。
+; 使用稳定 AppId 与旧数据路径，支持产品更名升级；不会把用户统计加入卸载清理。
 #ifndef AppVersion
   #error AppVersion is required
 #endif
@@ -17,6 +19,7 @@
 #endif
 
 [Setup]
+; AppId 必须稳定，升级才会识别原安装位置与卸载记录。
 AppId={{8A3CAB17-B864-4379-9BAA-A2C7AE85706D}
 AppName={#DisplayName}
 AppVersion={#AppVersion}
@@ -49,6 +52,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
+; 仅安装已核验的发布负载，用户数据库由运行时放在独立旧数据目录。
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
@@ -57,7 +61,7 @@ Name: "{autodesktop}\{#AppBrand}"; Filename: "{app}\{#AppBrand}.exe"; WorkingDir
 
 #if AppBrand == "Sariana"
 [InstallDelete]
-; Only remove the previous product's executable and shortcuts during the rename.
+; 更名升级只移除旧可执行文件和快捷方式，不清理用户数据或整个安装目录。
 Type: files; Name: "{app}\TypingTracker.exe"
 Type: files; Name: "{group}\TypingTracker.lnk"
 Type: files; Name: "{userprograms}\TypingTracker\TypingTracker.lnk"
@@ -67,4 +71,4 @@ Type: files; Name: "{autodesktop}\TypingTracker.lnk"
 [Run]
 Filename: "{app}\{#AppBrand}.exe"; Description: "{cm:LaunchProgram,{#AppBrand}}"; Flags: nowait postinstall skipifsilent unchecked
 
-; No UninstallDelete: user records in %APPDATA%\TypingTracker are preserved.
+; 不定义 UninstallDelete：保留 %APPDATA%\TypingTracker 中的用户记录。

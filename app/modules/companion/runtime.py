@@ -14,7 +14,9 @@ REACTIONS = {
 
 
 class Runtime:
+    """可注入时钟/随机源的纯桌宠状态机；管理姿态、事件优先级和互动排期，不访问 Qt。"""
     def __init__(self, clock=time.monotonic, rng=None):
+        """初始化活动基线、姿态期限、事件去重队列和下一次随机互动时间。"""
         self.clock = clock
         self.rng = rng or random.Random()
         self.visible = False
@@ -33,14 +35,17 @@ class Runtime:
         self._schedule()
 
     def _schedule(self):
+        """按互动频率随机安排单调时钟期限；暂停时使用无限期限。"""
         bounds = FREQUENCIES.get(self.frequency)
         self.next_random = self.clock() + self.rng.uniform(*bounds) if bounds else float('inf')
 
     def set_frequency(self, value):
+        """规范化主动互动频率并重新排期，不补发暂停期间的互动。"""
         self.frequency = value if value in (*FREQUENCIES, 'off') else 'normal'
         self._schedule()
 
     def set_visible(self, visible):
+        """可见性改变时重排自动互动；隐藏时清除当前反应。"""
         if self.visible != visible:
             self.visible = visible
             self._schedule()
@@ -48,6 +53,7 @@ class Runtime:
                 self._pose = None
 
     def update_activity(self, day, typed, practicing):
+        """比较应用日和计数基线判断输入活跃，练习期间中断低优先级自动反应。"""
         now = self.clock()
         if self.practicing != practicing:
             self.practicing = practicing
@@ -64,6 +70,7 @@ class Runtime:
         self._baseline = (day, typed)
 
     def react(self, event: CompanionEvent, duration=6):
+        """对事件去重并检查可见性/练习/优先级，接受时设置姿态及秒级期限，返回是否生效。"""
         if event.kind not in REACTIONS:
             return False
         if event.event_id:
@@ -91,12 +98,14 @@ class Runtime:
         return True
 
     def set_reaction_duration(self, duration):
+        """按原反应开始时间调整 1–30 秒持续期限，避免反复刷新延长同一反应。"""
         if self._pose:
             duration = max(1, min(30, duration))
             self._expires = self._reaction_started + duration
             self._bubble_until = self._reaction_started + min(duration, 5)
 
     def sample(self):
+        """按单调时钟清理过期姿态并触发合格自动互动，返回当前反应或专注/睡眠/待机姿态。"""
         now = self.clock()
         if self._pose and now >= self._expires:
             self._pose = None

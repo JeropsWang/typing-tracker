@@ -11,13 +11,16 @@ from PySide6.QtTest import QTest
 
 
 class EnglishUITests(UIFixture):
+    """英语页面保存、取消与排版的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def page(self):
+        """构造真实英语页面及隔离业务能力，供保存/排版测试。"""
         window = self.window()
         window._nav_buttons['英语'].click()
         APP.processEvents()
         return window, window._english_page
 
     def test_english_navigation_and_fixed_layout(self):
+        """验证英语入口及固定窗口下布局可用。"""
         window, page = self.page()
         self.assertIs(window._tabs.currentWidget(), page)
         self.assertEqual(window.size().width(), 1440)
@@ -26,6 +29,7 @@ class EnglishUITests(UIFixture):
         self.assertFalse(audit_window(window, '英语拼写'))
 
     def test_enter_submit_next_and_review_empty(self):
+        """验证 Enter 提交/下一题与空复习列表提示。"""
         _, page = self.page()
         page.mode_buttons['review'].click()
         page.spelling.start_button.click()
@@ -45,6 +49,7 @@ class EnglishUITests(UIFixture):
         self.assertEqual(page.service.session.index, 1)
 
     def test_generation_stale_result_and_close(self):
+        """验证离开或关闭后忽略迟到模型结果。"""
         self.repo.set_setting('ai_backend', 'openai')
         self.repo.add_reward('ai_pass', 1, 'test')
         window, page = self.page()
@@ -52,6 +57,7 @@ class EnglishUITests(UIFixture):
         page._targets = ('government',)
         release = threading.Event()
         def delayed_chat(*args, **kwargs):
+            """模拟较慢聊天响应，验证英语界面不阻塞及迟到结果处理。"""
             release.wait(2)
             return json.dumps([{'text': 'The government supports a local school.', 'translation': '政府支持当地学校。'}])
         with patch.object(AIService, '_chat', side_effect=delayed_chat):
@@ -76,6 +82,7 @@ class EnglishUITests(UIFixture):
         self.assertEqual(self.repo.count_ai_passes(), 1)
 
     def test_saved_generation_can_be_practised(self):
+        """验证已提交生成材料进入范文选择并可训练。"""
         self.repo.set_setting('ai_backend', 'openai')
         self.repo.add_reward('ai_pass', 1, 'test')
         _, page = self.page()
@@ -100,6 +107,7 @@ class EnglishUITests(UIFixture):
         self.assertNotIn('answer', attempts[0])
 
     def test_long_translation_keeps_input_and_actions_in_view(self):
+        """验证长译文不挤出句子输入及结算操作。"""
         window, page = self.page()
         page.mode_buttons['sentence'].click()
         page.sentences.set_history([dict(id=1, topic='长释义', created_at='2026-10-08', words=['government'],
@@ -119,6 +127,7 @@ class EnglishUITests(UIFixture):
         self.assertLess(action_bottom, nav_top)
 
     def test_correction_retest_and_font_choices_are_persisted(self):
+        """验证学习纠正/复测行为及选择字号的保存。"""
         window, page = self.page()
         # One original word gives one bounded retest after correction.
         from app.modules.english.api import SpellingSession, Word
@@ -152,6 +161,7 @@ class EnglishUITests(UIFixture):
             self.assertLess(bottom, window._nav.mapTo(window, window._nav.rect().topLeft()).y())
 
     def test_sentence_error_feedback_and_retry_use_existing_material(self):
+        """验证句子错误对齐及重练使用已保存材料，不重新生成。"""
         _, page = self.page()
         page.mode_buttons['sentence'].click()
         page.sentences.set_history([dict(id=1, topic='核对', created_at='2026-10-13', words=['go'],
@@ -173,6 +183,7 @@ class EnglishUITests(UIFixture):
         self.assertNotIn('answer', self.repo.english.export()['attempts'][0])
 
     def test_material_save_blocks_starting_a_second_sentence_run(self):
+        """验证句子材料保存期间禁止启动冲突的新训练。"""
         from concurrent.futures import Future
         from types import SimpleNamespace
         from unittest.mock import Mock
@@ -199,6 +210,7 @@ class EnglishUITests(UIFixture):
         self.assertIsNotNone(page._sentence_run)
 
     def test_minimize_and_tray_restore_preserve_active_practice(self):
+        """验证最小化及托盘恢复保留正在进行的练习。"""
         window, page = self.page()
         page.spelling.start_button.click()
         session = page.service.session
@@ -233,6 +245,7 @@ class EnglishUITests(UIFixture):
         self.assertEqual(len(self.repo.english.export()['attempts']), 1)
 
     def test_storage_failure_has_feedback_and_can_retry(self):
+        """验证存储失败有可见反馈并能沿原结果重试。"""
         _, page = self.page()
         page.spelling.start_button.click()
         word = page.service.session.current.word
@@ -278,7 +291,9 @@ class EnglishUITests(UIFixture):
 
 
 class FixtureCleanupTests(unittest.TestCase):
+    """英语页面保存、取消与排版的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_fixture_releases_deferred_widgets(self):
+        """验证 UI 夹具清理排队销毁对象，避免后续用例受残留影响。"""
         from shiboken6 import isValid
         fixture = UIFixture()
         fixture.setUp()

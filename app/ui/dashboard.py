@@ -130,6 +130,7 @@ class _StatBlock(QWidget):
     """
 
     def __init__(self, label, unit='', hint='', *, metric=False, parent=None):
+        """建立今日统计与等级概览组件的依赖与初始状态。"""
         super().__init__(parent)
         self._metric = bool(metric)
         self._unit = unit or ''
@@ -157,9 +158,11 @@ class _StatBlock(QWidget):
         v.addWidget(self.hint)
 
     def _text(self, number: str) -> str:
+        """将展示数值与单位组合，未知数值保持破折号而不拼虚假单位。"""
         return f'{number} {self._unit}'.strip() if number != '—' else '—'
 
     def set_value(self, text: str, tooltip: str = '') -> None:
+        """同步统计值和说明提示，不自行重算业务口径。"""
         self.value.setText(self._text(text))
         self.value.setToolTip(tooltip)
 
@@ -169,6 +172,7 @@ class _StatBlock(QWidget):
         self.value.setText(self._text(self.value.text().split(' ')[0]))
 
     def set_hint(self, text: str) -> None:
+        """更新统计辅助解释并开放对应展示区域。"""
         self.hint.setText(text)
         self.set_hint_visible(True)
 
@@ -178,9 +182,11 @@ class _StatBlock(QWidget):
 
 
 class Dashboard(QWidget):
+    """只展示内存统计、已提交等级及保存/输入采集状态的今日页面，不执行 SQL。"""
     training_requested = Signal()
 
     def __init__(self, parent=None):
+        """建立今日统计与等级概览组件的依赖与初始状态。"""
         super().__init__(parent)
         self._compact = None
         self._exp_value = 0
@@ -514,6 +520,7 @@ class Dashboard(QWidget):
         self._main_grid.setColumnStretch(2, 0)
 
     def resizeEvent(self, event):
+        """按当前宽高同步统计页紧凑度、缩放和纸张高度。"""
         self.set_compact(is_compact(self.width(), self.height()))
         self._sync_scale()
         self._apply_paper_height()
@@ -603,6 +610,7 @@ class Dashboard(QWidget):
         self._level_bar.set_visible_anim(on)
 
     def set_hook_status(self, ok: bool):
+        """展示输入钩子实际运行资格，失败时提示不会采集。"""
         self._hook_status.setText(
             '键盘钩子运行正常，正在统计' if ok
             else '键盘钩子未运行，不会统计打字——请重启应用')
@@ -612,6 +620,7 @@ class Dashboard(QWidget):
 
     def set_hook_info(self, event_count: int, ime_readable: bool, errs=None,
                       tsf_ok: bool = False):
+        """显示原始数值事件数量和 IME/TSF 能力诊断，异常只限量展示诊断信息。"""
         text = f'本次运行已捕获 {event_count:,} 个按键事件'
         if tsf_ok:
             text += ' ｜ TSF 中文精确计数已启用'
@@ -626,10 +635,12 @@ class Dashboard(QWidget):
 
     # ---------- 等级 ----------
     def set_level_colors(self, colors):
+        """更新等级条的主题渐变色，不更改经验数值。"""
         self._level_bar.set_colors(colors)
 
     # ---------- 数据刷新（只读 snap） ----------
     def refresh(self, snap, level, progress, band, streak, unit, exp=0):
+        """使用传入只读快照刷新数字、等级和分钟图，无数据时展示空状态。"""
         self._exp_value = exp
         unit = unit or '字'
 
@@ -707,5 +718,6 @@ class Dashboard(QWidget):
             self._chart_empty.setVisible(True)
 
     def set_persistence_status(self,saved_at,error=None):
+        """分别展示最后成功保存时间与当前失败状态，失败时说明统计仍在内存等待重试。"""
         self._save_status.setText('保存失败' if error else f'已保存 {(saved_at or "")[-8:]}')
         self._save_status.setToolTip(f'最后成功保存：{saved_at or "暂无"}' + (f'\n统计仍在内存中，正在等待重试。{error}' if error else ''))

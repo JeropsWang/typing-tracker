@@ -4,9 +4,11 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QLabel, QCheckB
 
 
 class CompanionSettings(QWidget):
+    """普通设置中的桌宠草稿面板，展示已提交值并交出待保存配置。"""
     workshop_requested = Signal()
 
     def __init__(self, repo, parent=None):
+        """创建启用、模式、互动频率、尺寸、气泡和工坊入口控件，不自行保存。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 12, 0, 0)
@@ -53,6 +55,7 @@ class CompanionSettings(QWidget):
         layout.addWidget(self.workshop_button)
 
     def values(self):
+        """将当前控件值规范为 companion 设置字典，供外层统一异步提交。"""
         return {
             'companion_enabled': '1' if self.enabled.isChecked() else '0',
             'companion_mode': self.mode.currentData(),

@@ -38,23 +38,29 @@ if HAS_COMTYPES:
         _com_interfaces_ = [T.ITfThreadMgrEventSink]
 
         def __init__(self, hook):
+            """持有所属 TSF 采集器，COM 事件只转交焦点更新。"""
             super().__init__()
             self._hook = hook
 
         def OnInitDocumentMgr(self, pdim):
+            """接受文档管理器创建通知并返回成功，不在此读取或记录输入。"""
             return 0
 
         def OnUninitDocumentMgr(self, pdim):
+            """接受文档管理器销毁通知，保留接口要求的成功返回。"""
             return 0
 
         def OnSetFocus(self, pdimFocus, pdimPrevFocus):
+            """将新的 TSF 焦点文档转交采集器，以后续轮询读取对应组字上下文。"""
             self._hook._set_focus_doc(pdimFocus)
             return 0
 
         def OnPushContext(self, pic):
+            """接受上下文入栈通知，不额外执行采集或持久写入。"""
             return 0
 
         def OnPopContext(self, pic):
+            """接受上下文出栈通知，不额外执行采集或持久写入。"""
             return 0
 
     class _EditSession(COMObject):
@@ -63,12 +69,14 @@ if HAS_COMTYPES:
         _com_interfaces_ = [T.ITfEditSession]
 
         def __init__(self, rng):
+            """持有待读取 TSF 文本范围和完成事件，仅在本次编辑会话中使用。"""
             super().__init__()
             self.text = ''
             self.event = threading.Event()
             self._rng = rng
 
         def DoEditSession(self, ec):
+            """在 TSF 授予的只读编辑权限中读取范围文本并通知等待者。"""
             self.text = _range_text(self._rng, ec)
             self.event.set()
             return 0
@@ -110,6 +118,7 @@ class TsfHook:
     """TSF 组字监听器。回调：on_commit(text) / on_composing(bool)（可选）。"""
 
     def __init__(self, on_commit=None, on_composing=None):
+        """初始化提交/组字回调、焦点上下文和暂存范围，所有文本仅用于即时计数。"""
         self._on_commit = on_commit or (lambda text: None)
         self._on_composing = on_composing or (lambda flag: None)
         self._running = False
@@ -128,6 +137,7 @@ class TsfHook:
 
     # ---------- 生命周期 ----------
     def start(self) -> bool:
+        """依赖可用时启动 TSF COM 线程并有界等待激活，返回采集能力是否就绪。"""
         if not HAS_COMTYPES:
             return False
         self._running = True
@@ -140,6 +150,7 @@ class TsfHook:
         return self.available
 
     def stop(self):
+        """停止轮询，反注册 COM 接收器并释放上下文/暂存范围，再有界等待线程结束。"""
         self._running = False
         # 反注册事件接收器并停用线程管理器（曾缺失，COM 引用悬挂，v0.8.9）
         try:
@@ -169,6 +180,7 @@ class TsfHook:
 
     # ---------- 线程主循环 ----------
     def _thread_main(self):
+        """在线程内初始化 COM/TSF 管理器、监听焦点并轮询组字，退出时释放 COM。"""
         try:
             CoInitialize()
             mgr = CoCreateInstance(T.CLSID_TF_ThreadMgr, interface=T.ITfThreadMgr)
@@ -246,6 +258,7 @@ class TsfHook:
 
     # ---------- 组字轮询 ----------
     def _poll(self):
+        """在锁内读取当前组字/最终范围并更新暂存状态，锁外发布即时提交及组字标记。"""
         with self._lock:
             ctx = self._ctx
             composing = False

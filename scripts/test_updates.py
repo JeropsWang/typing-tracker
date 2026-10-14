@@ -34,6 +34,7 @@ BASE = 'https://github.com/JeropsWang/typing-tracker/releases'
 
 
 def pump_until(predicate, timeout=5):
+    """持续处理 Qt 事件直到条件成立或超时，不在 UI 阻塞未完成 Future。"""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         APP.processEvents()
@@ -44,6 +45,7 @@ def pump_until(predicate, timeout=5):
 
 
 def payload(version='1.0.0', digest=True):
+    """构造固定正式版本/附件信息，避免更新回归请求真实发布 API。"""
     installer = f'Sariana-{version}-windows-x64-setup.exe'
     checksum_name = f'Sariana-{version}-SHA256SUMS.txt'
     checksum = f'{DIGEST}  {installer}\n'.encode()
@@ -57,11 +59,14 @@ def payload(version='1.0.0', digest=True):
 
 
 class FakeOpener:
+    """更新服务内存传输夹具，返回固定附件响应并记录访问路径。"""
     def __init__(self, entries):
+        """建立本用例夹具的配置、响应或同步初始状态，不用于生产装配。"""
         self.entries = entries
         self.requests = []
 
     def open(self, request, timeout):
+        """按预定路由返回更新响应，记录请求供附件/校验行为断言。"""
         self.requests.append(request.full_url)
         result = self.entries[request.full_url]
         if isinstance(result, Exception):
@@ -70,15 +75,19 @@ class FakeOpener:
 
 
 class UpdateTransportTests(unittest.TestCase):
+    """正式版本下载、校验及最终退出授权的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         (ROOT / '.local').mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / '.local')
         self.cache = Path(self.temp.name) / 'updates'
 
     def tearDown(self):
+        """关闭本用例持有的对象并清理临时资源，下一例从独立状态开始。"""
         self.temp.cleanup()
 
     def service(self, *, digest=True, body=BODY):
+        """使用本例隔离配置/模拟传输构造待测服务，避免读取用户模型设置。"""
         data, checksum = payload(digest=digest)
         release = parse_release(data, '0.9.4')
         opener = FakeOpener({API_URL: json.dumps(data).encode(), release.installer.url: body,
@@ -86,6 +95,7 @@ class UpdateTransportTests(unittest.TestCase):
         return UpdateService(self.cache, '0.9.4', opener=opener), release, opener
 
     def test_numeric_versions_ignore_old_draft_prerelease_and_invalid(self):
+        """验证正式数字版本比较排除旧版、草稿、预发布和非法标签。"""
         self.assertGreater(stable_version('v0.10.0'), stable_version('0.9.4'))
         for changes in ({'draft': True}, {'prerelease': True}, {'tag_name': 'v1.0.0-rc1'}, {'tag_name': 'invalid'}):
             data, _ = payload()
@@ -95,6 +105,7 @@ class UpdateTransportTests(unittest.TestCase):
             self.assertIsNone(parse_release(payload(version)[0], '0.9.4'))
 
     def test_repository_asset_host_and_safe_release_name_validation(self):
+        """验证发布仓库、附件主机及安全命名均在更新白名单内。"""
         data, _ = payload()
         data['html_url'] = 'https://github.com/other/repository/releases/tag/v1.0.0'
         with self.assertRaises(ValueError):
@@ -108,6 +119,7 @@ class UpdateTransportTests(unittest.TestCase):
             _Redirects().redirect_request(None, None, 302, '', {}, 'https://evil.example/file')
 
     def test_size_and_digest_verified_without_checksum_fetch(self):
+        """验证附件自身有摘要时直接核对大小/SHA，不额外下载校验清单。"""
         service, release, opener = self.service()
         self.assertEqual(service.check(), release)
         progress = []
@@ -117,6 +129,7 @@ class UpdateTransportTests(unittest.TestCase):
         self.assertNotIn(release.checksums.url, opener.requests)
 
     def test_checksum_fallback_and_missing_or_ambiguous_checksum(self):
+        """验证备用校验清单及缺失/歧义摘要的拒绝。"""
         service, release, opener = self.service(digest=False)
         self.assertEqual(service.download(release, threading.Event()).digest, DIGEST)
         checksum = opener.entries[release.checksums.url]
@@ -129,6 +142,7 @@ class UpdateTransportTests(unittest.TestCase):
             service.download(parse_release(data, '0.9.4'), threading.Event())
 
     def test_corrupt_truncated_and_oversized_downloads_remove_partial(self):
+        """验证损坏、截断或超大更新下载清除部分文件。"""
         for body in (BODY[:-1], BODY + b'x', b'x' * len(BODY)):
             service, release, _ = self.service(body=body)
             with self.assertRaises(ValueError):
@@ -137,6 +151,7 @@ class UpdateTransportTests(unittest.TestCase):
             self.assertFalse(list(self.cache.glob('*.exe')))
 
     def test_cancel_mid_download_and_install_revalidation(self):
+        """验证下载中取消清理临时文件，安装前重新校验。"""
         service, release, _ = self.service()
         cancel = threading.Event()
         with self.assertRaises(UpdateCancelled):
@@ -148,6 +163,7 @@ class UpdateTransportTests(unittest.TestCase):
             installer.verify()
 
     def test_rate_limit_and_network_errors_have_actionable_messages(self):
+        """验证限流和连接失败给出可操作的脱敏提示。"""
         for failure in (HTTPError(API_URL, 429, 'limited', {}, None),
                         HTTPError(API_URL, 403, 'limited', {}, None), URLError('offline')):
             service = UpdateService(self.cache, '0.9.4', opener=FakeOpener({API_URL: failure}))
@@ -155,6 +171,7 @@ class UpdateTransportTests(unittest.TestCase):
                 service.check()
 
     def test_source_portable_and_stable_appid_install_detection(self):
+        """验证源码/便携/安装类型及稳定 AppId 检测。"""
         executable = self.cache / 'Sariana.exe'
         self.assertEqual(installation_kind(frozen=False, executable=executable), 'source')
         self.assertEqual(installation_kind(frozen=True, executable=executable, registry_locations=[]), 'portable')
@@ -162,6 +179,7 @@ class UpdateTransportTests(unittest.TestCase):
         self.assertEqual(installation_kind(frozen=True, executable=executable, registry_locations=[self.cache.parent]), 'portable')
 
     def test_helper_requires_authorization_after_parent_exit_and_rechecks_package(self):
+        """验证安装辅助程序等父进程退出及显式授权，并再次核验安装包。"""
         if sys.platform != 'win32':
             self.skipTest('Windows helper protocol')
         cache = Path(self.temp.name) / 'update-cache'
@@ -193,6 +211,7 @@ class UpdateTransportTests(unittest.TestCase):
             self.assertFalse(ready.exists())
 
     def test_cancelling_handoff_removes_authorization_and_only_terminates_owned_process(self):
+        """验证取消安装交接移除授权且只终止本次辅助进程。"""
         process = Mock()
         process.poll.return_value = None
         ready = Path(self.temp.name) / 'authorization.ready'
@@ -205,7 +224,9 @@ class UpdateTransportTests(unittest.TestCase):
 
 
 class UpdateDesktopTests(unittest.TestCase):
+    """正式版本下载、校验及最终退出授权的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         (ROOT / '.local').mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / '.local')
         self.application = DesktopApplication(self.temp.name, BALANCE, {})
@@ -213,11 +234,13 @@ class UpdateDesktopTests(unittest.TestCase):
             opener=FakeOpener({API_URL: json.dumps(payload()[0]).encode()}))
 
     def tearDown(self):
+        """关闭本用例持有的对象并清理临时资源，下一例从独立状态开始。"""
         self.application.close()
         APP.processEvents()
         self.temp.cleanup()
 
     def test_automatic_checks_are_daily_and_disabled_setting_is_respected(self):
+        """验证自动更新检查每日限频且遵守停用设置。"""
         controller = UpdateController(self.application, self.service, kind='source', clock=lambda: 100_000)
         try:
             controller.auto_check()
@@ -240,6 +263,7 @@ class UpdateDesktopTests(unittest.TestCase):
             controller.deleteLater()
 
     def test_settings_write_failure_does_not_cause_hourly_auto_checks(self):
+        """验证检查时间写入失败也有内存限频，不每小时重试上游。"""
         from concurrent.futures import Future
         now = [100_000]
         controller = UpdateController(self.application, self.service, kind='source', clock=lambda: now[0])
@@ -261,10 +285,12 @@ class UpdateDesktopTests(unittest.TestCase):
             controller.deleteLater()
 
     def test_prepare_drains_accepted_commands_before_checkpoint_and_finish_is_guarded(self):
+        """验证更新准备先排空命令/提交检查点，未准备成功不能最终关闭。"""
         with self.assertRaises(RuntimeError):
             self.application.finish_update_exit().result(5)
         entered, release = threading.Event(), threading.Event()
         def accepted(context):
+            """记录已接收命令执行，断言更新准备先排空任务。"""
             entered.set()
             release.wait(5)
             context['counter'].handle_char('en')
@@ -283,6 +309,7 @@ class UpdateDesktopTests(unittest.TestCase):
         self.assertTrue(self.application._closed)
 
     def test_final_commit_failure_never_launches_installer_worker_and_dirty_state_survive(self):
+        """验证最终提交失败不启动安装，工作线程和脏统计保留。"""
         self.application.counter.handle_char('en')
         launched, completed, failures = [], [], []
         coordinator = UpdateExitCoordinator(self.application, lambda: None,
@@ -304,6 +331,7 @@ class UpdateDesktopTests(unittest.TestCase):
         coordinator.deleteLater()
 
     def test_close_failure_cancels_helper_without_authorization(self):
+        """验证工作线程关闭失败不授权安装，并取消本次辅助进程。"""
         from concurrent.futures import Future
         failed_close = Future()
         failed_close.set_exception(OSError('isolated close failure'))
@@ -322,9 +350,11 @@ class UpdateDesktopTests(unittest.TestCase):
         coordinator.deleteLater()
 
     def test_success_authorizes_helper_only_after_worker_closed(self):
+        """验证安装辅助进程只有在数据库线程关闭后才获授权。"""
         events = []
         helper = Mock()
         def authorize():
+            """记录模拟安装授权时刻，断言必须晚于数据库关闭。"""
             self.assertTrue(self.application._closed)
             events.append('authorized')
         helper.authorize.side_effect = authorize
@@ -337,6 +367,7 @@ class UpdateDesktopTests(unittest.TestCase):
         coordinator.deleteLater()
 
     def test_authorization_failure_after_close_cancels_helper_and_reports_closed_state(self):
+        """验证数据库关闭后授权失败会取消本次辅助进程并明确关闭状态。"""
         helper = Mock()
         helper.authorize.side_effect = OSError('isolated authorization write failure')
         cancelled = threading.Event()

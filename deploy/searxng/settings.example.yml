@@ -1,0 +1,43 @@
+# start.ps1 copies this into .local/searxng/config/settings.yml once.
+# Its random server secret is internal, not a search API Key.
+use_default_settings:
+  engines:
+    keep_only:
+      - bing
+      - duckduckgo
+      - wikipedia
+
+general:
+  instance_name: "Sariana Local Search"
+  debug: false
+
+search:
+  safe_search: 1
+  default_lang: "zh-CN"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "__GENERATED_SECRET__"
+  bind_address: "0.0.0.0"
+  port: 8080
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 8.0
+
+engines:
+  - name: bing
+    disabled: false
+    base_url: "https://cn.bing.com"
+  - name: duckduckgo
+    disabled: false
+  - name: wikipedia
+    disabled: false
+    display_type:
+      - list
+      - infobox

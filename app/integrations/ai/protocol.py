@@ -12,11 +12,13 @@ PROTOCOLS = (
 
 
 def thinking_enabled(config):
+    """统一解析布尔或文本配置中的思考开关。"""
     return config.get('thinking', '0') in (True, '1')
 
 
 @dataclass(frozen=True)
 class ThinkingPolicy:
+    """模型/端点对应的思考协议能力描述，区分可禁用、预算字段和流式要求。"""
     protocol: str = 'none'
     can_disable: bool = True
     completion_budget: bool = False
@@ -25,6 +27,7 @@ class ThinkingPolicy:
 
 
 def thinking_policy(config, endpoint, model):
+    """结合服务主机、模型代号和手动设置选择思考开关协议，不发送网络请求。"""
     host = urlsplit(endpoint).hostname
     model = model.lower()
     switchable = model.startswith(('gpt-5.1', 'gpt-5.2', 'gpt-5.4', 'gpt-5.5', 'gpt-5.6',
@@ -57,6 +60,7 @@ def thinking_policy(config, endpoint, model):
 
 
 def chat_payload(config, endpoint, model, messages, max_tokens):
+    """生成兼容请求参数及正文/思考预算；不支持当前思考要求时明确拒绝。"""
     policy = thinking_policy(config, endpoint, model)
     enabled = thinking_enabled(config)
     if not enabled and not policy.can_disable:
@@ -81,11 +85,13 @@ def chat_payload(config, endpoint, model, messages, max_tokens):
 
 
 def _count(value):
+    """只接受非负整数 token 数，拒绝布尔值/缺失/非法统计。"""
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
 @dataclass(frozen=True)
 class TokenUsage:
+    """本次请求的不可变用量快照，字段未知时保留 None 而不虚构零。"""
     input_tokens: int | None = None
     output_tokens: int | None = None
     reasoning_tokens: int | None = None
@@ -93,6 +99,7 @@ class TokenUsage:
 
     @classmethod
     def from_response(cls, response):
+        """兼容不同供应商 usage 字段并校验 token 数，未返回用量时为 None。"""
         usage = response.get('usage') if isinstance(response, dict) else None
         if not isinstance(usage, dict) or not usage:
             return None
@@ -105,9 +112,11 @@ class TokenUsage:
 
 
 def usage_text(usage):
+    """生成本次输入/输出/思考/总 token 的可见文案，未知值明确标为未返回。"""
     if usage is None:
         return '本次 token · 接口未返回用量'
     def label(value):
+        """格式化已知 token 数或未知字段占位提示。"""
         return f'{value:,}' if value is not None else '接口未返回'
     return (f'本次 token · 输入 {label(usage.input_tokens)} / 输出 {label(usage.output_tokens)}'
             f' / 思考 {label(usage.reasoning_tokens)} / 总计 {label(usage.total_tokens)}')

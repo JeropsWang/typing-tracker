@@ -10,6 +10,7 @@ from .typography import english_type
 
 
 class SentencePanel(QWidget):
+    """主动造句材料、句子训练输入和错误对齐的只读/信号展示面板。"""
     generate_requested = Signal()
     targets_requested = Signal()
     settings_requested = Signal()
@@ -19,6 +20,7 @@ class SentencePanel(QWidget):
     retry_requested = Signal()
 
     def __init__(self, parent=None):
+        """创建目标词、主题、历史材料、句子输入和结果控件。"""
         super().__init__(parent)
         self._type = english_type('large')
         self._history = []
@@ -111,6 +113,7 @@ class SentencePanel(QWidget):
         self.apply_theme()
 
     def set_history(self, packs):
+        """刷新已保存材料列表，填充时屏蔽信号再统一选中材料。"""
         self._history = packs
         self.history_combo.blockSignals(True)
         self.history_combo.clear()
@@ -122,6 +125,7 @@ class SentencePanel(QWidget):
         self._select_pack()
 
     def _select_pack(self, *_):
+        """按当前材料更新其中的句子选项，不重新调用模型。"""
         self.sentence_combo.blockSignals(True)
         self.sentence_combo.clear()
         index = self.history_combo.currentIndex()
@@ -132,6 +136,7 @@ class SentencePanel(QWidget):
         self._select_sentence()
 
     def _select_sentence(self, *_):
+        """显示所选原句/译文/目标词并清理旧对齐结果，通知训练上下文改变。"""
         self.errors.hide()
         self.retry_button.hide()
         sentence = self.sentence_combo.currentData() or {}
@@ -144,6 +149,7 @@ class SentencePanel(QWidget):
         self.material_changed.emit()
 
     def _show_reference(self, text, words):
+        """先转义文本，再按完整目标词高亮，网页/模型文字不能注入 HTML。"""
         pattern = r'(?<![A-Za-z])(?:' + '|'.join(re.escape(w) for w in words) + r')(?![A-Za-z])'
         parts, offset = [], 0
         for match in re.finditer(pattern, text, re.I) if words else []:
@@ -155,14 +161,17 @@ class SentencePanel(QWidget):
 
     @property
     def reference_text(self):
+        """取得所选材料的纯英文参考句，无材料时为空串。"""
         return (self.sentence_combo.currentData() or {}).get('text', '')
 
     def set_busy(self, busy):
+        """按生成忙碌状态限制生成/换词并显示等待文案。"""
         self.generate_button.setEnabled(not busy)
         self.shuffle_button.setEnabled(not busy)
         self.generate_button.setText('正在编织句子…' if busy else '让词语相遇 →')
 
     def set_running(self, running):
+        """训练中锁定材料选择，启用输入/结算并清除旧反馈。"""
         self.input.setEnabled(running)
         self.finish_button.setEnabled(running)
         for control in (self.history_combo, self.sentence_combo):
@@ -175,6 +184,7 @@ class SentencePanel(QWidget):
             self.input.setFocus()
 
     def show_alignment(self, tokens):
+        """将瞬时错词/漏词/多词对齐转为转义后的可见提示，不保存答案原文。"""
         parts = []
         for token in tokens:
             kind = token['kind']
@@ -192,10 +202,12 @@ class SentencePanel(QWidget):
         self.retry_button.show()
 
     def set_type(self, key):
+        """设置句子区域字号档位并重新应用样式。"""
         self._type = english_type(key)
         self.apply_theme()
 
     def apply_theme(self):
+        """同步句子、输入、译文和操作颜色/字号，重绘已有内容。"""
         t = self._type
         self.usage_label.apply_theme()
         for button in (self.generate_button, self.start_button, self.finish_button):

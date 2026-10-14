@@ -79,6 +79,7 @@ _FORM_PAD_MIN, _FORM_PAD_MAX = 14, 20
 # ---------- 颜色与对比度（只用于纸面可读性兜底） ----------
 
 def _rgb(color) -> tuple:
+    """解析主题颜色 RGB，非法颜色使用安全黑色回退。"""
     c = QColor(color)
     if not c.isValid():
         c = QColor('#000000')
@@ -86,15 +87,18 @@ def _rgb(color) -> tuple:
 
 
 def _hex(rgb) -> str:
+    """把通道限制在 0–255 并转换为六位十六进制色。"""
     return '#%02X%02X%02X' % tuple(max(0, min(255, int(round(v)))) for v in rgb)
 
 
 def _blend(color_a, color_b, t: float) -> str:
+    """按给定比例插值两种颜色，供纸张/边线色派生。"""
     a, b = _rgb(color_a), _rgb(color_b)
     return _hex(tuple(a[i] + (b[i] - a[i]) * t for i in range(3)))
 
 
 def _luminance(color) -> float:
+    """将 sRGB 线性化计算相对亮度，供文字对比度判断。"""
     channels = []
     for value in _rgb(color):
         c = value / 255
@@ -103,6 +107,7 @@ def _luminance(color) -> float:
 
 
 def _contrast(color_a, color_b) -> float:
+    """计算两个颜色的亮度对比度比值。"""
     la, lb = _luminance(color_a), _luminance(color_b)
     lo, hi = min(la, lb), max(la, lb)
     return (hi + 0.05) / (lo + 0.05)
@@ -123,12 +128,16 @@ def _readable(fg, bg, minimum: float = _CONTRAST_MIN) -> str:
 # ---------- 纸张容器（底部操作栏留在纸张外，滚动只发生在表单内部） ----------
 
 class _PaperFrame(_design.PaperSurface):
+    """设置草稿的纸张容器，复用统一原生绘制与响应式表面。"""
     def __init__(self,parent=None):
+        """建立全局设置草稿及异步保存组件的依赖与初始状态。"""
         super().__init__(parent,opaque=True)
 
 
 class SettingsDialog(QDialog):
+    """Qt 主线程全局设置草稿窗口，测试和主题预览不等于已提交；失败/取消保留原配置。"""
     def __init__(self, repo, balance, parent=None, theme_manager=None, data_dir=None, test_session=None):
+        """建立全局设置草稿及异步保存组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setWindowTitle('设置 · 星光伴学')
         from .widgets.window_policy import FixedWindowPolicy
@@ -262,6 +271,7 @@ class SettingsDialog(QDialog):
         return layout
 
     def _build_profile(self):
+        """创建昵称、签名和头像草稿区域，不修改当前已保存个人资料。"""
         layout = self._section('我的角色小档案', '头像、昵称和签名，一起收进成长页。')
         self._avatar_preset = normalize_avatar(self._presenter.get_setting('avatar_preset', DEFAULT_AVATAR))
         editor = PersonalSettingsPanel(
@@ -283,6 +293,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_rules(self):
+        """创建统计/日切等规则草稿控件，实际保存统一交设置服务。"""
         layout = self._section('统计规则', '统计数值始终按 tw 口径计算，单位名称仅改变显示。')
         self._unit_edit = QLineEdit(self._presenter.get_setting('unit_name', self._balance['unit']['name']))
         self._unit_edit.setMaxLength(8)
@@ -298,6 +309,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_exclusion(self):
+        """创建排除应用草稿列表，确认保存后输入钩子才换快照。"""
         layout = self._section('应用排除', '在这些程序里输入时暂停统计。')
         self._exclude_edit = QPlainTextEdit(self._presenter.get_setting('excluded_apps', ''))
         self._exclude_edit.setMinimumHeight(180)
@@ -307,6 +319,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_ai(self):
+        """创建训练 AI 地址/密钥/模型及思考草稿，与桌宠模型独立。"""
         layout = self._section('AI 配置', '为训练页生成范文。测试连接只检查当前草稿，不写入设置。')
         self._ai_backend = QComboBox()
         for value, label in _AI_BACKENDS:
@@ -352,6 +365,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _build_appearance(self):
+        """创建主题/动效及桌宠设置草稿，主题即时预览可在取消时恢复。"""
         layout = self._section('外观', '萨莉安娜是这款软件的拟人化形象，界面统一使用她的夜色舞台风格。')
         if self._theme_mgr:
             self._theme_combo = QComboBox()
@@ -399,6 +413,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _open_companion_workshop(self):
+        """先请求保存设置，接受成功后排队打开工坊，不在失败时丢草稿。"""
         controller = getattr(self.parent(), '_companion', None)
         if controller is not None:
             self.accept()
@@ -406,6 +421,7 @@ class SettingsDialog(QDialog):
                 QTimer.singleShot(0, controller.open_workshop)
 
     def _build_data(self):
+        """装配导出与更新能力展示，生产网络/SQL 工作通过异步能力执行。"""
         layout = self._section('数据备份', '导出当前记录，方便迁移或自己留存。')
         self._export_btn = QPushButton('导出数据备份')
         self._export_btn.setProperty('buttonRole', 'secondary')
@@ -425,6 +441,7 @@ class SettingsDialog(QDialog):
         layout.addStretch()
 
     def _check_row(self, checkbox, hint):
+        """组合布尔开关和换行说明，统一纸张文字角色。"""
         row = QWidget()
         layout = QVBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -539,6 +556,7 @@ class SettingsDialog(QDialog):
                 control.setFixedHeight(small)
 
     def _field_layouts(self):
+        """枚举可见/滚动表单布局，供统一字段尺寸重算。"""
         layouts = [self._ai_config_layout]
         for index in range(self._pages.count()):
             page = self._pages.widget(index)
@@ -548,15 +566,18 @@ class SettingsDialog(QDialog):
         return layouts
 
     def _reapply_sizes(self):
+        """强制重新同步响应式布局和输入字段高度。"""
         self._apply_metrics(force=True)
         self._sync_field_heights()
 
     def resizeEvent(self, event):
+        """尺寸变化后同步表单约束并检查主题样式是否失效。"""
         super().resizeEvent(event)
         self._apply_metrics()
         self._check_style_freshness()
 
     def showEvent(self, event):
+        """对话框显示后按现有主题和尺寸刷新布局，保留草稿。"""
         super().showEvent(event)
         self._apply_metrics()
         self._check_style_freshness()
@@ -571,6 +592,7 @@ class SettingsDialog(QDialog):
             self._refresh_style()
 
     def _palette_signature(self):
+        """取得当前颜色角色签名，用于判断是否需要重建设置样式。"""
         return (P.paper, P.paper_text, P.paper_muted, P.canvas, P.primary,
                 P.primary_text, P.border, P.focus, self._focus_color(), P.surface_text)
 
@@ -585,6 +607,7 @@ class SettingsDialog(QDialog):
     # ---------- 样式（纸张上的语义角色；颜色与尺寸取自 P / design） ----------
 
     def _style_sections(self):
+        """应用侧栏分区的纸张/选中/焦点颜色，保持导航和当前页面配色一致。"""
         item = _readable(self._palette_item(), self._sidebar_bg())
         focus = self._focus_color()
         # 配方（design-recipe.md §2/§6.3）：左栏是同色系浅填充 + 12/10 圆角、**无描边**；
@@ -601,6 +624,7 @@ class SettingsDialog(QDialog):
             f'QListWidget#settingsSections::item:focus {{ border: {FOCUS_WIDTH}px solid {focus}; }}')
 
     def _refresh_style(self):
+        """按主题纸张派生表单颜色和对比度，更新控件样式及已使用色板签名。"""
         self._ai_thinking_controls.apply_theme()
         paper_text = _readable(P.paper_text, P.paper)
         paper_muted = _readable(P.paper_muted, P.paper)
@@ -691,6 +715,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
     # ---------- 头像草稿 ----------
 
     def _upload_avatar(self):
+        """读取用户选定图片并规范为有界 PNG 草稿，实际文件保存等待提交。"""
         path, _ = QFileDialog.getOpenFileName(self, '选择头像图片', '', '图片 (*.png *.jpg *.jpeg *.bmp *.webp)')
         if not path:
             return
@@ -707,12 +732,14 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         self._avatar_status.setText('已选择新头像，保存设置后生效。')
 
     def _select_avatar(self, preset):
+        """选择内置头像并标记头像文件操作草稿，不立即覆盖旧头像。"""
         self._avatar_preset = normalize_avatar(preset)
         self._avatar_action = False
         self._profile_editor.portrait.set_portrait(self._avatar_preset)
         self._avatar_status.setText(f'{AVATAR_NOTES[self._avatar_preset]} 保存后生效。')
 
     def _clear_avatar(self):
+        """将草稿改为默认内置头像，取消仍保留原上传头像。"""
         self._profile_editor.picker.set_preset(DEFAULT_AVATAR)
         self._select_avatar(DEFAULT_AVATAR)
         self._avatar_status.setText('保存后恢复 Sariana 默认头像；取消保留原头像。')
@@ -720,19 +747,23 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
     # ---------- AI 草稿 ----------
 
     def _ai_config_values(self):
+        """捕获当前训练 AI 表单值为独立配置字典，密钥不用于展示日志。"""
         return dict(backend=self._ai_backend.currentData(), base_url=self._ai_url.text().strip(),
                     api_key=self._ai_key.text().strip(), model=self._ai_model.text().strip(),
                     **self._ai_thinking_controls.values())
 
     def _update_thinking_context(self, *_):
+        """把服务/模型草稿交思考控件计算协议能力提示。"""
         self._ai_thinking_controls.set_context(self._ai_config_values())
 
     def _ai_test_mode_changed(self, enabled):
+        """展示仅本次运行的开发者资格状态，不能持久化为免费权限。"""
         self._ai_feedback(True, '开发者彩蛋已开启：本次运行提前解锁 AI 测试，仍消耗 API token。'
                           if enabled else '开发者彩蛋已关闭：恢复等级与训练券规则。')
         QTimer.singleShot(0, self._reveal_ai_result)
 
     def _ai_placeholder(self):
+        """根据服务切换字段/默认提示，并同步必要的地址校验和高度。"""
         self._update_thinking_context()
         backend = self._ai_backend.currentData()
         url, key = _AI_PLACEHOLDERS.get(backend, ('', ''))
@@ -766,6 +797,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         return error
 
     def _ai_test(self):
+        """使用未保存配置快照启动短后台连接测试，不保存草稿。"""
         if self._test_job is not None:
             return
         config = self._ai_config_values()
@@ -785,6 +817,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         job.start()
 
     def _ai_test_done(self, ok, message):
+        """接收测试结果，关闭或草稿已变更时不当作当前配置成功。"""
         self._test_job = None
         if self._closed:
             return
@@ -796,21 +829,25 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         QTimer.singleShot(0, self._reveal_ai_result)
 
     def _reveal_ai_result(self):
+        """仅 AI 分区且窗口有效时滚动到测试反馈位置。"""
         if not self._closed and self._pages.currentIndex() == 3:
             self._pages.currentWidget().ensureWidgetVisible(self._ai_result, 0, 12)
 
     def _set_result(self, ok, message):
+        """设置安全可见结果文本和成功/错误文字角色，再刷新样式。"""
         self._ai_result.setText(message)
         self._ai_result.setProperty('textRole', 'paperSuccess' if ok else 'paperDanger')
         self._ai_result.style().unpolish(self._ai_result)
         self._ai_result.style().polish(self._ai_result)
 
     def _ai_feedback(self, ok, message):
+        """统一转入模型连接反馈展示，避免各回调重复拼样式。"""
         self._set_result(ok, message)
 
     # ---------- 主题草稿 ----------
 
     def _reload_themes(self):
+        """刷新可选主题并保留草稿选项，待删除主题暂不显示。"""
         selected = self._theme_combo.currentData() or self._original_theme
         self._theme_combo.blockSignals(True)
         self._theme_combo.clear()
@@ -822,12 +859,14 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         self._update_delete_button()
 
     def _update_delete_button(self):
+        """仅允许删除自有主题，内置主题保持不可删。"""
         if self._delete_btn is None:
             return
         theme = self._theme_mgr.get(self._theme_combo.currentData())
         self._delete_btn.setEnabled(bool(theme and not theme['_builtin']))
 
     def _apply_theme(self, *_):
+        """只预览当前选择主题而不保存，取消会恢复原主题。"""
         theme = self._theme_combo.currentData()
         if theme:
             self._theme_mgr.apply(theme, persist=False)
@@ -835,6 +874,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
             self._update_delete_button()
 
     def _import_theme(self):
+        """选择本机 ZIP 并调用受校验主题导入，成功后刷新草稿列表。"""
         path, _ = QFileDialog.getOpenFileName(self, '选择主题包', '', '主题包 (*.zip)')
         if not path:
             return
@@ -844,6 +884,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
             self._reload_themes()
 
     def _delete_theme(self):
+        """经确认记录待删除主题，真正删除仅在设置提交成功后执行。"""
         theme = self._theme_mgr.get(self._theme_combo.currentData())
         if not theme or theme['_builtin']:
             return
@@ -854,6 +895,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         self._apply_theme()
 
     def _export(self):
+        """选择目标目录后异步导出已保存数据，展示实际完成或失败结果。"""
         output = QFileDialog.getExistingDirectory(self, '选择导出目录')
         if not output:
             return
@@ -870,6 +912,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
     # ---------- 提交与取消 ----------
 
     def accept(self):
+        """校验并冻结草稿后异步原子保存，保存成功前不接受关闭或应用待删除主题。"""
         if self._saving:
             return
         config = self._ai_config_values()
@@ -902,11 +945,13 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         self._tasks.resolve(result,lambda _:self._saved(values),self._save_failed)
 
     def _save_failed(self,error):
+        """恢复保存资格并保留全部设置/头像草稿，显示可重试错误。"""
         self._saving=False
         self._save_error.setText('设置未保存，请检查数据目录是否可写后重试。草稿仍保留。')
         self._save_error.setVisible(True)
 
     def _saved(self,values):
+        """提交成功后执行待删除主题和最终主题应用，再接受对话框。"""
         self._saving=False
         if self._theme_mgr:
             for theme_id in self._pending_deletions:
@@ -916,6 +961,7 @@ QFrame#settingsPaper QPushButton[buttonRole="secondary"]:focus {{
         super().accept()
 
     def reject(self):
+        """保存期间拒绝取消；其他情况下关闭并恢复原主题，不提交草稿。"""
         if self._saving:
             return
         self._closed = True

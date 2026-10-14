@@ -18,10 +18,12 @@ class _WashPaper(PaperSurface):
     """保留纸纹，以薄色罩染区分两张纸，不给业务控件加滤镜。"""
 
     def __init__(self, rose=False, parent=None):
+        """建立AI 训练话题输入组件的依赖与初始状态。"""
         self.rose = rose
         super().__init__(parent)
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制AI 训练话题输入的可见内容，不在绘制回调执行业务提交。"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect()).adjusted(0, 0, -3, -4)
@@ -42,6 +44,7 @@ class _PaperPair(QWidget):
     """纸张背衬和一段胶带；装饰不拦截输入。"""
 
     def __init__(self, parent=None):
+        """建立AI 训练话题输入组件的依赖与初始状态。"""
         super().__init__(parent)
         self.left_paper = _WashPaper(parent=self)
         self.right_paper = _WashPaper(rose=True, parent=self)
@@ -57,9 +60,11 @@ class _PaperPair(QWidget):
         self.row.addWidget(right_wrap, 3)
 
     def set_compact(self, compact):
+        """更新AI 训练话题输入的紧凑布局、间距和尺寸约束。"""
         self.set_stage_layout(StageLayout(900, 526) if compact else StageLayout(1440, 874))
 
     def set_stage_layout(self, stage):
+        """将响应式模型同步给装饰纸面尺寸，保留原表单控件。"""
         self.row.setSpacing(stage.blend(12, 24))
         self.right_layout.setContentsMargins(0, stage.blend(26, 58), 0, 0)
         self.row.setContentsMargins(stage.blend(8, 12), stage.blend(10, 14),
@@ -67,6 +72,7 @@ class _PaperPair(QWidget):
         self.update()
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制AI 训练话题输入的可见内容，不在绘制回调执行业务提交。"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         paper = QRectF(self.left_paper.geometry())
@@ -93,11 +99,13 @@ class _PaperPair(QWidget):
 
 
 class AIPassageComposer(QWidget):
+    """AI 训练主题/语言草稿与生成状态面板，动作通过信号交业务页面处理。"""
     generate_requested = Signal()
     back_requested = Signal()
     settings_requested = Signal()
 
     def __init__(self, parent=None):
+        """建立AI 训练话题输入组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setObjectName('aiPassageComposer')
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
@@ -180,29 +188,35 @@ class AIPassageComposer(QWidget):
         self.apply_theme()
 
     def _choose_topic(self, topic):
+        """输入可用时用示例主题预填并聚焦，不自动生成。"""
         if self.topic_edit.isEnabled():
             self.topic_edit.setText(topic)
             self.topic_edit.setFocus()
 
     def _sync_examples(self, enabled):
+        """同步示例按钮资格，生成期间不能改动请求主题。"""
         for button in self.example_buttons:
             button.setEnabled(enabled)
 
     def set_status(self, text, kind=''):
+        """设置生成状态文字和状态类别，再更新对比色。"""
         self._status_kind = kind
         self.status_label.setText(text)
         self._style_status()
 
     def _style_status(self):
+        """按成功/错误/普通状态设置反馈颜色。"""
         color = {'error': P.danger_on_paper, 'success': P.success_on_paper}.get(self._status_kind, P.paper_text)
         self.status_label.setStyleSheet(f'background:transparent; color:{color}; font-size:14px;')
 
     def eventFilter(self, obj, event):
+        """主题输入启用状态变化时同步示例操作，不绕过原事件处理。"""
         if obj is self.topic_edit and event.type() == QEvent.EnabledChange:
             self._sync_examples(self.topic_edit.isEnabled())
         return super().eventFilter(obj, event)
 
     def set_compact(self, compact):
+        """更新AI 训练话题输入的紧凑布局、间距和尺寸约束。"""
         self._compact = bool(compact)
         stage = self._stage or (StageLayout(900, 526) if compact else StageLayout(1440, 874))
         self._papers.set_stage_layout(stage)
@@ -228,11 +242,13 @@ class AIPassageComposer(QWidget):
         self.updateGeometry()
 
     def set_stage_layout(self, stage):
+        """响应式模型改变时同步开放度/紧凑布局，不清除话题草稿。"""
         if self._stage != stage:
             self._stage = stage
             self.set_compact(stage.compact)
 
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到AI 训练话题输入，保持现有业务状态。"""
         self.usage_label.apply_theme()
         ink = P.paper_text
         muted = P.paper_muted

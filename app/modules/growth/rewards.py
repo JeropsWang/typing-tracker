@@ -6,22 +6,27 @@ from datetime import datetime, timedelta
 
 
 class RewardService:
+    """成长库存与加成的业务能力，在调用方统一事务内消费奖励和修改加成期限。"""
     def __init__(self, repo, balance):
+        """装配成长仓储能力和奖励配置。"""
         self._repo = repo
         self._balance = balance
 
     # ---------- 库存 ----------
     def count(self, kind) -> int:
+        """汇总指定类型未使用库存的数量，不能只数记录行。"""
         return sum(r['qty'] for r in self._repo.list_rewards(unused_only=True)
                    if r['kind'] == kind)
 
     def titles(self) -> list:
+        """取得未使用称号奖励中的有效名称，供用户选择展示。"""
         return [r['note'] for r in self._repo.list_rewards(unused_only=True)
                 if r['kind'] == 'title' and r['note']]
 
     # ---------- 经验加成卡 ----------
     @transactional
     def activate_exp_boost(self, minutes=30):
+        """设置分钟级经验加成期限，已有更长加成不被新短期限缩短。"""
         until = datetime.now() + timedelta(minutes=minutes)
         # 已有生效中的加成时不缩短剩余时长（曾直接覆盖，前卡余时作废，
         # v0.8.9 修复）
@@ -37,6 +42,7 @@ class RewardService:
         return until
 
     def boost_active(self) -> bool:
+        """解析加成截止墙上时间并判断是否仍有效，损坏设置视为关闭。"""
         raw = self._repo.get_setting('exp_boost_until')
         if not raw:
             return False

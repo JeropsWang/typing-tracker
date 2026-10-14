@@ -17,7 +17,9 @@ from ..palette import P
 
 
 class TitleBar(QFrame):
+    """无边框主窗口的原生标题/系统操作入口，支持拖动但不通过双击突破固定尺寸。"""
     def __init__(self, window, title: str, parent=None):
+        """建立无边框窗口标题与操作组件的依赖与初始状态。"""
         super().__init__(parent)
         self._window = window
         self._drag_offset = None
@@ -46,6 +48,7 @@ class TitleBar(QFrame):
 
     # ---------- 控制按钮 ----------
     def _ctrl_btn(self, icon_name: str, tip: str) -> QPushButton:
+        """创建有无障碍名称的标题栏图标按钮，具体系统动作由调用方连接。"""
         btn = QPushButton(self)
         btn.setIcon(svg_icon(icon_name, P.surface_muted, 14))
         btn.setFixedSize(34, 30)
@@ -65,6 +68,7 @@ class TitleBar(QFrame):
 
     # ---------- 主题 ----------
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到无边框窗口标题与操作，保持现有业务状态。"""
         radius = getattr(self, '_corner_radius', 16)
         if P.dark:
             # 夜色手稿：标题栏与画布**完全同色**，无描边（配方第 108 行）
@@ -102,22 +106,26 @@ class TitleBar(QFrame):
 
     # ---------- 拖动 ----------
     def mousePressEvent(self, event: QMouseEvent):
+        """记录左键相对窗口左上角的拖动偏移。"""
         if event.button() == Qt.LeftButton:
             self._drag_offset = (event.globalPosition().toPoint()
                                  - self._window.frameGeometry().topLeft())
             event.accept()
 
     def mouseMoveEvent(self, event: QMouseEvent):
+        """非最大化且左键拖动时按全球坐标移动主窗口。"""
         if self._drag_offset is not None and event.buttons() & Qt.LeftButton:
             if not self._window.isMaximized():
                 self._window.move(event.globalPosition().toPoint() - self._drag_offset)
             event.accept()
 
     def mouseReleaseEvent(self, event: QMouseEvent):
+        """释放标题栏拖动偏移，继续原生事件处理。"""
         self._drag_offset = None
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent):
+        """拦截左键双击放大，保持项目固定窗口策略。"""
         if event.button() == Qt.LeftButton:
             event.accept()
             return

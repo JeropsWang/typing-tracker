@@ -8,7 +8,9 @@ from ..tracking.api import AppCalendar, SystemClock
 
 
 class CheckinService:
+    """按应用日执行打卡、昨天补签和一次性连签里程碑的成长服务。"""
     def __init__(self, repo, balance, clock=None):
+        """装配仓储、打卡配置和可注入时钟，便于隔离日切测试。"""
         self._repo = repo
         self._balance = balance
         self.clock = clock or SystemClock()
@@ -68,6 +70,7 @@ class CheckinService:
         return streak
 
     def _load_milestone_grants(self) -> list:
+        """读取已发里程碑清单，缺失/损坏设置时返回空列表。"""
         raw = self._repo.get_setting('milestone_granted')
         if not raw:
             return []

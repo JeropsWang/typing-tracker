@@ -5,6 +5,7 @@ INTERVALS = (1, 3, 7, 14, 30)
 
 
 def next_schedule(previous, *, day, independent, due_review=False, retest=False):
+    """用显式应用日和独立作答/复测状态更新间隔排期，避免额外练习重复晋级或缩短未来期限。"""
     today = date.fromisoformat(day)
     previous = previous or {}
     stage = int(previous.get('stage', 0))
@@ -24,6 +25,7 @@ def next_schedule(previous, *, day, independent, due_review=False, retest=False)
 
 
 def review_plan(rows, deck, day):
+    """筛选指定词库排期，按到期日/词键返回到期词及最近未来日期。"""
     relevant = sorted((dict(r) for r in rows if r['deck'] == deck),
                       key=lambda r: (r['due_day'], r['word']))
     due = [r['word'] for r in relevant if r['due_day'] <= day]

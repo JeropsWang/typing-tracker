@@ -1,3 +1,5 @@
+# 源码回归流程：在 Windows 锁定运行依赖，检查架构、隔离测试与应用自检。
+# 仅有仓库读取权限，不执行发布；本地验工须同样使用隔离数据和模拟 AI 响应。
 name: Regression tests
 on:
   pull_request:
@@ -31,8 +33,10 @@ jobs:
       - name: Install pinned runtime and test dependencies
         run: python -m pip install -r requirements-release.txt
       - name: Check module import boundaries
+        # 静态导入边界检查先于运行测试，防止 UI SQL 与跨模块内部依赖进入生产代码。
         run: python -B scripts/check_architecture.py
       - name: Run isolated regression tests
+        # 离屏平台用于自动 Qt 回归，不能替代真实 Windows IME/DPI 人工体验。
         run: python -B -m unittest discover -s scripts -p 'test_*.py' -v
       - name: Run application self-test
         run: python -B scripts/selftest.py

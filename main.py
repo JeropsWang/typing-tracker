@@ -39,16 +39,19 @@ DEFAULT_DATA_DIR = Path.home() / 'AppData' / 'Roaming' / 'TypingTracker'
 
 
 def load_balance() -> dict:
+    """从安装/源码资源目录读取业务计数、等级与奖励配置。"""
     p = Path(__file__).resolve().parent / 'config' / 'balance.json'
     return json.loads(p.read_text(encoding='utf-8'))
 
 
 def load_achievements() -> dict:
+    """读取内置成就定义，规则由成长服务负责执行。"""
     p = Path(__file__).resolve().parent / 'config' / 'achievements.json'
     return json.loads(p.read_text(encoding='utf-8'))
 
 
 def default_settings(balance) -> dict:
+    """生成首次使用的默认设置字典，不覆盖用户已保存配置。"""
     return {
         'unit_name': balance['unit']['name'],
         'day_start_hour': str(balance['day_start_hour']),
@@ -69,6 +72,7 @@ def default_settings(balance) -> dict:
 
 
 def ensure_default_settings(repo,balance):
+    """兼容入口仅为缺失键写默认值，既有配置保留。"""
     for key,value in default_settings(balance).items():
         if repo.get_setting(key) is None:
             repo.set_setting(key,value)
@@ -86,15 +90,21 @@ def apply_window_icon(app: QApplication) -> None:
 
 
 def main() -> int:
+    """解析运行模式，建立单实例/工作线程/窗口/输入采集与托盘生命周期；自检不打开用户数据。"""
     parser = argparse.ArgumentParser(prog=APP_NAME, description=APP_TAGLINE)
     parser.add_argument('--data-dir', default=str(DEFAULT_DATA_DIR),
                         help='数据目录（默认 %%APPDATA%%/TypingTracker）')
     parser.add_argument('--run-update-installer', help=argparse.SUPPRESS)
+    parser.add_argument('--companion-agent-selfcheck', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--update-parent-pid', type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument('--update-sha256', default='', help=argparse.SUPPRESS)
     parser.add_argument('--update-size', type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument('--update-authorization', default='', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.companion_agent_selfcheck:
+        from app.integrations.companion_agent.probe import selfcheck
+        print(json.dumps(selfcheck()))
+        return 0
     if args.run_update_installer:
         try:
             return run_installer_helper(args)
@@ -135,6 +145,7 @@ def main() -> int:
     get_setting=repo.get_setting
 
     def notify(title: str, msg: str):
+        """把启动阶段可见通知写到控制台，不包含输入正文或凭据。"""
         print(f'[{title}] {msg}')
 
     # 每天首次启动自动打卡
@@ -172,12 +183,14 @@ def main() -> int:
     tray.quit_requested.connect(lambda:app.quit() if not update_state['in_progress'] else None)
 
     def toast(title: str, msg: str, kind: str = 'star'):
+        """统一发布窗口和托盘业务提示，调用前业务必须已提交成功。"""
         print(f'[{title}] {msg}')
         window.notify(title, msg, kind)
         tray.showMessage(title, msg, QSystemTrayIcon.Information, 4000)
 
     notified_versions = set()
     def notify_update():
+        """每个较新正式版本本次运行仅提示一次，不自动安装。"""
         release = updates.release
         if release is not None and release.version not in notified_versions:
             notified_versions.add(release.version)
@@ -224,6 +237,7 @@ def main() -> int:
     # 窗口不可见而丢弃），统一在 window.show() 后补发
 
     def on_flush():
+        """定时请求应用异步保存统计检查点，无脏版本不产生写入。"""
         application.flush()
 
     flush_timer = QTimer()
@@ -236,17 +250,20 @@ def main() -> int:
                   'exp': '经验', 'ai_pass': 'AI 训练券'}
 
     def on_roll():
+        """核对应用日切后刷新学习到期状态，异步处理打卡/鼓励并等待提交结果。"""
         if window._english_page.isVisible():
             window._english_page.refresh()
         if engine.check_rollover():
             application.flush()
             def checked(result):
+                """打卡提交成功后展示实际经验/连签及里程碑反馈。"""
                 if result:
                     toast('打卡',f"{result['date']} 连签 {result['streak']} 天，+{result['total_exp']} exp",
                           'milestone' if result.get('milestone') else 'star')
                     window.show_checkin_popup(result)
             window._tasks.resolve(checkin.checkin_if_needed(engine.current_day()),checked)
             def encouraged(event):
+                """收到已提交鼓励奖励后展示规则计算的变化比例和实际奖励。"""
                 if event:
                     kind,qty=event['reward']
                     toast('鼓励',f"速度跃升 {event['ratio']:.0%}！奖励 {_REWARD_CN.get(kind,kind)}×{qty}",'encourage')
@@ -256,6 +273,7 @@ def main() -> int:
     roll_timer.start(30_000)
 
     def resume_after_update_error(error):
+        """更新交接失败时恢复输入采集和界面准入；数据库已关闭则不能假装恢复运行。"""
         nonlocal hook,tsf
         if application._closed:
             QMessageBox.warning(window,'更新未开始',f'统计已保存，但安装准备失败：{error}\n请重新打开应用后重试。')
@@ -270,6 +288,7 @@ def main() -> int:
         roll_timer.start(30_000)
         excluded=window.load_excluded_apps()
         def restart_input():
+            """在后台重新启动键盘/TSF 采集器，使用已提交排除快照。"""
             new_hook=new_tsf=None
             if KeyboardHook is not None:
                 new_hook=KeyboardHook(on_char=engine.handle_char,on_delete=engine.handle_delete,on_ime=engine.handle_ime)
@@ -284,17 +303,20 @@ def main() -> int:
                     pass
             return new_hook,new_tsf
         def restarted(result):
+            """把已重建采集器交回主窗口，再恢复更新相关操作资格。"""
             nonlocal hook,tsf
             hook,tsf=result
             window.set_hook(hook)
             window.set_hook_status(hook is not None and hook._hook is not None)
             restore_update_controls()
         def restore_update_controls():
+            """清除更新交接忙碌标记，恢复窗口/托盘/检查操作。"""
             update_state['in_progress']=False
             window.setEnabled(True)
             tray.contextMenu().setEnabled(True)
             updates.set_paused(False)
         def restart_failed(exc):
+            """采集恢复失败时明确显示未运行，仍恢复可供用户处理的界面。"""
             window.set_hook_status(False)
             restore_update_controls()
         window._tasks.resolve(background(restart_input),restarted,
@@ -302,12 +324,14 @@ def main() -> int:
         QMessageBox.warning(window,'更新未开始',updates.status)
 
     def stop_update_input():
+        """停止 TSF 与键盘采集，确保最终检查点之后不再接收新输入。"""
         if tsf is not None:
             tsf.stop()
         if hook is not None:
             hook.stop()
 
     def update_closed():
+        """更新最终关闭后停止展示/检查、释放单实例锁并退出 Qt 循环。"""
         if window._companion is not None:
             window._companion.shutdown()
         updates.shutdown()
@@ -319,6 +343,7 @@ def main() -> int:
         update_closed,resume_after_update_error,window)
 
     def request_update_install(installer):
+        """拦截在途保存，确认未完成学习取舍后暂停 UI/采集并启动安全更新退出协调。"""
         if update_state['in_progress']:
             return
         saving,unfinished=update_exit_status(window)
@@ -345,6 +370,7 @@ def main() -> int:
     updates.install_requested.connect(request_update_install)
 
     def cleanup():
+        """真实退出时停止新命令/采集/网络回传，等待最终统计提交再释放数据库。"""
         updates.shutdown()
         if application._closed:
             return

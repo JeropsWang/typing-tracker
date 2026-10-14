@@ -5,7 +5,9 @@ from test_ui_workflow import UIFixture, APP
 
 
 class WorkshopTests(UIFixture):
+    """作品草稿、保存、预览和应用的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def workshop(self):
+        """装配隔离作品存储与工坊窗口，预览不连接用户数据。"""
         from app.ui.companion.controller import CompanionController
         from app.ui.companion.workshop import Workshop
         window = self.window()
@@ -18,6 +20,7 @@ class WorkshopTests(UIFixture):
         return controller, workshop
 
     def test_builtin_copy_save_and_apply_are_separate(self):
+        """验证复制、保存作品与实际应用为独立步骤。"""
         controller, workshop = self.workshop()
         workshop.load_pack('starlight')
         workshop.copy_draft()
@@ -33,6 +36,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(self.repo.get_setting('companion_pack'), pack.id)
 
     def test_cancel_draft_and_invalid_save_leave_original_intact(self):
+        """验证取消草稿或非法保存不会破坏原作品。"""
         controller, workshop = self.workshop()
         workshop.copy_draft()
         workshop.name_edit.setText('未保存的作品')
@@ -46,6 +50,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(controller.pack.id, 'starlight')
 
     def test_write_failure_keeps_draft_and_previous_saved_creation(self):
+        """验证作品写入失败保留草稿与先前保存版本。"""
         controller, workshop = self.workshop()
         workshop.copy_draft()
         saved = workshop.save_draft()
@@ -56,6 +61,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(controller.store.load(saved.id).manifest['name'], saved.manifest['name'])
 
     def test_replacement_asset_and_meme_edits_persist(self):
+        """验证替换素材及表情话术修改在保存后仍保留。"""
         controller, workshop = self.workshop()
         workshop.copy_draft()
         workshop.import_asset(controller.pack.asset_for('idle').path)
@@ -69,6 +75,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(pack.manifest['memes'][-1]['lines'], ['这是我自己的表情包'])
 
     def test_preview_never_changes_real_statistics(self):
+        """验证工坊预览和模拟事件不改变真实统计。"""
         controller, workshop = self.workshop()
         before = self.repo.get_exp(), self.repo.get_lifetime()
         workshop.preview.simulate('record')
@@ -76,6 +83,7 @@ class WorkshopTests(UIFixture):
         self.assertIn('示例数据', workshop.preview.note.text())
 
     def test_resizing_restores_all_wide_panels(self):
+        """验证工坊由窄转宽后恢复全部并列面板。"""
         controller, workshop = self.workshop()
         workshop.resize(820, 650)
         APP.processEvents()
@@ -87,6 +95,7 @@ class WorkshopTests(UIFixture):
         self.assertTrue(workshop.wide.isVisible())
 
     def test_builtin_can_preview_states_without_editing(self):
+        """验证只读内置作品可以预览状态而不能编辑。"""
         controller, workshop = self.workshop()
         self.assertTrue(workshop.editor.selection.isEnabled())
         workshop.editor.selection.setCurrentIndex(4)
@@ -95,6 +104,7 @@ class WorkshopTests(UIFixture):
         self.assertFalse(workshop.editor.replace.isEnabled())
 
     def test_saved_but_unapplied_revision_stays_unapplied_after_restart(self):
+        """验证只保存未应用的作品版本，重启后不会被自动应用。"""
         controller, workshop = self.workshop()
         workshop.copy_draft()
         workshop.name_edit.setText('已应用版本 A')
@@ -112,6 +122,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(third.pack.manifest['name'], '仅保存版本 B')
 
     def test_state_buttons_and_preview_keep_each_dialogue_draft(self):
+        """验证状态按钮/预览切换保存各条目独立话术草稿。"""
         controller, workshop = self.workshop()
         workshop.copy_draft()
         workshop.editor.state_buttons['shy'].click()
@@ -129,6 +140,7 @@ class WorkshopTests(UIFixture):
         self.assertEqual(controller.pack.id, 'starlight')
 
     def test_thumbnail_updates_after_replacing_its_state_asset(self):
+        """验证状态素材替换后缩略图使用新图，不残留旧缓存。"""
         from PySide6.QtGui import QImage, QColor
         controller, workshop = self.workshop()
         workshop.copy_draft()

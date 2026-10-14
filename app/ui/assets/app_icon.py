@@ -33,6 +33,7 @@ APP_ICON_PNG = ASSETS / 'app_icon.png'
 
 
 def _star_path(cx: float, cy: float, R: float, r: float) -> QPainterPath:
+    """生成品牌图标装饰星形路径，供交付图标缺失时的原生绘制回退。"""
     path = QPainterPath()
     for i in range(10):
         ang = math.pi / 5 * i - math.pi / 2

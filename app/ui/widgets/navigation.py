@@ -36,6 +36,7 @@ class NavButton(QPushButton):
     """图标与文字同排；选中用底色、字重和下划线表达，保持键盘操作。"""
 
     def __init__(self, title, icon_name, parent=None, *, compact: bool = False):
+        """建立导航入口与摘要组件的依赖与初始状态。"""
         super().__init__(title, parent)
         self.icon_name = icon_name
         self.setProperty('navItem', True)
@@ -54,10 +55,12 @@ class NavButton(QPushButton):
         self.toggled.connect(lambda checked: self._selection_motion.animate_to(float(checked)))
 
     def set_motion_enabled(self, enabled):
+        """同步悬停和选中态动画资格，禁用时采用静态终值。"""
         self._hover_motion.set_enabled(enabled)
         self._selection_motion.set_enabled(enabled)
 
     def _icon_size(self) -> int:
+        """按导航开放度计算有界图标大小。"""
         return bounded(29 + 13 * getattr(self, '_density', float(not self._compact)), 29, 42)
 
     def _icon_opacity(self, checked: bool) -> float:
@@ -73,6 +76,7 @@ class NavButton(QPushButton):
         return 0.85 if not is_dark_surface(P.surface) else 0.70
 
     def _sync_icon(self, checked: bool) -> None:
+        """按选中态、尺寸和 DPI 缓存键更新图标，键未变时不重复生成资源。"""
         size = self._icon_size()
         key = (size, self._icon_opacity(checked), self.devicePixelRatioF())
         if key == getattr(self, '_icon_key', None):
@@ -85,13 +89,16 @@ class NavButton(QPushButton):
         self.update()
 
     def set_scale(self, scale: float) -> None:
+        """把旧缩放参数转换为有界开放度，复用密度布局。"""
         self.set_density(max(0.0, min(1.0, (scale - SCALE_MIN) / (1 - SCALE_MIN))))
 
     def set_compact(self, compact: bool) -> None:
+        """更新导航入口与摘要的紧凑布局、间距和尺寸约束。"""
         self._compact = bool(compact)
         self.set_density(float(not compact))
 
     def set_density(self, openness):
+        """限制开放度并同步图标、留白、间距和按钮最小尺寸。"""
         self._density = max(0.0, min(1.0, openness))
         icon = self._icon_size()
         pad = bounded(10 + 4 * self._density, 10, 14)
@@ -108,12 +115,14 @@ class NavButton(QPushButton):
 
     # ---------- 悬停 ----------
     def enterEvent(self, event):
+        """进入导航项时触发悬停过渡并保留原按钮事件。"""
         self._hover = True
         self._hover_motion.animate_to(1)
         self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
+        """离开导航项时恢复普通悬停状态。"""
         self._hover = False
         self._hover_motion.animate_to(0)
         self.update()
@@ -121,6 +130,7 @@ class NavButton(QPushButton):
 
     def paintEvent(self, event):
         # 不调用 super()：底栏外观完全由这里决定（QSS 只负责焦点轮廓）
+        """在 Qt 主线程按当前状态绘制导航入口与摘要的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect())
@@ -177,6 +187,7 @@ class NavigationSummary(QWidget):
     """逐步展开用户摘要；空间不足时省略文字，避免挤压导航入口。"""
 
     def __init__(self, parent=None):
+        """建立导航入口与摘要组件的依赖与初始状态。"""
         super().__init__(parent)
         self.name = '打字新星'
         self.detail = ''
@@ -184,12 +195,14 @@ class NavigationSummary(QWidget):
         self._icon_key = None
 
     def set_summary(self, name, detail, icon_name):
+        """更新导航辅助摘要及无障碍提示，不执行导航或业务提交。"""
         self.name, self.detail, self.icon_name = name, detail, icon_name
         self.setAccessibleName(f'{name}，{detail}')
         self.setToolTip(f'{name} · {detail}')
         self.update()
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制导航入口与摘要的可见内容，不在绘制回调执行业务提交。"""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setClipRect(self.rect())
@@ -230,6 +243,7 @@ class BottomNav(QWidget):
     selected = Signal(str)
 
     def __init__(self, parent=None, *, compact: bool = False):
+        """建立导航入口与摘要组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setObjectName('bottomNav')
         self.setMaximumWidth(NavigationLayout.MAX_WIDTH)
@@ -249,6 +263,7 @@ class BottomNav(QWidget):
         self.set_compact(compact)
 
     def add_item(self, title: str, icon_name: str, *, enabled: bool = True) -> NavButton:
+        """添加带稳定标题的导航入口，点击仅发布页面选择信号。"""
         button = NavButton(title, icon_name, self, compact=self._compact)
         button.setEnabled(enabled)
         button.clicked.connect(lambda _=False, name=title: self.selected.emit(name))
@@ -263,15 +278,18 @@ class BottomNav(QWidget):
         self._sync_summary_visibility()
 
     def _sync_summary_visibility(self) -> None:
+        """依据可用余量和摘要内容决定是否显示辅助摘要。"""
         self._summary.setVisible(bool(getattr(self, '_show_summary', not self._compact))
                                  and bool(self._summary.name))
 
     def set_compact(self, compact: bool) -> None:
+        """更新导航入口与摘要的紧凑布局、间距和尺寸约束。"""
         self._compact = bool(compact)
         self._density = float(not compact)
         self._apply_metrics()
 
     def set_stage_layout(self, stage):
+        """接收页面响应式模型并更新导航紧凑度/密度。"""
         self._compact = stage.compact
         self._density = stage.openness
         self._apply_metrics()
@@ -293,15 +311,18 @@ class BottomNav(QWidget):
         self._sync_summary_visibility()
 
     def resizeEvent(self, event):
+        """导航宽度改变后重新分配入口与摘要空间。"""
         self._apply_metrics()
         super().resizeEvent(event)
 
     def set_current(self, title: str) -> None:
+        """按标题同步选中按钮，不重新创建页面。"""
         button = self.buttons.get(title)
         if button is not None and not button.isChecked():
             button.setChecked(True)
 
     def set_motion_enabled(self, enabled):
+        """把统一动效资格传给全部导航入口。"""
         for button in self.buttons.values():
             button.set_motion_enabled(enabled)
 
@@ -310,6 +331,7 @@ class NavigationDock(QWidget):
     """窗口中的导航槽：居中停靠、外边距和宽度上限由组件统一负责。"""
 
     def __init__(self, navigation, parent=None):
+        """建立导航入口与摘要组件的依赖与初始状态。"""
         super().__init__(parent)
         self.navigation = navigation
         self._compact = False
@@ -322,18 +344,21 @@ class NavigationDock(QWidget):
         self.set_compact(False)
 
     def set_compact(self, compact):
+        """更新导航入口与摘要的紧凑布局、间距和尺寸约束。"""
         self._stage = None
         self._compact = bool(compact)
         self.navigation.set_compact(compact)
         self._apply_width()
 
     def set_stage_layout(self, stage):
+        """同步底座与导航的响应式模型，再计算容器宽高。"""
         self._stage = stage
         self._compact = stage.compact
         self.navigation.set_stage_layout(stage)
         self._apply_width()
 
     def _apply_width(self):
+        """按窗口余量限制导航宽度和外留白，并同步底座高度。"""
         side = max(14, min(36, round(self.width() * .018)))
         bottom = self._stage.blend(10, 16) if self._stage else (10 if self._compact else 16)
         self._layout.setContentsMargins(side, 0, side, bottom)
@@ -342,5 +367,6 @@ class NavigationDock(QWidget):
         self.setFixedHeight(self.navigation.height() + bottom)
 
     def resizeEvent(self, event):
+        """底座尺寸变化时同步导航宽度与间距。"""
         self._apply_width()
         super().resizeEvent(event)

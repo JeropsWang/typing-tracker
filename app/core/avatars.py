@@ -8,4 +8,5 @@ AVATAR_PRESETS = (
 
 
 def normalize_avatar(value):
+    """将未知头像标识回退默认预设，用户设置仅保存稳定标识。"""
     return value if value in dict(AVATAR_PRESETS) else DEFAULT_AVATAR

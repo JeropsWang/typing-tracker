@@ -2,15 +2,19 @@
 from datetime import datetime
 
 class RewardLedger:
+    """加入调用方事务的成长结算器，按应用日高水位和日上限避免重复发奖。"""
     def __init__(self, repo, balance):
+        """装配统一会话和成长结算配置。"""
         self.repo, self.balance = repo, balance
 
     def _state(self, day):
+        """确保指定应用日成长状态行存在并返回结算基线副本。"""
         conn = self.repo._conn
         conn.execute('INSERT OR IGNORE INTO growth_daily(date) VALUES(?)', (day,))
         return dict(conn.execute('SELECT * FROM growth_daily WHERE date=?', (day,)).fetchone())
 
     def typing(self, day, valid_chars, now):
+        """按有效千字块增量结算打字经验，兼容旧基线、加成和日上限，返回实际发放量。"""
         state = self._state(day)
         cfg = self.balance.get('typing_exp', {})
         blocks = valid_chars // 1000
@@ -40,6 +44,7 @@ class RewardLedger:
         return grant
 
     def challenge(self, day, base):
+        """按单次基础成绩及当日已发上限结算挑战经验，同时更新当日/终身与旧状态键。"""
         state = self._state(day)
         cfg = self.balance.get('challenge_exp', {})
         if self.repo.get_setting('challenge_exp_date') == day:

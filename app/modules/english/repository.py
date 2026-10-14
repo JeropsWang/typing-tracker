@@ -7,6 +7,7 @@ from ..tracking.api import AppCalendar
 
 
 def ensure_schema(conn):
+    """为兼容独立英语数据库入口建立旧学习表结构，不改动正式迁移版本流程。"""
     _schema = '''
         CREATE TABLE IF NOT EXISTS english_attempts (
           id TEXT PRIMARY KEY, deck TEXT NOT NULL, word TEXT NOT NULL,
@@ -45,12 +46,15 @@ def migrate_review_schema(conn, day):
 
 
 class EnglishRepository:
+    """英语数据的工作线程 SQL 仓储，作答进度与排期共享 UnitOfWork 原子提交。"""
     def __init__(self, conn, uow=None):
+        """持有所属线程连接，并复用或创建统一事务协调者。"""
         from ...storage.unit_of_work import UnitOfWork
         self._conn = conn
         self.uow = uow or UnitOfWork(conn)
 
     def record_attempt(self, event):
+        """按作答 ID 幂等记录数值，原子更新独立正确统计、错词和应用日复习排期。"""
         if event['deck'] not in DECKS or event['mode'] not in ('spelling', 'sentence'):
             raise ValueError('练习记录类型无效。')
         correct, assisted = bool(event['correct']), bool(event['assisted'])
@@ -85,14 +89,17 @@ class EnglishRepository:
         return True
 
     def review_keys(self, deck):
+        """查询指定词库需要复习的规范单词键集合。"""
         return {r['word'] for r in self._conn.execute(
             'SELECT word FROM english_progress WHERE deck=? AND needs_review=1', (deck,))}
 
     def review_plan(self, deck, day):
+        """读取词库排期并交纯规则按指定应用日计算到期任务。"""
         return review_plan(self._conn.execute('SELECT * FROM english_review_schedule WHERE deck=?',
                                              (deck,)), deck, day)
 
     def summary(self, deck):
+        """汇总已训练词数、尝试、独立正确和错词数，无尝试时准确率为 None。"""
         row = self._conn.execute('''SELECT COUNT(*) AS trained,
             COALESCE(SUM(attempts),0) AS attempts,
             COALESCE(SUM(independent_correct),0) AS independent_correct,
@@ -103,6 +110,7 @@ class EnglishRepository:
         return result
 
     def save_sentences(self, deck, topic, words, sentences):
+        """保存经校验的主动造句材料，返回材料 ID，提交权留在外层事务。"""
         now = datetime.now().isoformat(timespec='seconds')
         cursor = self._conn.execute('INSERT INTO english_sentences '
             '(deck,topic,words_json,sentences_json,created_at) VALUES(?,?,?,?,?)',
@@ -111,6 +119,7 @@ class EnglishRepository:
         return cursor.lastrowid
 
     def sentence_history(self, deck, limit=20):
+        """读取有界造句历史并解码词/句 JSON，不暴露数据库行对象。"""
         rows = self._conn.execute('SELECT * FROM english_sentences WHERE deck=? '
             'ORDER BY id DESC LIMIT ?', (deck, max(1, min(100, int(limit))))).fetchall()
         result = []
@@ -122,6 +131,7 @@ class EnglishRepository:
         return result
 
     def export(self):
+        """导出英语尝试、进度、主动材料及复习排期的行字典。"""
         return {key: [dict(r) for r in self._conn.execute(f'SELECT * FROM {table}')]
                 for key, table in (('attempts', 'english_attempts'),
                                    ('progress', 'english_progress'), ('sentences', 'english_sentences'),

@@ -4,12 +4,14 @@ import unicodedata
 
 
 def _words(text):
+    """规范化 Unicode、大小写和引号，再提取用于一致评分/对齐的单词序列。"""
     text = unicodedata.normalize('NFKC', text).casefold().replace('’', "'").replace('‘', "'")
     return re.findall(r"[^\W_]+(?:['-][^\W_]+)*", text)
 
 
 def sentence_accuracy(answer, reference):
 
+    """按单词 Levenshtein 距离计算句子错误数和准确率，不使用普通训练逐字评分。"""
     typed, expected = _words(answer), _words(reference)
     previous = list(range(len(expected) + 1))
     for i, word in enumerate(typed, 1):

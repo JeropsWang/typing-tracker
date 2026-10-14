@@ -13,7 +13,9 @@ ET.register_namespace('', 'http://www.w3.org/2000/svg')
 
 
 class SketchStrand:
+    """手绘发丝的受控 SVG 曲线层，用连续相位模拟轻微摆动。"""
     def __init__(self, node):
+        """建立手绘头发层动效组件的依赖与初始状态。"""
         self.node = node
         segments = re.split(r'\s*C\s*', node.attrib['d'].strip())
         if not segments[0].startswith('M') or len(segments) < 2:
@@ -36,6 +38,7 @@ class SketchStrand:
 
     def update(self, elapsed):
         # 两个缓慢周期叠加，避免所有细线像钟摆一样同步。
+        """保持根部位置，以两段慢周期移动发梢并写回内存路径。"""
         sway = self.amplitude * (
             .78 * math.sin(elapsed * math.tau / self.period + self.phase)
             + .22 * math.sin(elapsed * math.tau / (self.period * 1.73) + self.phase * .7))
@@ -53,6 +56,7 @@ class SketchStrand:
 class SvgHairLayer:
     """加载可编辑 SVG；共享一个渲染器，保持原插画纹理和轮廓固定。"""
     def __init__(self, path: Path, size):
+        """建立手绘头发层动效组件的依赖与初始状态。"""
         self._root = ET.fromstring(path.read_bytes())
         if self._root.tag != '{http://www.w3.org/2000/svg}svg':
             raise ValueError('Strand asset requires an SVG root element')
@@ -69,6 +73,7 @@ class SvgHairLayer:
             raise ValueError('Strand asset cannot be rendered as SVG')
 
     def paint(self, painter, elapsed):
+        """更新内存发丝层并按秒级时间淡入，素材解析失败时保留静态图。"""
         for strand in self.strands:
             strand.update(elapsed)
         if not self._renderer.load(QByteArray(ET.tostring(self._root, encoding='utf-8'))):

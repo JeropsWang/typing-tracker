@@ -59,6 +59,7 @@ class _GenThread(QObject):
     finished = Signal()
 
     def __init__(self, ai_svc, topic, lang, length, parent=None, *, test_mode=False):
+        """建立普通训练与生成材料组件的依赖与初始状态。"""
         super().__init__(parent)
         # 构造发生在主线程：先读配置，run() 中的网络调用不再访问 SQLite。
         self.id = uuid.uuid4().hex
@@ -72,25 +73,31 @@ class _GenThread(QObject):
         self._thread = None
 
     def start(self):
+        """通过共享准入启动配置快照的材料生成，结果只经 Qt 信号回传。"""
         def deliver(result):
+            """将完整 AIResult 转为生成完成信号，不在网络线程操作控件。"""
             self.done.emit(result.ok,result.body if result.ok else '',result.error)
         begin_network(self,self._svc,
                       lambda:self._svc.generate(self._topic,self._lang,self._length),deliver)
 
     def cancel(self):
+        """使本次结果无效，网络真正结束前仍持有共享准入。"""
         cancel_network(self)
 
     def isRunning(self):
+        """判断所属后台传输线程是否仍活跃，供按钮忙碌资格使用。"""
         return self._thread is not None and self._thread.is_alive()
 
 
 class ChallengePage(QWidget):
+    """Qt 主线程普通训练/键盘侠/混乱模式协调页，生成与成绩写入异步，保存失败原结果重试。"""
     result_saved = Signal(dict)
     running_changed = Signal(bool)
     confetti_requested = Signal(int)    # 彩带庆祝（1=金色 2=多彩）
     settings_requested = Signal()
 
     def __init__(self, repo, balance, challenge_svc, ai_service=None, parent=None, *, test_session=None):
+        """建立普通训练与生成材料组件的依赖与初始状态。"""
         super().__init__(parent)
         self._presenter = PracticePresenter(repo,challenge_svc)
         self._tasks = TaskBridge(self)
@@ -301,6 +308,7 @@ class ChallengePage(QWidget):
 
     # ---------- 版式 ----------
     def _select_mode(self, mode):
+        """非保存/待重试期间切换训练模块，取消离开的生成任务并恢复相应只读展示。"""
         if self._presenter.state in (PracticeState.SAVING,PracticeState.SAVE_FAILED):
             return
         target = {'practice': self._page_scroll, 'keyboard': self.keyboard_panel,
@@ -319,17 +327,21 @@ class ChallengePage(QWidget):
             self._sync_controls()
 
     def _keyboard_running(self, running):
+        """聚合键盘侠和普通练习状态，通知全局/桌宠暂停装饰动效。"""
         self._keyboard_active = running
         self._running = self._practice_running or self._keyboard_active
         self.running_changed.emit(self._running)
 
     def _stage_layout(self):
+        """取得当前页面尺寸的统一响应式布局模型。"""
         return stage_layout_for(self)
 
     def _paper_width(self):
+        """从统一布局模型取得正文纸张目标宽度。"""
         return self._stage_layout().content_width
 
     def set_compact(self, compact):
+        """更新普通训练与生成材料的紧凑布局、间距和尺寸约束。"""
         self._compact = self._stage_layout().compact
         stage = self._stage_layout()
         self._root.setContentsMargins(stage.margin_x, stage.margin_top, stage.margin_x, 0)
@@ -353,14 +365,17 @@ class ChallengePage(QWidget):
         self._schedule_widths()
 
     def _sync_primary_size(self):
+        """强制同步训练工作区的尺寸和间距。"""
         self._paper.apply_layout(self._stage_layout(), force=True)
 
     def _apply_paper_height(self):
         # 纸张随可用高度增长，长范文保持内部滚动，避免整页被撑成巨长表单。
+        """按实际内容最小高度与响应式目标设置纸张，长正文留内部滚动。"""
         height = max(self._stage_layout().training_height, self._paper_layout.minimumSize().height())
         self._paper.setFixedHeight(height)
 
     def _apply_widths(self):
+        """同步训练纸张、结果/排行榜区域与 AI 话题纸张宽度。"""
         stage = self._stage_layout()
         self._paper.apply_layout(stage, force=True)
         self._paper_w = stage.content_width
@@ -380,6 +395,7 @@ class ChallengePage(QWidget):
         self._widths_pending = True
 
         def run():
+            """在 Qt 布局下一拍统一重算宽度和选择器几何，合并重复排版请求。"""
             self._widths_pending = False
             if getattr(self, '_paper', None) is None:
                 return
@@ -392,6 +408,7 @@ class ChallengePage(QWidget):
         QTimer.singleShot(0, run)
 
     def resizeEvent(self, event):
+        """更新紧凑布局并排队在折行完成后测量正文/纸张高度。"""
         if getattr(self, '_paper', None) is not None:
             self.set_compact(is_compact(self.width(), self.height()))
             # 宽度落到控件上之后文档才重新折行，纸张高度要等这一拍再量
@@ -415,6 +432,7 @@ class ChallengePage(QWidget):
         return super().eventFilter(obj, event)
 
     def _sync_secondary_height(self):
+        """按结果/历史是否展开计算副区高度，避免旧固定高度裁切内容。"""
         secondary = getattr(self, '_secondary', None)
         if secondary is None:
             return
@@ -448,6 +466,7 @@ class ChallengePage(QWidget):
         self._page_scroll.verticalScrollBar().setValue(0)
 
     def _sync_workspace_header(self):
+        """按话题区展开状态调整艺术字和留白，为真实模式选择控件预留空间。"""
         stage = self._stage_layout()
         expanded = (getattr(self, '_ai_section', None) is not None
                     and self._ai_section.toggle.isChecked())
@@ -460,6 +479,7 @@ class ChallengePage(QWidget):
 
     # ---------- 文本库 ----------
     def _reload_texts(self):
+        """合并内置与已保存 AI 材料，更新选择器后重置临时练习状态。"""
         self._texts = list(TEXTS)
         for row in self._presenter.list_ai_texts():
             self._texts.append({
@@ -476,6 +496,7 @@ class ChallengePage(QWidget):
         self._reset()
 
     def _current_text(self) -> str:
+        """取得当前材料纯文本，找不到选择时回退首条有效材料。"""
         tid = self._text_combo.currentData()
         for t in self._texts:
             if t['id'] == tid:
@@ -483,6 +504,7 @@ class ChallengePage(QWidget):
         return self._texts[0]['text']
 
     def _text_name(self, tid: str) -> str:
+        """把材料 ID 转为显示名称，未知 ID 保留其标识。"""
         for t in self._texts:
             if t['id'] == tid:
                 return t['name']
@@ -524,6 +546,7 @@ class ChallengePage(QWidget):
         self._sync_controls()
 
     def _ai_generate(self):
+        """资格允许时冻结话题/语言启动生成；已有待保存材料则只重试保存。"""
         if self._pending_material is not None:
             if not self._material_saving:
                 self._save_material()
@@ -562,6 +585,7 @@ class ChallengePage(QWidget):
         self._sync_controls()
 
     def _generation_finished(self):
+        """传输结束后释放请求对象展示引用，待保存材料仍单独保留。"""
         thread = self._gen_thread
         self._gen_thread = None
         if thread is not None and self._pending_material is None:
@@ -570,6 +594,7 @@ class ChallengePage(QWidget):
         self.update_ai_access()
 
     def _ai_done(self,ok,text,err):
+        """接收有效生成结果与用量，成功正文留给独立事务保存，不直接扣券。"""
         request=self._gen_thread
         if request is not None and not getattr(request,'_valid',True):
             finish_network_result(request)
@@ -586,6 +611,7 @@ class ChallengePage(QWidget):
         self._save_material()
 
     def _save_material(self):
+        """用原请求操作 ID 保存材料及资格消费，失败重试不再次生成。"""
         request,operation_id,lang,topic,text,test_mode=self._pending_material
         self._material_saving=True
         self._ai_btn.setEnabled(False)
@@ -598,11 +624,13 @@ class ChallengePage(QWidget):
         self._tasks.resolve(saved,self._material_saved,self._material_failed)
 
     def _material_failed(self,error):
+        """保留正文和请求身份，开放保存重试并显示错误。"""
         self._material_saving=False
         self._ai_composer.set_status(f'材料未保存，训练券未使用：{error}。点击生成按钮重试保存。','error')
         self._ai_btn.setEnabled(True)
 
     def _material_saved(self,_):
+        """材料已提交后更新范文库并结束结果租约，不再重复消费训练券。"""
         if self._pending_material is None:
             return
         request,operation_id,lang,topic,text,test_mode=self._pending_material
@@ -620,6 +648,7 @@ class ChallengePage(QWidget):
                 break
 
     def _cancel_generation(self):
+        """取消未接收生成或未受理材料结果，已在保存的事务按提交结果完成。"""
         request=self._gen_thread
         if request is not None:
             request.cancel()
@@ -631,11 +660,13 @@ class ChallengePage(QWidget):
             self._pending_material=None
 
     def hideEvent(self,event):
+        """离开页面时作废生成结果接收，保留原业务保存边界。"""
         self._cancel_generation()
         super().hideEvent(event)
 
     # ---------- 主题 ----------
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到普通训练与生成材料，保持现有业务状态。"""
         self.keyboard_panel.apply_theme()
         self.chaos_panel.apply_theme()
         # 设计稿里范文是纸面上的散文本行（无输入框描边/底色），不是控件方框：
@@ -682,6 +713,7 @@ class ChallengePage(QWidget):
         self._hint_label.setText(short if (self._compact and short) else text)
 
     def _busy(self):
+        """判断成绩写入或模型传输仍在途，限制互相冲突的操作。"""
         return self._presenter.state == PracticeState.SAVING or (self._gen_thread is not None and self._gen_thread.isRunning())
 
     def _sync_controls(self):
@@ -707,6 +739,7 @@ class ChallengePage(QWidget):
             section.toggle.setEnabled(not self._running)
 
     def _set_running(self, running):
+        """同步普通/键盘侠聚合练习状态、输入样式和按钮资格。"""
         self._practice_running = running
         self._running = self._practice_running or self._keyboard_active
         self._style_input()
@@ -716,6 +749,7 @@ class ChallengePage(QWidget):
 
     # ---------- 流程 ----------
     def _start(self):
+        """失败状态复用原成绩保存，其余情况下创建新操作 ID 并开始单调计时。"""
         if self._presenter.state == PracticeState.SAVE_FAILED:
             self._store_result(*self._presenter.pending)
             return
@@ -732,6 +766,7 @@ class ChallengePage(QWidget):
                          '正在练习 · 打满自动结算。')
 
     def _reset(self, *_):
+        """非保存期间清理临时练习与反馈，保留已提交材料和历史记录。"""
         if self._presenter.state == PracticeState.SAVING:
             return
         self._presenter.state = PracticeState.IDLE
@@ -755,15 +790,18 @@ class ChallengePage(QWidget):
         self._refresh_recent()
 
     def _on_paste_blocked(self):
+        """训练进行时提示粘贴被拒绝，不能把粘贴文本计为有效挑战输入。"""
         if self._running:
             self._set_status('❌ 挑战中禁止粘贴——请手动输入！', '❌ 挑战中禁止粘贴')
 
     def _tick(self):
+        """按单调时钟更新本轮秒级用时，墙上时间变化不影响成绩。"""
         if self._running:
             self._elapsed = time.monotonic() - self._start_ts
             self._time_label.setText(f'用时 {self._elapsed:.1f}s')
 
     def _on_text_changed(self):
+        """更新逐字对齐和真实进度，达到参考长度时冻结并结算。"""
         inp = self._input.toPlainText()
         ref = self._current_text()
         self._render_reference(inp)
@@ -781,6 +819,7 @@ class ChallengePage(QWidget):
             self._finish(inp, ref)
 
     def _finish(self, inp, ref):
+        """停止计时/输入状态，计算纯评分并请求异步提交本轮结果。"""
         self._set_running(False)
         self._timer.stop()
         self._elapsed = time.monotonic() - self._start_ts
@@ -790,6 +829,7 @@ class ChallengePage(QWidget):
         self._store_result(self._text_combo.currentData(),s,self._balance)
 
     def _store_result(self,text_id,s,balance):
+        """冻结输入并交 Presenter 保存，成功/失败由 TaskBridge 回 Qt 线程。"""
         self._input.setEnabled(False)
         try:
             result=self._presenter.complete(text_id,s,balance)
@@ -800,11 +840,13 @@ class ChallengePage(QWidget):
         self._tasks.resolve(result,lambda r:self._result_saved(r,s),self._save_failed)
 
     def _save_failed(self,error):
+        """保留原成绩与操作 ID，显示重试保存而不庆祝或重新评分。"""
         self._presenter.failed()
         self._set_status('成绩未保存，本轮结果已保留，请点击重试保存。')
         self._sync_controls()
 
     def _result_saved(self,r,s):
+        """提交成功后确认完成、发布桌宠反馈并展示纪录/评分动画。"""
         self._presenter.saved()
         self.result_saved.emit({'id': f'challenge:{self._start_ts}', 'is_best': r['is_best'],
                                 'accuracy': s['accuracy'], 'speed': s['speed']})
@@ -856,6 +898,7 @@ class ChallengePage(QWidget):
 
     # ---------- 渲染 ----------
     def _render_reference(self, inp: str):
+        """按主动输入逐字标色并转义正文，处理 UTF-16 光标位置，不保存用户输入原文。"""
         if not hasattr(self, '_texts'):
             return                          # 构造期文本库未载入，_reload_texts 会重渲染
         ref = self._current_text()
@@ -909,6 +952,7 @@ class ChallengePage(QWidget):
             self._apply_paper_height()
 
     def _refresh_recent(self):
+        """从只读服务刷新同范文单次排行榜及有界近期训练摘要。"""
         tid = self._text_combo.currentData()
         self._leaderboard.set_records(self._text_name(tid), self._svc.leaderboard(tid))
         rows = self._svc.recent(6)

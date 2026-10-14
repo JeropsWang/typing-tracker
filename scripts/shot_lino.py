@@ -29,6 +29,7 @@ ACH = json.loads((ROOT / 'config' / 'achievements.json').read_text(encoding='utf
 
 
 def main() -> int:
+    """在隔离数据库中渲染梨诺主题，保存截图并统计采样颜色，随后关闭窗口和清理测试目录。"""
     tmp = ROOT / '.tmptest'
     tmp.mkdir(exist_ok=True)
     import uuid
@@ -41,6 +42,7 @@ def main() -> int:
     repo = Repository(conn)
 
     def gs(key, default=None):
+        """读取截图专用仓储设置，供旧式同步预览装配使用。"""
         return repo.get_setting(key, default)
 
     engine = StatsEngine(repo, gs, BALANCE)

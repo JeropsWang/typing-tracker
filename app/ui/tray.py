@@ -9,11 +9,13 @@ from .assets.app_icon import tray_icon
 
 
 class TrayIcon(QSystemTrayIcon):
+    """Qt 主线程系统托盘入口，展示只读摘要并通过信号请求显示、配置或退出。"""
     show_requested = Signal()
     settings_requested = Signal()
     quit_requested = Signal()
 
     def __init__(self, parent=None):
+        """创建品牌图标、今日摘要和托盘操作菜单，不访问数据库。"""
         super().__init__(parent)
         # tray_icon() 内部：交付 PNG 优先，缺失/读不出时回退程序化绘制
         self.setIcon(tray_icon())
@@ -33,14 +35,17 @@ class TrayIcon(QSystemTrayIcon):
         self.activated.connect(self._on_activated)
 
     def _on_activated(self, reason):
+        """用户普通点击托盘时发布显示主窗口信号。"""
         if reason == QSystemTrayIcon.Trigger:
             self.show_requested.emit()
 
     def update_summary(self, text: str):
+        """同步今日摘要菜单与托盘提示，不改变统计口径。"""
         self._act_summary.setText(f'今日：{text}')
         self.setToolTip(f'{APP_NAME}\n今日：{text}')
 
     def bind_companion(self, controller):
+        """为已装配桌宠增加显示/模式/工坊菜单，操作转交桌宠控制器。"""
         menu = self.contextMenu()
         companion = menu.addMenu('Sariana 小伙伴')
         companion.addAction('显示角色', controller.show_companion)

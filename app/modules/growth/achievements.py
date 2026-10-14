@@ -10,7 +10,9 @@ from datetime import date, datetime, timedelta
 
 
 class AchievementService:
+    """成就规则及领取业务；解锁/发奖/领取状态由统一事务保证原子性。"""
     def __init__(self, repo, balance, defs: dict):
+        """装配仓储、成长配置和成就定义，不在界面中维护解锁规则。"""
         self._repo = repo
         self._balance = balance
         self._defs = defs
@@ -32,6 +34,7 @@ class AchievementService:
         return out
 
     def find(self, code):
+        """从定义表按成就代码查找并补类别，未定义返回 None。"""
         for cat, items in self._defs.items():
             for it in items:
                 if it['code'] == code:

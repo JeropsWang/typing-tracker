@@ -12,6 +12,7 @@ SOURCE_HASH = '1a6947e04785db63613a92e14903cdae7954f7e84860b10e68e5c7cbb3f9c3cf'
 
 
 def import_vocabulary(source, output, license_file):
+    """校验锁定 ECDICT 源文件摘要后提取考试词汇，写入去重词书、许可证与带摘要的清单，返回导入统计。"""
     source, output = Path(source), Path(output)
     if hashlib.sha256(source.read_bytes()).hexdigest() != SOURCE_HASH:
         raise ValueError('源文件与锁定 ECDICT 版本不一致，请使用 manifest 中的版本。')

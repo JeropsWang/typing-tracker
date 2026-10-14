@@ -12,11 +12,14 @@ from app.ui.widgets.design import ArtHeading, BottomNav
 
 
 class LayoutRegression(unittest.TestCase):
+    """主要页面与设置尺寸回归的回归用例，使用隔离对象与受控输入验证实际行为。"""
     @classmethod
     def setUpClass(cls):
+        """为本组界面回归建立共享 Qt/资源环境，避免重复 QApplication。"""
         cls.app = QApplication.instance() or QApplication([])
 
     def test_heading_stays_in_left_decoration_region(self):
+        """验证标题留在预定左侧区域，不与人物图重叠。"""
         heading = ArtHeading('today', '每一次敲击')
         heading.resize(1100, 180)
         heading.show()
@@ -27,6 +30,7 @@ class LayoutRegression(unittest.TestCase):
         heading.close()
 
     def test_nav_uses_available_width(self):
+        """验证导航按照实际可用宽度布局全部入口。"""
         nav = BottomNav(compact=True)
         for title, icon in [('今日', 'today'), ('训练', 'training'),
                             ('统计', 'stats'), ('成长', 'growth'), ('设置', 'settings')]:
@@ -41,6 +45,7 @@ class LayoutRegression(unittest.TestCase):
         nav.close()
 
     def test_business_pages_keep_header_and_compact_actions_visible(self):
+        """验证紧凑业务页面仍显示标题和主要操作。"""
         from app.core.engine import StatsEngine
         from app.services.checkin_service import CheckinService
         from app.services.reward_service import RewardService
@@ -89,6 +94,7 @@ class LayoutRegression(unittest.TestCase):
             conn.close()
 
     def test_ai_workspace_preserves_draft_and_keeps_actions_visible(self):
+        """验证话题区域重排保留草稿且生成操作仍可见。"""
         from app.services.ai_service import AIService
         from app.services.challenge_service import ChallengeService
         from app.storage.db import connect_db, init_schema

@@ -4,7 +4,9 @@ from ...storage.store import Store
 
 
 class ReportingRepository(Store):
+    """仅查询统计数据的工作线程仓储，不发奖励或修改业务记录。"""
     def get_daily_range(self, start, end):
+        """读取包含起止日期的日统计范围，按日期升序返回行副本。"""
         rows = self._conn.execute(
             'SELECT * FROM daily_stats WHERE date BETWEEN ? AND ? ORDER BY date ASC',
             (start, end)).fetchall()

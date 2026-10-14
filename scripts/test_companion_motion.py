@@ -3,7 +3,9 @@ import unittest
 
 
 class MotionTests(unittest.TestCase):
+    """连续姿态和拖动回弹的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_emotions_have_distinct_motion_and_never_clip_stage_padding(self):
+        """验证情绪动效有区别且不越出舞台留白范围。"""
         from app.ui.companion.motion import CharacterMotion
         samples = {}
         for state in ('idle', 'focused', 'shy', 'happy', 'celebrating', 'surprised'):
@@ -22,6 +24,7 @@ class MotionTests(unittest.TestCase):
         self.assertGreater(samples['celebrating'][1], samples['focused'][1])
 
     def test_interrupted_action_continues_from_current_frame(self):
+        """验证姿态过渡中断后从当前帧继续。"""
         from app.ui.companion.motion import CharacterMotion
         motion = CharacterMotion(clock=lambda: 0)
         motion.set_state('celebrating', token=1, now=0)
@@ -33,6 +36,7 @@ class MotionTests(unittest.TestCase):
         self.assertLess(abs(after.angle - before.angle), 2)
 
     def test_drag_lean_and_release_settle_without_reset_jump(self):
+        """验证拖动倾斜和释放回弹连续衔接、不跳回静止帧。"""
         from app.ui.companion.motion import CharacterMotion
         motion = CharacterMotion(clock=lambda: 0)
         motion.set_drag(50, now=0)

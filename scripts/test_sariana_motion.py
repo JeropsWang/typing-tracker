@@ -9,13 +9,16 @@ from test_ui_workflow import APP, UIFixture, ROOT, pump_until
 
 
 def pixels(image, rect=None):
+    """读取图像像素序列，供人物局部动效前后差异比较。"""
     if rect is not None:
         image = image.copy(rect)
     return hashlib.sha256(image.constBits()).digest()
 
 
 class CharacterMotionTests(UIFixture):
+    """人物眼部/发丝分层动效的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_hand_drawn_strands_move_without_warping_source_hair_texture(self):
+        """验证手绘发丝层移动，原头发纹理不被扭曲。"""
         from app.ui.widgets.character_motion import IdlePose
         window = self.window()
         backdrop = window._backdrop
@@ -38,6 +41,7 @@ class CharacterMotionTests(UIFixture):
             self.assertGreater(changed, 20, '两侧应各有手绘发丝笔触在轻摆')
 
     def test_closed_eye_overlay_preserves_scene_and_rest_of_face(self):
+        """验证闭眼层只覆盖眼部，保留背景和脸部其他区域。"""
         from app.ui.widgets.character_motion import IdlePose
         window = self.window()
         backdrop = window._backdrop
@@ -53,6 +57,7 @@ class CharacterMotionTests(UIFixture):
                             pixels(closed, QRect(1108, 140, 173, 82)))
 
     def test_idle_blinks_locally_then_returns_to_open_eyes(self):
+        """验证待机眨眼只在眼部发生并返回睁眼状态。"""
         window = self.window()
         backdrop = window._backdrop
         eye_area = QRect(1108, 140, 173, 82)
@@ -64,6 +69,7 @@ class CharacterMotionTests(UIFixture):
         self.assertEqual(pixels(backdrop.grab(eye_area).toImage()), open_eyes)
 
     def test_idle_changes_hair_without_moving_background_or_face(self):
+        """验证待机发丝变化不移动背景或脸部。"""
         window = self.window()
         backdrop = window._backdrop
         first = backdrop.grab().toImage()
@@ -76,6 +82,7 @@ class CharacterMotionTests(UIFixture):
                          pixels(second, QRect(1195, 240, 20, 20)))
 
     def test_character_timers_pause_for_disabled_hidden_and_training(self):
+        """验证动效禁用、隐藏和练习时暂停人物计时器。"""
         window = self.window()
         backdrop = window._backdrop
         active = lambda: any(timer.isActive() for timer in backdrop.findChildren(QTimer))
@@ -107,6 +114,7 @@ class CharacterMotionTests(UIFixture):
         self.assertTrue(active())
 
     def test_undeclared_or_missing_motion_asset_falls_back_to_static(self):
+        """验证未声明或缺失人物动效素材时回退静态图。"""
         window = self.window()
         backdrop = window._backdrop
         active = lambda: any(timer.isActive() for timer in backdrop.findChildren(QTimer))
@@ -121,6 +129,7 @@ class CharacterMotionTests(UIFixture):
         self.assertFalse(active())
 
     def test_malformed_or_nonfinite_svg_keeps_static_artwork(self):
+        """验证损坏或非有限坐标的动效 SVG 回退静态人物。"""
         from app.ui.widgets.starfield import BackdropImage
         source = ROOT / 'app/ui/assets/background.png'
         base = json.loads((ROOT / 'app/ui/assets/sariana/idle.json').read_text(encoding='utf-8'))

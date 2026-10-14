@@ -27,6 +27,7 @@ from app.ui.main_window import MainWindow  # noqa: E402
 
 
 def main() -> int:
+    """读取显式指定的数据目录，离屏装配旧式主窗口并保存所选标签页截图；供维护工具使用。"""
     ap = argparse.ArgumentParser()
     ap.add_argument('--data-dir', required=True)
     ap.add_argument('--tab', type=int, default=1, choices=[0, 1])

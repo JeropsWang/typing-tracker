@@ -47,7 +47,9 @@ QDialog#companionWorkshop QTabBar::tab:selected {background:#746080;color:#FFF9F
 
 
 class Workshop(QDialog):
+    """本地作品草稿工坊；编辑、保存作品与应用版本分离，不修改真实练习统计。"""
     def __init__(self, store, controller, parent=None):
+        """装配作品列表、编辑器、预览和文件操作，载入当前作品为独立草稿。"""
         super().__init__(parent)
         self.setObjectName('companionWorkshop')
         self.setWindowTitle('Sariana · 本地二创工坊')
@@ -88,6 +90,10 @@ class Workshop(QDialog):
         gl.addWidget(title)
         self.description.setText('把心情，变成你的表达。')
         gl.addWidget(self.description)
+        agent_button = QPushButton('智能体 · 联网搜索设置')
+        agent_button.setAccessibleName('打开桌宠智能体配置')
+        agent_button.clicked.connect(lambda: controller.agent.open_settings(self))
+        gl.addWidget(agent_button)
         gl.addSpacing(12)
         heading = QLabel('我的作品')
         heading.setProperty('companionHeading', True)
@@ -185,6 +191,7 @@ class Workshop(QDialog):
         self.load_pack(self.selected_id)
 
     def _reflow(self):
+        """宽布局使用三个并列面板，窄布局重排成页签并复用原控件。"""
         if not hasattr(self, 'panels'):
             return
         narrow = self.width() < 1000
@@ -205,10 +212,12 @@ class Workshop(QDialog):
         self.tabs.setVisible(narrow)
 
     def resizeEvent(self, event):
+        """窗口尺寸改变时触发工坊宽窄布局重排。"""
         super().resizeEvent(event)
         self._reflow()
 
     def refresh_gallery(self):
+        """重新枚举作品与缩略图，更新列表时屏蔽选择信号避免覆盖草稿。"""
         self.gallery.blockSignals(True)
         self.gallery.clear()
         for pack in self.store.list_packs():
@@ -223,6 +232,7 @@ class Workshop(QDialog):
         self.gallery.blockSignals(False)
 
     def load_pack(self, pack_id):
+        """载入作品与其素材副本；内置模板只读，自有作品开放草稿编辑。"""
         pack = self.store.load(pack_id)
         self.selected_id = pack.id
         self.gallery.blockSignals(True)
@@ -237,6 +247,7 @@ class Workshop(QDialog):
         self.feedback.setText('内置模板 · 点击“复制当前作品”开始二创。' if pack.builtin else '作品已载入。保存后点击“应用到小伙伴”生效。')
 
     def _load_draft(self, draft, assets, editable):
+        """同步草稿元数据、状态编辑器和预览，重置脏标记而不应用到桌宠。"""
         self._loading = True
         self.draft, self.assets, self.editable = draft, assets, editable
         self.name_edit.setText(draft['name'])
@@ -252,12 +263,14 @@ class Workshop(QDialog):
         self._update_actions()
 
     def _update_actions(self):
+        """按草稿是否可编辑/未保存控制保存、丢弃与应用入口。"""
         self.save_button.setEnabled(self.editable)
         self.discard_button.setEnabled(self.dirty)
         self.discard_button.setVisible(self.dirty)
         self.apply_button.setEnabled(not self.dirty)
 
     def _changed(self, *_):
+        """把元数据修改写入内存草稿、标记未保存并刷新预览，不影响已应用作品。"""
         if self._loading or not self.editable:
             return
         self.draft.update(name=self.name_edit.text(), author=self.author_edit.text(), description=self.desc_edit.text())
@@ -267,10 +280,12 @@ class Workshop(QDialog):
         self.feedback.setText('草稿有未保存修改 · 当前小伙伴仍使用已应用的作品。')
 
     def _preview_current(self):
+        """预览编辑器当前状态条目，不触发真实桌宠互动或统计。"""
         if self.draft:
             self.preview.show_entry(self.editor.current_entry())
 
     def copy_draft(self):
+        """提交当前状态编辑并复制完整草稿，作为可编辑的新作品起点。"""
         self.editor.commit_current()
         data = copy.deepcopy(self.draft)
         data['id'] = 'copy'
@@ -279,6 +294,7 @@ class Workshop(QDialog):
         self._changed()
 
     def new_draft(self):
+        """先处理未保存修改，再从内置模板复制一个新的可编辑作品草稿。"""
         if not self._confirm_unsaved():
             return
         self.load_pack('starlight')
@@ -287,9 +303,11 @@ class Workshop(QDialog):
         self.name_edit.selectAll()
 
     def discard_draft(self):
+        """从已保存的选中作品重新载入，丢弃内存编辑。"""
         self.load_pack(self.selected_id)
 
     def save_draft(self):
+        """只保存仍被引用的素材和草稿；校验/写入失败保留草稿，成功后不自动应用。"""
         if not self.editable:
             return None
         self.editor.commit_current()
@@ -308,6 +326,7 @@ class Workshop(QDialog):
         return pack
 
     def apply_pack(self):
+        """仅应用已保存且无待保存修改的作品；失败时保持当前桌宠素材。"""
         if self.dirty:
             self.feedback.setText('请先保存修改，再应用到小伙伴。')
             return
@@ -319,11 +338,13 @@ class Workshop(QDialog):
         self.feedback.setText(f'正在使用：{self.draft["name"]}。两种显示模式均已更新。')
 
     def choose_asset(self):
+        """通过文件选择器取得本地图片/GIF，再交给受限素材导入逻辑。"""
         path, _ = QFileDialog.getOpenFileName(self, '选择表情或动图', '', '表情素材 (*.png *.webp *.gif)')
         if path:
             self.import_asset(Path(path))
 
     def import_asset(self, path):
+        """校验并复制素材到草稿临时目录，清除旧图集裁切信息，失败返回 False。"""
         if not self.editable:
             return False
         path = Path(path)
@@ -346,6 +367,7 @@ class Workshop(QDialog):
         return True
 
     def import_pack(self):
+        """确认草稿取舍后导入受校验的 ZIP 作品包，原作品保留。"""
         if not self._confirm_unsaved():
             return
         path, _ = QFileDialog.getOpenFileName(self, '导入二创作品包', '', '二创作品包 (*.zip)')
@@ -360,6 +382,7 @@ class Workshop(QDialog):
             self.feedback.setText(f'导入失败：{exc}')
 
     def export_pack(self):
+        """仅导出已保存作品，经文件选择器指定路径，不包含用户统计或配置。"""
         if self.dirty:
             self.feedback.setText('请先保存草稿，再导出作品。')
             return
@@ -372,6 +395,7 @@ class Workshop(QDialog):
                 self.feedback.setText(f'导出失败：{exc}')
 
     def delete_pack(self):
+        """确认后移除自有作品的激活入口；若当前使用该作品则回退内置角色。"""
         pack = self.store.load(self.selected_id)
         if pack.builtin:
             self.feedback.setText('内置模板始终保留；可删除自己保存的二创作品。')
@@ -389,6 +413,7 @@ class Workshop(QDialog):
             self.feedback.setText(f'删除失败：{exc}')
 
     def _selection_changed(self, item, previous):
+        """切换作品前处理未保存草稿，用户取消时恢复旧列表选项。"""
         if not item:
             return
         requested_id = item.data(Qt.UserRole)
@@ -400,6 +425,7 @@ class Workshop(QDialog):
             self.gallery.blockSignals(False)
 
     def _confirm_unsaved(self):
+        """询问保存/丢弃/取消；返回是否允许继续，保存失败不放行后续操作。"""
         if not self.dirty:
             return True
         result = QMessageBox.question(self, '保留创作草稿', '有未保存的修改。保存作品后再继续？',
@@ -410,11 +436,13 @@ class Workshop(QDialog):
         return result == QMessageBox.Discard
 
     def reject(self):
+        """关闭前处理未保存草稿，仅在允许离开后恢复已保存版本。"""
         if self._confirm_unsaved():
             self.discard_draft()
             super().reject()
 
     def closeEvent(self, event):
+        """原生关闭同样检查草稿取舍，取消或保存失败时忽略关闭事件。"""
         if self._confirm_unsaved():
             self.discard_draft()
             event.accept()

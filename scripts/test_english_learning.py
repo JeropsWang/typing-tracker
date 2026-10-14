@@ -16,7 +16,9 @@ from app.storage.session import DataSession
 
 
 class LearningSessionTests(unittest.TestCase):
+    """首测、纠正、复测和间隔排期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_correction_is_unscored_retest_is_bounded_and_independent(self):
+        """验证纠正不计独立成绩，复测有界且重新判断辅助资格。"""
         session = SpellingSession([Word('apple', '苹果'), Word('pear', '梨')], learning=True)
         first = session.submit('aple')
         self.assertTrue(session.correcting)
@@ -39,6 +41,7 @@ class LearningSessionTests(unittest.TestCase):
         self.assertEqual((view.corrected, view.correction_skipped), (1, 1))
 
     def test_assisted_success_retests_without_hint_and_pending_result_is_stable(self):
+        """验证辅助完成进入独立复测，待保存结果不会改变。"""
         session = SpellingSession([Word('apple', '苹果')], learning=True)
         session.hint()
         pending = session.prepare('apple')
@@ -55,6 +58,7 @@ class LearningSessionTests(unittest.TestCase):
         self.assertEqual(session.view().retest_correct, 1)
 
     def test_alignment_error_count_equals_existing_score(self):
+        """验证显示对齐的错误数与原单词评分口径一致。"""
         for answer, expected in [('We go to home.', 'We go home.'), ('We home.', 'We go home.'),
                                  ('we goes home', 'We go home'), ('', 'One'), ('Extra', ''),
                                  ("IT’S mother-in-law", "it's Mother-in-law")]:
@@ -66,7 +70,9 @@ class LearningSessionTests(unittest.TestCase):
 
 
 class ReviewRuleTests(unittest.TestCase):
+    """首测、纠正、复测和间隔排期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_intervals_overdue_same_day_and_final_cap(self):
+        """验证复习间隔、逾期、同日不重复晋级与最终阶段上限。"""
         day = '2026-10-13'
         state = next_schedule(None, day=day, independent=True)
         self.assertEqual((state['stage'], state['due_day']), (1, '2026-10-14'))
@@ -82,12 +88,15 @@ class ReviewRuleTests(unittest.TestCase):
         self.assertEqual((corrected['stage'], corrected['due_day']), (1, (date.fromisoformat(day)+timedelta(days=1)).isoformat()))
 
     def test_extra_practice_keeps_future_schedule(self):
+        """验证额外练习不缩短尚未到期的复习安排。"""
         state = dict(stage=4, due_day='2026-11-01', last_success_day='2026-10-01')
         self.assertEqual(next_schedule(state, day='2026-10-13', independent=True), state)
 
 
 class ReviewStorageTests(unittest.TestCase):
+    """首测、纠正、复测和间隔排期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         self.conn = sqlite3.connect(':memory:')
         self.conn.row_factory = sqlite3.Row
         init_schema(self.conn)
@@ -95,10 +104,12 @@ class ReviewStorageTests(unittest.TestCase):
         self.addCleanup(self.conn.close)
 
     def event(self, operation='one', **kwargs):
+        """构造带稳定 ID、应用日或状态的测试事件，用于去重及排期验证。"""
         return dict(dict(id=operation, deck='cet4', word='apple', mode='spelling', correct=True,
                          assisted=False, elapsed=1, app_day='2026-10-13'), **kwargs)
 
     def test_attempt_and_schedule_rollback_dedup_and_due_order(self):
+        """验证作答与排期共同回滚、重复去重及到期排序。"""
         self.conn.execute("CREATE TRIGGER reject_review BEFORE INSERT ON english_review_schedule BEGIN SELECT RAISE(FAIL,'test'); END;")
         self.conn.commit()
         with self.assertRaises(sqlite3.Error):
@@ -113,8 +124,12 @@ class ReviewStorageTests(unittest.TestCase):
         self.assertEqual(self.repo.english.review_plan('cet4', '2026-10-14')['due_words'], ['pear','apple'])
 
     def test_service_uses_injected_clock_and_custom_day_cut(self):
+        """验证服务采用注入时钟和自定义应用日切。"""
         class Clock:
-            def now(self): return datetime(2026,10,14,3,59)
+            """可控墙上/单调时钟夹具，用于日切、排期和持续时间边界。"""
+            def now(self):
+                """返回可控墙上时间，供应用日/日切边界验证。"""
+                return datetime(2026,10,14,3,59)
         self.repo.set_setting('day_start_hour', '4')
         service = EnglishService(self.repo, clock=Clock())
         service.start('cet4', 1)
@@ -128,7 +143,9 @@ class ReviewStorageTests(unittest.TestCase):
 
 
 class ReviewMigrationTests(unittest.TestCase):
+    """首测、纠正、复测和间隔排期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_v1_backed_up_preserves_history_and_failure_rolls_back(self):
+        """验证旧版本库迁移备份、学习历史保留和失败回滚。"""
         with tempfile.TemporaryDirectory() as directory:
             conn = connect_db(Path(directory)/'app.db')
             try:
@@ -141,6 +158,7 @@ class ReviewMigrationTests(unittest.TestCase):
                 conn.commit()
                 from app.modules.english.repository import migrate_review_schema
                 def failed(conn, day):
+                    """触发当前测试设定的失败路径，检查结果可重试和状态未提前确认。"""
                     migrate_review_schema(conn, day)
                     raise RuntimeError('migration failure')
                 with patch('app.modules.english.repository.migrate_review_schema', side_effect=failed):

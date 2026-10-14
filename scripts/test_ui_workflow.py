@@ -41,6 +41,7 @@ BALANCE = json.loads((ROOT / 'config/balance.json').read_text(encoding='utf-8'))
 
 
 def pump_until(predicate, timeout=2):
+    """持续处理 Qt 事件直到条件成立或超时，不在 UI 阻塞未完成 Future。"""
     deadline = time.monotonic() + timeout
     while not predicate() and time.monotonic() < deadline:
         APP.processEvents()
@@ -50,7 +51,9 @@ def pump_until(predicate, timeout=2):
 
 
 class UIFixture(unittest.TestCase):
+    """练习、设置及导航完整用户流程的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         self.data = ROOT / '.local/ui-night-stage/tests' / uuid.uuid4().hex
         self.data.mkdir(parents=True)
         self.conn = connect_db(self.data / 'test.db')
@@ -90,6 +93,7 @@ class UIFixture(unittest.TestCase):
         return theme_id
 
     def tearDown(self):
+        """关闭本用例持有的对象并清理临时资源，下一例从独立状态开始。"""
         for job in APP.findChildren(QThread):
             if job.isRunning():
                 job.wait(3000)
@@ -106,11 +110,13 @@ class UIFixture(unittest.TestCase):
         self.conn.close()
 
     def dialog(self):
+        """构造隔离设置草稿对话框并登记清理。"""
         w = SettingsDialog(self.repo, BALANCE, theme_manager=self.theme, data_dir=self.data)
         self.widgets.append(w)
         return w
 
     def training(self):
+        """构造真实训练页面与隔离服务，供输入/结算测试。"""
         w = ChallengePage(self.repo, BALANCE, ChallengeService(self.repo), AIService(self.repo))
         self.widgets.append(w)
         w.resize(750, 600)
@@ -119,6 +125,7 @@ class UIFixture(unittest.TestCase):
         return w
 
     def window(self):
+        """装配隔离主窗口、主题和业务能力，供导航/固定尺寸验证。"""
         engine = StatsEngine(self.repo, self.repo.get_setting, BALANCE)
         achievements = json.loads((ROOT / 'config/achievements.json').read_text(encoding='utf-8'))
         w = MainWindow(engine, self.repo, BALANCE, checkin=CheckinService(self.repo, BALANCE),
@@ -136,7 +143,9 @@ class UIFixture(unittest.TestCase):
 
 
 class TrainingTests(UIFixture):
+    """练习、设置及导航完整用户流程的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_topic_examples_fill_draft_without_starting_generation(self):
+        """验证示例主题只预填草稿，不自动请求模型。"""
         self.repo.set_setting('ai_backend', 'ollama')
         self.repo.add_reward('ai_pass', 1, 'ui-test')
         w = self.training()
@@ -150,9 +159,11 @@ class TrainingTests(UIFixture):
         self.assertEqual(self.repo.count_ai_passes(), 1)
 
     def test_ai_settings_shortcut_opens_ai_section(self):
+        """验证训练页配置快捷入口定位到 AI 分区。"""
         window = self.window()
         selected = []
         def inspect_dialog(dialog):
+            """按当前用例捕获配置对话框并检查分区/草稿状态。"""
             selected.append(dialog._sections.currentRow())
             return 0
         with patch.object(SettingsDialog, 'exec', inspect_dialog):
@@ -160,6 +171,7 @@ class TrainingTests(UIFixture):
         self.assertEqual(selected, [3])
 
     def test_long_reference_keeps_input_and_start_visible(self):
+        """验证长范文仍保留输入和开始操作可见。"""
         self.repo.add_ai_text('cn', '长范文', '星光照亮夜空，指尖轻轻起舞。' * 57)
         w = self.training()
         w.resize(706, 584)
@@ -173,6 +185,7 @@ class TrainingTests(UIFixture):
             self.assertLess(position.y() + 70, w.height(), '范文与输入区必须同时可见')
 
     def test_generation_failure_remains_visible_after_access_refresh(self):
+        """验证资格刷新不会覆盖真实生成错误提示。"""
         self.repo.set_setting('ai_backend', 'ollama')
         self.repo.add_reward('ai_pass', 1, 'ui-test')
         w = self.training()
@@ -186,6 +199,7 @@ class TrainingTests(UIFixture):
         self.assertEqual(self.repo.count_ai_passes(), 1)
 
     def test_quit_during_generation_does_not_destroy_running_worker(self):
+        """验证退出期间在途生成有安全清理边界，不销毁活跃 Qt 线程。"""
         child = self.data / 'quit_worker.py'
         child.write_text('''import sys, time
 sys.path.insert(0, sys.argv[1])
@@ -208,6 +222,7 @@ app.exec()
         self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace'))
 
     def test_running_locks_passage_and_finishing_restores_controls(self):
+        """验证练习中锁定范文，结束后恢复选择操作。"""
         w = self.training()
         w._start()
         self.assertFalse(w._text_combo.isEnabled(), '练习中不能换范文')
@@ -221,11 +236,13 @@ app.exec()
         self.assertEqual(len(w._svc.recent(6)), 1)
 
     def test_generation_uses_requested_metadata_and_locks_start(self):
+        """验证生成使用捕获的主题/语言并锁定冲突的练习开始操作。"""
         self.repo.set_setting('ai_backend', 'ollama')
         self.repo.add_reward('ai_pass', 1, 'ui-test')
         w = self.training()
         release = threading.Event()
         def generate(_svc, topic, lang, length):
+            """按当前用例模拟生成成功/失败，便于检查保存而不产生模型费用。"""
             release.wait(1)
             return True, '星光照亮练习的小小舞台。'
         with patch.object(AIService, 'generate', generate):
@@ -251,7 +268,9 @@ app.exec()
 
 
 class SettingsTests(UIFixture):
+    """练习、设置及导航完整用户流程的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_cancel_clear_avatar_preserves_file_and_setting(self):
+        """验证取消清除头像草稿保留原文件和设置。"""
         folder = self.data / 'avatars'
         folder.mkdir()
         avatar = folder / 'avatar.png'
@@ -266,6 +285,7 @@ class SettingsTests(UIFixture):
         self.assertEqual(self.repo.get_setting('avatar_image'), '1')
 
     def test_upload_is_draft_until_save(self):
+        """验证头像上传先为内存草稿，保存后才落文件/配置。"""
         image = QImage(12, 12, QImage.Format_ARGB32)
         image.fill(QColor('#BBA5F3'))
         source = self.data / 'chosen.png'
@@ -280,11 +300,13 @@ class SettingsTests(UIFixture):
         self.assertTrue((self.data / 'avatars/avatar.png').is_file())
 
     def test_connection_test_keeps_draft_off_database_and_ui_responsive(self):
+        """验证草稿连接检查不保存配置且不阻塞界面。"""
         w = self.dialog()
         w._ai_backend.setCurrentIndex(w._ai_backend.findData('ollama'))
         w._ai_model.setText('draft-model')
         seen = []
         def chat(svc, *args, **kwargs):
+            """提供预定模型正文或延迟响应，供页面异步边界验证。"""
             seen.append((threading.get_ident(), svc._model()))
             time.sleep(.15)
             return 'pong'
@@ -361,6 +383,7 @@ class SettingsTests(UIFixture):
         self.theme.apply(DEFAULT_THEME_ID)
 
     def test_invalid_url_retains_draft_and_does_not_save(self):
+        """验证非法模型地址保留设置草稿且不写入数据库。"""
         w = self.dialog()
         w._ai_backend.setCurrentIndex(w._ai_backend.findData('openai'))
         w._ai_url.setText('not-a-url')
@@ -373,7 +396,9 @@ class SettingsTests(UIFixture):
 
 
 class NavigationTests(UIFixture):
+    """练习、设置及导航完整用户流程的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_saved_clear_avatar_restores_profile_sariana(self):
+        """验证已提交的头像清除恢复资料页内置人物。"""
         folder = self.data / 'avatars'
         folder.mkdir()
         image = QImage(12, 12, QImage.Format_ARGB32)
@@ -392,6 +417,7 @@ class NavigationTests(UIFixture):
         self.assertTrue((folder / 'avatar.png').exists(), '恢复默认头像保留原文件')
 
     def test_minimal_window_constructs_before_theme_is_applied(self):
+        """验证最小窗口可在主题尚未应用时安全建立。"""
         from app.ui.palette import P
         P.reset()
         engine = StatsEngine(self.repo, self.repo.get_setting, BALANCE)
@@ -403,6 +429,7 @@ class NavigationTests(UIFixture):
         self.assertFalse(w._dashboard._practice_btn.isEnabled())
 
     def test_home_starts_training_and_pauses_decorative_animation(self):
+        """验证首页入口开始训练后暂停装饰动画。"""
         w = self.window()
         self.assertTrue(hasattr(w._dashboard, '_practice_btn'), '首页应有训练入口')
         w._dashboard._practice_btn.click()
@@ -418,6 +445,7 @@ class NavigationTests(UIFixture):
         self.assertFalse(w._starfield._timer.isActive(), '托盘隐藏时应停装饰动画')
 
     def test_growth_navigation_preserves_service_pages_and_updates_selection(self):
+        """验证成长导航复用原服务页面并同步选中状态。"""
         w = self.window()
         self.assertTrue(hasattr(w, '_nav_buttons'), '主导航应能直达成长')
         w._nav_buttons['成长'].click()
@@ -433,6 +461,7 @@ class NavigationTests(UIFixture):
         self.assertFalse(w._growth_bar.isVisible())
 
     def test_reduced_motion_stays_off_after_training_reset(self):
+        """验证重置练习不会重新开启已关闭动效。"""
         w = self.window()
         self.repo.set_setting('reduced_motion', '1')
         self.theme.apply('arknights_endfield_lino')
@@ -446,6 +475,7 @@ class ChromeTests(UIFixture):
     """外壳约束：六项底部导航、背景层、纸张 token、对比度与焦点。"""
 
     def test_bottom_nav_has_six_items_with_delivered_icons(self):
+        """验证底栏入口数量及交付图标资源。"""
         w = self.window()
         self.assertEqual(list(w._nav_buttons), ['今日', '训练', '英语', '统计', '成长', '设置'])
         for title, button in w._nav_buttons.items():
@@ -454,6 +484,7 @@ class ChromeTests(UIFixture):
         self.assertTrue(w._nav_buttons['今日'].isChecked(), '默认选中今日')
 
     def test_backdrop_uses_delivered_asset_only_when_theme_declares_it(self):
+        """验证主题仅在明确声明时使用交付人物背景素材。"""
         w = self.window()
         self.assertTrue(w._backdrop.has_artwork(), '梨诺主题应加载交付插画')
         self.assertTrue(w._nav._summary.isVisible(), '固定基准尺寸保留个人摘要')
@@ -465,6 +496,7 @@ class ChromeTests(UIFixture):
         self.assertTrue(w._backdrop.has_artwork(), '切回梨诺应恢复插画')
 
     def test_training_paper_token_and_primary_state_matrix(self):
+        """验证训练纸张颜色角色与主要操作的不同状态样式。"""
         page = self.training()
         # 密度由实际尺寸决定；标准尺寸验证标准内边距。
         page.resize(1440, 900)
@@ -498,6 +530,7 @@ class ChromeTests(UIFixture):
 
     def test_compact_training_degrades_padding_not_font_size(self):
         # 紧凑基准 900x640
+        """验证紧凑训练优先减少留白而非压小可读字号。"""
         compact_page = self._sized_training(900, 640)
         self.assertTrue(compact_page._compact)
         self.assertEqual(compact_page._paper_layout.contentsMargins().left(), 20)
@@ -517,9 +550,11 @@ class ChromeTests(UIFixture):
         self.assertIn('font-size:20px', wide._input.styleSheet())
 
     def test_palette_contrast_and_paper_focus_meet_wcag(self):
+        """验证纸张文字对比度和焦点可见性满足测试阈值。"""
         from app.ui.palette import P
 
         def luminance(color: str) -> float:
+            """按测试使用的 sRGB 规则计算相对亮度，校验可读性。"""
             value = color.lstrip('#')
             channels = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
             linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -527,6 +562,7 @@ class ChromeTests(UIFixture):
             return (0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2])
 
         def ratio(a: str, b: str) -> float:
+            """计算两种颜色的测试对比度比值，保留实际阈值断言。"""
             high, low = sorted((luminance(a), luminance(b)), reverse=True)
             return (high + 0.05) / (low + 0.05)
 
@@ -547,6 +583,7 @@ class ChromeTests(UIFixture):
         from app.ui.palette import P
 
         def luminance(color: str) -> float:
+            """按测试使用的 sRGB 规则计算相对亮度，校验可读性。"""
             value = color.lstrip('#')
             channels = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
             linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -554,6 +591,7 @@ class ChromeTests(UIFixture):
             return (0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2])
 
         def ratio(a: str, b: str) -> float:
+            """计算两种颜色的测试对比度比值，保留实际阈值断言。"""
             high, low = sorted((luminance(a), luminance(b)), reverse=True)
             return (high + 0.05) / (low + 0.05)
 
@@ -611,6 +649,7 @@ class ChromeTests(UIFixture):
         from app.ui.palette import P, mix
 
         def luminance(color: str) -> float:
+            """按测试使用的 sRGB 规则计算相对亮度，校验可读性。"""
             value = color.lstrip('#')
             channels = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
             linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
@@ -618,6 +657,7 @@ class ChromeTests(UIFixture):
             return (0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2])
 
         def ratio(a: str, b: str) -> float:
+            """计算两种颜色的测试对比度比值，保留实际阈值断言。"""
             high, low = sorted((luminance(a), luminance(b)), reverse=True)
             return (high + 0.05) / (low + 0.05)
 

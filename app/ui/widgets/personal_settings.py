@@ -7,10 +7,12 @@ from .scrapbook import ScrapbookCard
 
 
 class PersonalSettingsPanel(QWidget):
+    """个人昵称、签名和头像选择的设置草稿面板，提交由外层对话框统一处理。"""
     upload_requested = Signal()
     clear_requested = Signal()
 
     def __init__(self, nickname, signature, preset, parent=None):
+        """建立个人资料设置草稿组件的依赖与初始状态。"""
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

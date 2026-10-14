@@ -12,6 +12,7 @@ PLACEHOLDERS = frozenset(('nickname', 'level', 'speed', 'accuracy', 'streak'))
 
 @dataclass(frozen=True)
 class CompanionEvent:
+    """提交后业务事件或明确用户互动的数据载体，事件 ID 用于避免重复反应。"""
     kind: str
     payload: dict = field(default_factory=dict)
     event_id: str = ''
@@ -19,6 +20,7 @@ class CompanionEvent:
 
 @dataclass(frozen=True)
 class Pose:
+    """纯状态机输出的姿态快照，含状态、事件类型、变化 token、气泡资格和展示数据。"""
     state: str
     kind: str = 'base'
     token: int = 0

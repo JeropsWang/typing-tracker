@@ -38,6 +38,7 @@ CONTROL_TOLERANCE = 8
 
 
 def main() -> int:
+    """用内存库装配离屏窗口，将纸张和控件几何尺寸与设计基准比较，输出超出容差的项目。"""
     app = QApplication([])
     load_fonts()
     conn = connect_db(':memory:')
@@ -49,7 +50,9 @@ def main() -> int:
     theme = ThemeManager(app, data, repo.get_setting, repo.set_setting)
 
     class CheckWindow(MainWindow):
+        """布局核对使用的主窗口替身，关闭时直接接受事件，避免进入产品托盘流程。"""
         def closeEvent(self, event):
+            """接受测试窗口关闭事件，不执行生产窗口的隐藏到托盘行为。"""
             event.accept()
 
     window = CheckWindow(StatsEngine(repo, repo.get_setting, balance), repo, balance,

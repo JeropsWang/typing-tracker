@@ -1,3 +1,9 @@
+<#
+安装/升级/卸载验工入口，仅在未安装同产品的干净 Windows 测试机使用。
+读取 PackageDir 发布清单，在 Workspace 中建立唯一安装目录；UpgradeFromSetup 可验证旧版升级。
+会实际运行安装器、修改安装注册表及快捷方式，并在旧数据目录写入唯一校验标记。
+最终只清理自己的标记，不删除用户数据；本脚本不属于普通源码回归。
+#>
 param(
     [Parameter(Mandatory=$true)][string]$PackageDir,
     [Parameter(Mandatory=$true)][string]$Workspace,
@@ -5,10 +11,14 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 function Invoke-CheckedProcess {
+    <#
+    隐藏启动一个验工子进程并等待退出，非零退出码立即报错。
+    超时时只终止本次启动的进程树（含单文件解包子进程），不按进程名称结束其他应用。
+    #>
     param([string]$FilePath, [string[]]$Arguments, [int]$TimeoutSeconds = 120)
     $taskChild = Start-Process -FilePath $FilePath -ArgumentList $Arguments -WindowStyle Hidden -PassThru
     if (-not $taskChild.WaitForExit($TimeoutSeconds * 1000)) {
-        # Kill only the process tree started by this test, including one-file extraction children.
+        # 只清理本次创建的进程树，保留其他正在运行的用户进程。
         & taskkill.exe /PID $taskChild.Id /T /F | Out-Null
         throw "Process timed out after ${TimeoutSeconds}s: $FilePath"
     }
@@ -18,6 +28,7 @@ function Invoke-CheckedProcess {
 $taskPackageDir = (Resolve-Path -LiteralPath $PackageDir).Path
 $taskWorkspace = [IO.Path]::GetFullPath($Workspace)
 $taskRegistryKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8A3CAB17-B864-4379-9BAA-A2C7AE85706D}_is1'
+# 安装会修改共享注册表与开始菜单，因此先拒绝已有产品安装，避免覆盖真实环境。
 if (Test-Path -LiteralPath $taskRegistryKey) { throw 'An installed Sariana/TypingTracker exists; use a clean Windows test machine' }
 $taskPackages = @(Get-ChildItem -LiteralPath (Join-Path $taskPackageDir 'assets') -Filter '*-setup.exe')
 if ($taskPackages.Count -ne 1) { throw 'Expected exactly one installer' }
@@ -34,6 +45,7 @@ if ($UpgradeFromSetup -and ((Test-Path -LiteralPath $taskLegacyShortcut) -or (Te
     throw 'An existing product shortcut exists; use a clean Windows test machine'
 }
 $taskDataDir = Join-Path $env:APPDATA 'TypingTracker'
+# 用唯一标记验证升级和卸载保留数据，不读取用户统计或清理整个旧数据目录。
 New-Item -ItemType Directory -Force -Path $taskDataDir | Out-Null
 $taskSentinel = Join-Path $taskDataDir ('release-smoke-' + [guid]::NewGuid().ToString('N') + '.txt')
 'preserve-user-records' | Set-Content -LiteralPath $taskSentinel
@@ -42,7 +54,7 @@ try {
     $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/NOICONS','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
     if ($UpgradeFromSetup) {
         $taskOldSetup = (Resolve-Path -LiteralPath $UpgradeFromSetup).Path
-        # DisableProgramGroupPage=yes ignores /GROUP. Exercise real product groups.
+        # 安装配置禁用分组页面会忽略 /GROUP；此处检查产品实际快捷方式路径。
         $taskOldArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=',('/DIR="' + $taskInstallDir + '"'))
         Invoke-CheckedProcess -FilePath $taskOldSetup -Arguments $taskOldArguments
         $taskOldExe = Join-Path $taskInstallDir 'TypingTracker.exe'
@@ -53,7 +65,7 @@ try {
             if (-not (Test-Path -LiteralPath $taskOldExe)) { throw 'Previous installation missing' }
             if (-not (Test-Path -LiteralPath $taskNewShortcut)) { throw 'Previous Sariana shortcut missing' }
         }
-        # Omit /DIR to verify that the stable AppId reuses the previous location.
+        # 升级时省略 /DIR，验证固定 AppId 自动沿用旧版安装位置。
         $taskArguments = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=')
     }
     Invoke-CheckedProcess -FilePath $taskPackages[0].FullName -Arguments $taskArguments
@@ -85,6 +97,6 @@ try {
     Write-Output "Installer verified: version=$($taskManifest.version), payload matches, bootstrap=0, uninstall preserves data"
     if ($UpgradeFromSetup) { Write-Output 'Upgrade verified: previous location reused, old executable/shortcut removed, Sariana shortcut target matches, data preserved' }
 } finally {
-    # Remove only our uniquely named test sentinel; never remove the user's data directory.
+    # 无论断言成败，只移除本次唯一标记，绝不删除用户数据目录。
     if (Test-Path -LiteralPath $taskSentinel) { Remove-Item -LiteralPath $taskSentinel }
 }

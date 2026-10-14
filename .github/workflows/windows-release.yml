@@ -1,3 +1,5 @@
+# Windows 发布流程：分离工具快照与产品源码，冻结/安装/升级检查通过后生成附件。
+# PR/push 只构建验工；已发布事件或手动调度才进入上传，公开草稿还须显式 publish_draft。
 name: Windows release assets
 
 on:
@@ -42,7 +44,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
-      # Tooling comes from the default branch so old tags can be backfilled.
+      # 正式发布使用默认分支工具回填旧标签；PR/push 验证当前提交的维护脚本。
       - uses: actions/checkout@v4
         with:
           ref: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.sha || github.event.repository.default_branch }}
@@ -79,7 +81,7 @@ jobs:
         run: |
           python -m pip install -r tooling/requirements-release.txt
           if ($LASTEXITCODE -ne 0) { throw 'Python dependencies failed' }
-          # windows-2022 provides Inno Setup; avoid installing unpinned tooling.
+          # 使用 runner 已有 Inno Setup，不在线安装未锁定的替代构建工具。
           $compiler = 'C:/Program Files (x86)/Inno Setup 6/ISCC.exe'
           if (-not (Test-Path -LiteralPath $compiler)) { throw 'Runner Inno Setup compiler missing' }
           Write-Output "Inno Setup: $((Get-Item -LiteralPath $compiler).VersionInfo.FileVersion)"
@@ -111,7 +113,7 @@ jobs:
             if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw 'Previous installer digest missing' }
             $taskExpectedHash = $Matches[1]
             $taskLegacySetup = Join-Path $env:RUNNER_TEMP 'TypingTracker-0.9.2-setup.exe'
-            # Asset ID bypasses cached redirects after release assets are replaced.
+            # 用附件 ID 避开替换附件后的旧重定向缓存，下载后仍须核对 SHA-256。
             $taskDownload = $taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id
             Invoke-WebRequest -Uri $taskDownload -OutFile $taskLegacySetup
             if ((Get-FileHash -LiteralPath $taskLegacySetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw 'Previous installer checksum mismatch' }
@@ -165,6 +167,7 @@ jobs:
           retention-days: 14
 
   publish:
+    # 只有 build 成功才可上传；此权限仅授予发布任务，不授予构建任务。
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
@@ -184,6 +187,7 @@ jobs:
           gh release view "$RELEASE_TAG" --repo "$GH_REPO"
           gh release upload "$RELEASE_TAG" assets/* --repo "$GH_REPO" --clobber
       - name: Publish verified draft
+        # 附件上传与公开草稿分开，手动显式选择后才将已经验证的草稿转为正式版。
         if: github.event_name == 'workflow_dispatch' && inputs.publish_draft
         env:
           GH_TOKEN: ${{ github.token }}

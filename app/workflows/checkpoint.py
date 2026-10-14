@@ -3,11 +3,14 @@ from datetime import datetime, timedelta
 from ..modules.growth.api import RewardLedger
 
 class CheckpointWriter:
+    """跨统计/成长模块的统一检查点写入流程，持久版本阻止重复结算。"""
     def __init__(self, repo, balance):
+        """装配统一会话与参与同一事务的成长结算器。"""
         self.repo = repo
         self.ledger = RewardLedger(repo,balance)
 
     def save(self, checkpoint):
+        """原子提交统计、成长和检查点版本；成功返回保存时间，失败保留计数器脏状态。"""
         repo = self.repo
         with repo.transaction():
             previous = repo._conn.execute('SELECT * FROM tracking_checkpoint WHERE id=1').fetchone()

@@ -33,6 +33,7 @@ VK_F24 = 0x87
 
 
 def is_admin() -> bool:
+    """查询 Windows 当前进程是否拥有管理员权限；平台调用失败时返回 False 供诊断提示使用。"""
     try:
         return bool(ctypes.WinDLL('shell32').IsUserAnAdmin())
     except Exception:
@@ -40,26 +41,31 @@ def is_admin() -> bool:
 
 
 def main() -> int:
+    """限时监听真实输入钩子并打印诊断计数，可显式选择注入 F24；仅用于人工排障，会输出输入法提交正文。"""
     ap = argparse.ArgumentParser()
     ap.add_argument('--seconds', type=int, default=15)
     ap.add_argument('--inject', action='store_true', help='自动注入 F24 验证链路')
     args = ap.parse_args()
 
     def on_raw(vk, down, flags):
+        """累计底层按键事件并打印按下键码，用于区分钩子未触发与计数过滤问题。"""
         global RAW_COUNT
         RAW_COUNT += 1
         if down:
             print(f'  RAW vk=0x{vk:02X} down')
 
     def on_char(kind):
+        """累计已分类的可打印字符事件，输出分类而非字符正文。"""
         STATS['char'] += 1
         print(f'  CHAR {kind}')
 
     def on_delete():
+        """累计删除键事件，核对删除统计回调是否正常。"""
         STATS['del'] += 1
         print('  DEL')
 
     def on_ime(text):
+        """累计输入法提交字符数并打印正文，仅在显式运行此诊断脚本时使用。"""
         STATS['ime_chars'] += len(text)
         print(f'  IME {text!r}')
 
@@ -78,6 +84,7 @@ def main() -> int:
         from app.core.tsf_hook import TsfHook
 
         def on_tsf(text):
+            """累计 TSF 提交字符数并标记事件来源，帮助判断输入法监听渠道是否正常。"""
             STATS['ime_chars'] += len(text)
             print(f'  IME[TSF] {text!r}')
 

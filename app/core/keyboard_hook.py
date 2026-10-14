@@ -63,6 +63,7 @@ class ImeCommitTracker:
     """
 
     def __init__(self):
+        """建立当前组字和上一结果的去重基线，不记录持久输入日志。"""
         self._comp = ''
         self._last_result = ''
 
@@ -112,6 +113,7 @@ class ImeCommitTracker:
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
+    """Windows 低级键盘钩子的 ctypes 内存结构，字段布局必须符合系统 ABI。"""
     _fields_ = [
         ('vkCode', wt.DWORD), ('scanCode', wt.DWORD), ('flags', wt.DWORD),
         ('time', wt.DWORD), ('dwExtraInfo', ctypes.POINTER(wt.ULONG)),
@@ -119,6 +121,7 @@ class KBDLLHOOKSTRUCT(ctypes.Structure):
 
 
 class MSG(ctypes.Structure):
+    """Windows 消息循环的 ctypes 结构，供钩子线程派发和退出消息。"""
     _fields_ = [
         ('hwnd', wt.HWND), ('message', wt.UINT), ('wParam', wt.WPARAM),
         ('lParam', wt.LPARAM), ('time', wt.DWORD), ('pt', wt.POINT),
@@ -203,6 +206,7 @@ class KeyboardHook:
 
     # ---------- 生命周期 ----------
     def start(self) -> bool:
+        """启动低级键盘消息线程及 IMM 备用轮询，等待钩子就绪后返回安装是否成功。"""
         self._running = True
         self._thread = threading.Thread(target=self._thread_main, name='kb-hook', daemon=True)
         self._thread.start()
@@ -212,6 +216,7 @@ class KeyboardHook:
         return self._hook is not None
 
     def stop(self) -> None:
+        """停止采集、向钩子线程发送退出消息并有界等待两个采集线程结束。"""
         self._running = False
         tid = self._thread.ident if self._thread else None
         if tid:
@@ -221,6 +226,7 @@ class KeyboardHook:
             self._poller.join(timeout=3)
 
     def _thread_main(self):
+        """在钩子所属线程安装回调并运行 Windows 消息循环，退出时解除系统钩子。"""
         self._proc_ref = HOOKPROC(self._callback)
         self._hook = user32.SetWindowsHookExW(
             WH_KEYBOARD_LL, self._proc_ref, kernel32.GetModuleHandleW(None), 0)
@@ -240,6 +246,7 @@ class KeyboardHook:
 
     # ---------- 钩子回调 ----------
     def _callback(self, nCode, wParam, lParam):
+        """维护修饰键状态、发布原始数值事件并执行计数；异常不阻断系统键盘消息链。"""
         if nCode >= 0 and self._running:
             self.event_count += 1
             try:
@@ -263,6 +270,7 @@ class KeyboardHook:
         return user32.CallNextHookEx(None, nCode, wParam, lParam)
 
     def _process(self, wParam, lParam):
+        """过滤非按下/组合键/排除应用/IME 组字事件，再发布普通字符或删除计数。"""
         kb = KBDLLHOOKSTRUCT.from_address(lParam)
         vk = kb.vkCode
         down = wParam in (WM_KEYDOWN, WM_SYSKEYDOWN)
@@ -314,6 +322,7 @@ class KeyboardHook:
             self._on_char(self._vk_kind(vk))
 
     def _vk_kind(self, vk) -> str:
+        """把可计数虚拟键映射为字母、数字、空格或符号分类。"""
         if vk in LETTER_VKS:
             return 'letter'
         if vk in DIGIT_VKS:
@@ -324,6 +333,7 @@ class KeyboardHook:
 
     # ---------- IME 轮询（兜底鼠标选字等非按键提交） ----------
     def _poll_loop(self):
+        """未启用有效 TSF 时轮询 IMM 提交状态；排除应用不上报，避免两条 IME 路径双计。"""
         while self._running:
             time.sleep(1.0)
             try:
@@ -352,6 +362,7 @@ class KeyboardHook:
         return any(self._mod_down.get(vk) for vk in MODIFIER_VKS)
 
     def _excluded(self) -> bool:
+        """按排除快照判断当前前台程序是否应跳过采集，空列表避免读取进程信息。"""
         if not self._excluded_apps:
             return False  # 空列表短路：省掉 OpenProcess 开销（v0.8.9）
         proc = self._foreground_process()
@@ -433,6 +444,7 @@ class KeyboardHook:
 
     @staticmethod
     def _get_composition(himc, index) -> str:
+        """用 IMM API 读取指定组字/提交字符串，只返回临时文本供即时计数。"""
         n = imm32.ImmGetCompositionStringW(himc, index, None, 0)
         if n <= 0:
             return ''

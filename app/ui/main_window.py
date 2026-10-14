@@ -45,6 +45,7 @@ NAV_ICONS = {'今日': 'today', '训练': 'training', '英语': 'english', '统�
 
 
 def _load_bands(balance, repo):
+    """读取用户称号档位配置，格式无效时回退业务预设，不修改保存值。"""
     raw = repo.get_setting('level_bands')
     if raw:
         try:
@@ -66,10 +67,12 @@ def current_streak(repo, day_iso) -> int:
 
 
 class MainWindow(QMainWindow):
+    """Qt 主线程页面装配/导航与反馈协调器，生产路径使用只读模型和异步命令。"""
     def __init__(self, engine, repo, balance, tray=None,
                  checkin=None, rewards=None, achievements=None,
                  theme_manager=None, challenge=None, ai_service=None,
                  data_dir=None, application=None):
+        """建立主窗口导航与页面协调组件的依赖与初始状态。"""
         super().__init__()
         self.setProperty('stageChromeHeight', WINDOW_CHROME_HEIGHT)
         self._application = application
@@ -258,6 +261,7 @@ class MainWindow(QMainWindow):
 
     @Slot(object)
     def _application_changed(self,event):
+        """接收提交后通知，刷新相关可见页面并在真实等级/成就提交后触发反馈。"""
         if event.topic=='level':
             previous,level=event.payload['previous'],event.payload['level']
             self.notify('升级！',f'Lv.{previous} → Lv.{level}','level')
@@ -280,6 +284,7 @@ class MainWindow(QMainWindow):
                     self._hook.set_excluded_apps(self.load_excluded_apps())
 
     def _on_reward_granted(self):
+        """奖励提交结果到达后刷新成长展示。"""
         self.refresh()
 
     # ---------- 主题 effects ----------
@@ -370,6 +375,7 @@ class MainWindow(QMainWindow):
             body.insertWidget(0, self._growth_bar)
 
     def _sync_nav_selection(self) -> None:
+        """按当前页面同步主导航及成长页面归属。"""
         page = self._tabs.currentWidget()
         if page in [getattr(self, name, None) for name in ('_checkin_page', '_ach_page', '_profile_page')]:
             current = '成长'
@@ -398,6 +404,7 @@ class MainWindow(QMainWindow):
                 setter(compact)
 
     def play_confetti(self, tier: int = 1) -> None:
+        """仅当前可见且允许动效时展示庆祝彩带，不授予奖励。"""
         if not self._motion_active():
             return
         self._confetti.setGeometry(self.rect())
@@ -405,6 +412,7 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         # 背景层只覆盖标题栏以下的内容区（标题栏自带底色）
+        """同步背景、装饰、导航与各页面响应式几何。"""
         stage = self.rect().adjusted(0, TITLEBAR_HEIGHT, 0, 0)
         self._backdrop.setGeometry(stage)
         self._backdrop.lower()
@@ -450,6 +458,7 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(3800, lambda: self._popups_discard(popup))
 
     def _popups_discard(self, popup) -> None:
+        """从活动浮层集合移除已销毁对象，避免重复管理。"""
         if popup in self._popups:
             self._popups.remove(popup)
 
@@ -462,6 +471,7 @@ class MainWindow(QMainWindow):
         self.show_toast(title, msg, kind)
 
     def _companion_result(self, result):
+        """把已提交练习结果映射成稳定 ID 桌宠事件，指标仅取该次成绩。"""
         if self._companion is not None:
             from ..modules.companion.api import CompanionEvent
             kind = ('record' if result.get('is_best') else
@@ -473,6 +483,7 @@ class MainWindow(QMainWindow):
 
     # ---------- Tab 动效 ----------
     def _on_tab_changed(self, index: int):
+        """页面切换后刷新当前只读数据、成长导航和动效资格。"""
         page = self._tabs.widget(index)
         if page is self._reports:
             self._reports.refresh()
@@ -501,6 +512,7 @@ class MainWindow(QMainWindow):
 
     # ---------- 刷新 ----------
     def refresh(self):
+        """窗口可见时从内存计数与已提交模型刷新今日摘要，不在后台每秒重查 SQL。"""
         if not self.isVisible():
             return  # 驻留托盘时停止每秒刷新（UI 与 SQL 都省）
         snap = self._engine.snapshot()
@@ -540,6 +552,7 @@ class MainWindow(QMainWindow):
             self._tray.update_summary(self._summary_text(snap, unit))
 
     def set_hook_status(self, ok: bool):
+        """把输入钩子启动结果交今日页显示。"""
         self._dashboard.set_hook_status(ok)
 
     def set_hook(self, hook):
@@ -553,6 +566,7 @@ class MainWindow(QMainWindow):
         return {line.strip().lower() for line in text.splitlines() if line.strip()}
 
     def _summary_text(self, snap, unit) -> str:
+        """按当前数值快照生成托盘摘要，未知速度/准确率明确显示破折号。"""
         avg = snap['avg_tw']
         avg_s = f'{avg:.1f}{unit}/分' if avg is not None else '—'
         acc = snap['accuracy']
@@ -560,24 +574,29 @@ class MainWindow(QMainWindow):
         return f'{snap["valid"]:,} 字 · {avg_s} · 正确率 {acc_s}'
 
     def show_and_raise(self):
+        """从托盘/最小化恢复并激活主窗口。"""
         self.showNormal()
         self.raise_()
         self.activateWindow()
 
     def open_training(self):
+        """切换到已装配的训练页面，不重建会话。"""
         if hasattr(self, '_challenge_page'):
             self._tabs.setCurrentWidget(self._challenge_page)
 
     def _motion_active(self):
+        """综合可见性、最小化、练习和减弱动态效果设置判断装饰动效资格。"""
         running = self.activity_provider.activity().practicing
         return (self.isVisible() and not self.isMinimized() and not running
                 and self._presenter.get_setting('reduced_motion', '0') != '1')
 
     def _practice_changed(self,source,running):
+        """按来源更新公共练习状态，再同步全局/桌宠动效优先级。"""
         self.activity_provider.set_practicing(source,running)
         self._sync_motion()
 
     def _sync_motion(self, *_):
+        """统一暂停或恢复人物、星光、导航、奖励浮层及桌宠视觉计时。"""
         active = self._motion_active()
         self._backdrop.set_motion_enabled(active)
         self._starfield.set_paused(not active)
@@ -592,14 +611,17 @@ class MainWindow(QMainWindow):
             self._companion.sync_visibility()
 
     def showEvent(self, event):
+        """主窗口显示后恢复当前允许的视觉效果。"""
         super().showEvent(event)
         self._sync_motion()
 
     def hideEvent(self, event):
+        """主窗口隐藏后暂停不需要的视觉效果，后台统计仍由应用运行。"""
         super().hideEvent(event)
         self._sync_motion()
 
     def open_settings(self, checked=False, *, section=''):
+        """打开独立设置草稿；提交成功后同步日切、排除列表、资料和桌宠。"""
         dlg = SettingsDialog(self._presenter, self._balance, self,
                              theme_manager=self._theme_mgr,
                              data_dir=self._data_dir, test_session=self._ai_session)
@@ -617,6 +639,7 @@ class MainWindow(QMainWindow):
         self._sync_motion()
 
     def closeEvent(self, event):
+        """普通关窗转为托盘驻留并继续统计，不走真正退出/数据库关闭流程。"""
         event.ignore()
         self.hide()
         if self._tray is not None:
@@ -632,4 +655,5 @@ class MainWindow(QMainWindow):
 
 
 class ApplicationEvents(QObject):
+    """提交后业务事件到 Qt 主线程的信号载体，后台不直接访问控件。"""
     changed=Signal(object)

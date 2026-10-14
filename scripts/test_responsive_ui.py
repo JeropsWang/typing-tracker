@@ -22,12 +22,15 @@ from app.ui.main_window import MainWindow
 
 
 class ResponsiveUI(unittest.TestCase):
+    """宽窄页面与主要操作可见性的回归用例，使用隔离对象与受控输入验证实际行为。"""
     @classmethod
     def setUpClass(cls):
+        """为本组界面回归建立共享 Qt/资源环境，避免重复 QApplication。"""
         cls.app = QApplication.instance() or QApplication([])
         load_fonts()
 
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         self.conn = connect_db(':memory:')
         init_schema(self.conn)
         repo = Repository(self.conn)
@@ -44,17 +47,20 @@ class ResponsiveUI(unittest.TestCase):
         self.window.show()
 
     def tearDown(self):
+        """关闭本用例持有的对象并清理临时资源，下一例从独立状态开始。"""
         self.window.hide()
         self.window.deleteLater()
         self.app.processEvents()
         self.conn.close()
 
     def resize(self, width, height):
+        """请求测试窗口尺寸并处理 Qt 布局事件，验证固定/响应式策略。"""
         self.window.resize(width, height)
         for _ in range(12):
             self.app.processEvents()
 
     def assert_visible(self, control, container):
+        """断言目标控件在容器可见区域内，防止主要操作被裁切。"""
         point = control.mapTo(container, control.rect().topLeft())
         self.assertGreaterEqual(point.x(), 0)
         self.assertGreaterEqual(point.y(), 0)
@@ -62,6 +68,7 @@ class ResponsiveUI(unittest.TestCase):
         self.assertLessEqual(point.y() + control.height(), container.height())
 
     def test_rejected_enlargement_keeps_paper_size_and_illustration_space(self):
+        """验证拒绝放大后纸张和人物留白保持稳定。"""
         original_width = self.page._paper.width()
         self.resize(2560, 1440)
         self.assertEqual(self.window.size(), QSize(1440, 1024))
@@ -72,6 +79,7 @@ class ResponsiveUI(unittest.TestCase):
         self.assertLessEqual(self.page._input.height(), 280, '避免靠无限拉高空输入框填屏')
 
     def test_rejected_resizes_keep_training_and_secondary_entries_in_view(self):
+        """验证非法缩放被拒绝后训练及副操作入口仍可见。"""
         for size in [(900, 640), (1100, 720), (1440, 900), (900, 640)]:
             self.resize(*size)
             self.assertEqual(self.window.size(), QSize(1440, 1024))
@@ -85,6 +93,7 @@ class ResponsiveUI(unittest.TestCase):
             self.assertEqual(self.page._secondary.verticalScrollBar().maximum(), 0)
 
     def test_navigation_docks_without_excessive_spacing_and_preserves_selection(self):
+        """验证导航底座留白合理且重排保留选择。"""
         for size in [(900, 640), (1440, 1024), (2560, 1440), (900, 640)]:
             self.resize(*size)
             nav = self.window._nav
@@ -97,6 +106,7 @@ class ResponsiveUI(unittest.TestCase):
             self.assertTrue(nav.buttons['训练'].isChecked())
 
     def test_ai_controls_stay_visible_after_rejected_resizes(self):
+        """验证窗口拒绝非法缩放后，AI 输入和操作仍可见。"""
         self.page._ai_section.toggle.setChecked(True)
         for size in [(2560, 1440), (1200, 800), (900, 640)]:
             self.resize(*size)
@@ -108,6 +118,7 @@ class ResponsiveUI(unittest.TestCase):
         self.assertTrue(self.page._paper.isVisible())
 
     def test_repeated_window_requests_do_not_change_density_or_paper_position(self):
+        """验证重复窗口状态请求不改变布局密度及纸张位置。"""
         before = (self.page._paper.size(), self.page._input.size(), self.window._nav.size(),
                   self.page._paper.mapTo(self.page, self.page._paper.rect().topLeft()))
         for size in [(1100, 800), (1100, 920), (2560, 1440)]:
@@ -119,6 +130,7 @@ class ResponsiveUI(unittest.TestCase):
             self.assertEqual(before, after)
 
     def test_blocked_maximize_preserves_running_practice_and_input(self):
+        """验证系统最大化被拒绝时，正在进行的练习和输入保留。"""
         self.page._start()
         text = self.page._current_text()[:1]
         self.page._input.setPlainText(text)

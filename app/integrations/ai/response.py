@@ -18,6 +18,7 @@ def _events(response):
 
 
 def read_chat_response(response, capture_usage):
+    """读取 JSON 或 SSE 的可见正文与用量；流式未正常结束时拒绝把半段内容当完整材料。"""
     if 'text/event-stream' not in response.headers.get('Content-Type', '').lower():
         result = json.loads(response.read().decode('utf-8'))
         capture_usage(result)

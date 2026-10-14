@@ -18,9 +18,11 @@ def ai_access_state(level: int, ai_pass_count: int, unlock_level: int = 45):
 
 @dataclass
 class AITestSession:
+    """仅本次运行有效的开发者 AI 测试资格，默认关闭且不持久化。"""
     enabled: bool = False
 
     def access(self, level, passes, unlock):
+        """临时测试开启时放行请求，否则按等级和训练券数量计算资格。"""
         if self.enabled:
             return True, '开发者彩蛋 · AI 测试临时解锁；请求仍消耗 API token'
         return ai_access_state(level, passes, unlock)

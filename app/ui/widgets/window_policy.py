@@ -3,7 +3,9 @@ from PySide6.QtCore import QEvent, QObject, Qt
 
 
 class FixedWindowPolicy(QObject):
+    """固定窗口策略的事件过滤器，拦截系统放大请求但保留最小化。"""
     def __init__(self, window, size):
+        """建立窗口尺寸/最大化策略组件的依赖与初始状态。"""
         super().__init__(window)
         self._window = window
         window.setFixedSize(*size)
@@ -11,6 +13,7 @@ class FixedWindowPolicy(QObject):
         window.installEventFilter(self)
 
     def eventFilter(self, watched, event):
+        """系统请求最大化/全屏时清除放大位，不吞掉正常窗口事件。"""
         if watched is self._window and event.type() == QEvent.WindowStateChange:
             # 标题栏之外也可能收到系统放大请求；清除放大状态，保留最小化状态。
             expanded = Qt.WindowMaximized | Qt.WindowFullScreen

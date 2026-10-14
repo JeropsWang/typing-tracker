@@ -26,6 +26,7 @@ def make_temp_dir() -> Path:
 
 
 def cleanup_temp_dir(p: Path) -> None:
+    """清理本次自检创建的临时目录，忽略退出时的残留文件清理错误。"""
     shutil.rmtree(p, ignore_errors=True)
 
 from app.core.classifier import (  # noqa: E402
@@ -45,6 +46,7 @@ _passed = 0
 
 
 def check(name, cond):
+    """断言命名自检条件并累计通过数，失败时立即抛出带场景名称的断言。"""
     global _passed
     assert cond, f'FAIL: {name}'
     _passed += 1
@@ -52,6 +54,7 @@ def check(name, cond):
 
 
 def main() -> int:
+    """检查计数、评分、奖励、存储恢复、主题及 AI 协议等规则；使用隔离数据库和本机 HTTP 夹具，不请求真实模型。"""
     print('== classifier（统一度量衡）==')
     check('汉字判定', is_hanzi('你') and is_hanzi('𠀀') and not is_hanzi('a') and not is_hanzi('1'))
     check('分类', classify_char('汉') == 'hanzi' and classify_char('a') == 'letter'
@@ -80,6 +83,7 @@ def main() -> int:
         repo.set_setting('day_start_hour', '4')
 
         def gs(key, default=None):
+            """读取第一组自检数据库的设置，供同步服务夹具获取配置。"""
             return repo.get_setting(key, default)
 
         eng = StatsEngine(repo, gs, BALANCE)
@@ -334,7 +338,9 @@ def main() -> int:
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
         class _AIHandler(BaseHTTPRequestHandler):
+            """本机 AI 自检 HTTP 夹具，固定返回练习正文以验证协议链路。"""
             def do_POST(self):
+                """记录请求体并返回固定完成响应，不转发外部模型或执行请求内容。"""
                 length = int(self.headers.get('Content-Length', 0))
                 self.server.last_body = self.rfile.read(length)
                 resp = json.dumps({'choices': [{
@@ -345,6 +351,7 @@ def main() -> int:
                 self.wfile.write(resp)
 
             def log_message(self, *a):
+                """关闭夹具访问日志，保持自检输出聚焦于断言结果。"""
                 pass
 
         srv = ThreadingHTTPServer(('127.0.0.1', 0), _AIHandler)
@@ -407,16 +414,19 @@ def main() -> int:
     from app.ui.palette import P as PAL
 
     def _lum(hexcolor):
+        """将十六进制 RGB 色转换为 WCAG 相对亮度，供主题对比度断言使用。"""
         h = hexcolor.lstrip('#')
         r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
         def f(c):
+            """按 sRGB 分段公式将单通道值线性化，输入和输出均为 0 到 1 的比例。"""
             return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
 
         r, g, b = f(r), f(g), f(b)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     def _contrast(c1, c2):
+        """计算两种颜色的 WCAG 对比度比值，检查主题文本可读性。"""
         l1, l2 = sorted((_lum(c1), _lum(c2)), reverse=True)
         return (l1 + 0.05) / (l2 + 0.05)
 
@@ -453,6 +463,7 @@ def main() -> int:
     got = []
 
     def upd(tracker, store, o, c, r):
+        """更新日切追踪器，仅在发生日切时收集返回事件，供跨日场景断言使用。"""
         v = tracker.update(o, c, r)
         if v:
             store.append(v)
@@ -512,6 +523,7 @@ def main() -> int:
         repo2 = Repository(conn2)
 
         def gs2(key, default=None):
+            """读取第二组自检数据库的设置，隔离分钟跨 flush 累计场景。"""
             return repo2.get_setting(key, default)
 
         eng3 = StatsEngine(repo2, gs2, BALANCE)

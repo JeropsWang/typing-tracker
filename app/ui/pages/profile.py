@@ -79,6 +79,7 @@ def _card_style(widget: QFrame, name: str, bg: str, border: str = '', *,
 
 def _label(text: str, role: str = '', size: int = 0, *, bold: bool = False,
            align=None, wrap: bool = False, color: str = '') -> QLabel:
+    """建立带资料页文字角色、字号和换行资格的标签。"""
     lab = QLabel(text)
     if role:
         lab.setProperty('textRole', role)
@@ -118,10 +119,12 @@ def _clear_layout(layout) -> None:
 
 
 class ProfilePage(QWidget):
+    """个人资料和已提交成长记录的只读展示页，称号变更通过异步设置入口。"""
     settings_requested = Signal()
 
     def __init__(self, repo, balance, engine, ach_service, reward_service,
                  avatar_dir=None, parent=None):
+        """建立用户资料与成长概览组件的依赖与初始状态。"""
         super().__init__(parent)
         self._presenter = QueryPresenter(repo)
         self._tasks = TaskBridge(self)
@@ -175,6 +178,7 @@ class ProfilePage(QWidget):
         # 纸张首行留给主窗口挂入的成长子导航（打卡/成就/个人资料）
 
         # 身份主视觉与错位双列；资料、库存与成就各自保持独立容器。
+        """装配人物头图、等级数据、称号和成就进度区域。"""
         self._head_card = ProfileHero()
         self._avatar = self._head_card.avatar
         self._nick_label = self._head_card.nickname
@@ -336,6 +340,7 @@ class ProfilePage(QWidget):
     # ---------- 主题 ----------
     def apply_theme(self):
         # QSS 字号晚于 sizeHint 生效，显式给一行文字高度，避免中文被裁掉字头
+        """将当前主题颜色、字号和图标同步到用户资料与成长概览，保持现有业务状态。"""
         self._subtitle.setMinimumHeight(self._subtitle.fontMetrics().height() + 6)
         self._avatar.update()
         self._paper.update()
@@ -344,6 +349,7 @@ class ProfilePage(QWidget):
 
     # ---------- 刷新 ----------
     def refresh(self):
+        """从已发布模型同步资料/经验/统计，不让 UI 直接重查数据库。"""
         nickname = self._presenter.get_setting('nickname', '打字新星')
         signature = self._presenter.get_setting('signature', '键盘上的舞者 ✨')
         self._avatar.set_preset(self._presenter.get_setting('avatar_preset', 'default'))
@@ -453,6 +459,7 @@ class ProfilePage(QWidget):
             holder.resize(holder.width(), max(holder.height(), needed + top))
 
     def _build_titles(self, level: int, band: str, titles: list) -> None:
+        """从已领取称号构建当前可选展示项，保持已保存选择。"""
         active = self._presenter.get_setting('active_title', '')
         _clear_layout(self._titles_box)
         all_titles = [f'Lv.{level} {band}'] + list(titles)
@@ -474,6 +481,7 @@ class ProfilePage(QWidget):
             f'当前佩戴：{active if active else f"Lv.{level} {band}"}')
 
     def _build_achievement_progress(self) -> None:
+        """合并成就定义与解锁状态展示各类进度。"""
         items = self._ach.all_achievements()
         unlocked = sum(1 for a in items if a['unlocked_at'])
         total = len(items)
@@ -503,6 +511,7 @@ class ProfilePage(QWidget):
                         radius=max(10, radius - 4))
 
     def _equip_title(self, title: str) -> None:
+        """将用户选择的称号交设置命令保存，不绕过资料配置归属。"""
         self._tasks.resolve(self._presenter.set_setting('active_title',title),lambda _:self.refresh())
 
     # ---------- 版式 ----------
@@ -512,6 +521,7 @@ class ProfilePage(QWidget):
         return stage_layout_for(self).compact
 
     def set_compact(self, compact: bool) -> None:
+        """更新用户资料与成长概览的紧凑布局、间距和尺寸约束。"""
         compact = bool(compact)
         changed = compact != self._compact
         self._compact = compact
@@ -551,6 +561,7 @@ class ProfilePage(QWidget):
             btn.setFixedHeight(btn_h)
 
     def resizeEvent(self, event):
+        """按尺寸同步头图/纸张及统计区域，保留已有只读数据。"""
         if getattr(self, '_page', None) is not None:
             compact = self._is_compact_now()
             if compact != self._compact:
@@ -565,6 +576,7 @@ class ProfilePage(QWidget):
         super().resizeEvent(event)
 
     def showEvent(self, event):
+        """页面重新显示时刷新已提交资料和响应式布局。"""
         if getattr(self, '_page', None) is not None:
             self.set_compact(self._is_compact_now())
             self._sync_scale()

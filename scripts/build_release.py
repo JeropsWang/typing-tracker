@@ -18,6 +18,7 @@ TOOLS_ROOT = Path(__file__).resolve().parents[1]
 
 
 def sha256(path: Path) -> str:
+    """流式计算文件的 SHA-256 摘要，用于发布清单与附件校验。"""
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
@@ -38,6 +39,7 @@ def run_logged(command: list[str], log_path: Path, cwd: Path | None = None) -> N
 
 
 def read_version(source: Path) -> str:
+    """静态读取源码包的数字版本号，不导入应用或执行启动逻辑；格式不合法时拒绝构建。"""
     tree = ast.parse((source / 'app/__init__.py').read_text(encoding='utf-8-sig'))
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(
@@ -64,11 +66,13 @@ def read_brand(source: Path) -> str:
 
 
 def normalize(code: CodeType) -> CodeType:
+    """递归统一代码对象的文件名，使不同源码路径下的冻结代码可以比较。"""
     return code.replace(co_filename='checked.py', co_consts=tuple(
         normalize(value) if isinstance(value, CodeType) else value for value in code.co_consts))
 
 
 def runtime_files(source: Path) -> list[Path]:
+    """列出数据库建表脚本、配置、主题与界面素材，排除字节码和临时文件。"""
     files = [source / 'app/storage/schema.sql']
     for directory in ('config', 'app/theme/themes', 'app/ui/assets'):
         files.extend(path for path in (source / directory).rglob('*')
@@ -100,6 +104,8 @@ def verify_executable(exe: Path, source: Path) -> dict:
     from PyInstaller.archive.readers import CArchiveReader
 
     check_bootstrap([str(exe), '--help'])
+    if (source / 'app/integrations/companion_agent/probe.py').is_file():
+        check_bootstrap([str(exe), '--companion-agent-selfcheck'])
     archive = CArchiveReader(str(exe))
     pyz = archive.open_embedded_archive(next(name for name in archive.toc if name.endswith('.pyz')))
     checked = []
@@ -121,6 +127,18 @@ def verify_executable(exe: Path, source: Path) -> dict:
         if (source / 'app/integrations/updates/service.py').is_file():
             required_modules.extend(('app.integrations.updates.service','app.ui.updates',
                                      'app.modules.english.review'))
+        if (source / 'app/integrations/companion_agent/service.py').is_file():
+            required_modules.extend(('app.integrations.companion_agent.service',
+                                     'app.integrations.companion_agent.graph',
+                                     'app.integrations.companion_agent.stream',
+                                     'app.integrations.companion_agent.edge_search',
+                                     'app.integrations.companion_agent.pages',
+                                     'app.ui.companion.agent_controller'))
+            if (source / 'app/integrations/companion_agent/setup.py').is_file():
+                required_modules.extend(('app.integrations.companion_agent.setup',
+                                         'app.integrations.companion_agent.search'))
+            if 'langgraph.graph.state' not in pyz.toc:
+                raise ValueError('Missing packaged LangGraph runtime')
     else:
         required_modules.append('app.services.ai_service')
     for required in required_modules:
@@ -142,6 +160,7 @@ def verify_executable(exe: Path, source: Path) -> dict:
 
 
 def build_executable(source: Path, output: Path, version: str) -> Path:
+    """在指定输出目录生成版本资源与 PyInstaller 配置，打包应用及 Qt/智能体依赖；构建失败由日志执行器报错。"""
     import PySide6
 
     brand = read_brand(source)
@@ -166,9 +185,14 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         "VarFileInfo([VarStruct('Translation', [1033, 1200])])])", encoding='utf-8')
     datas = [(str(path), path.parent.relative_to(source).as_posix()) for path in runtime_files(source)]
     spec = build / f'{brand}.spec'
+    agent_support = (source / 'app/integrations/companion_agent/service.py').is_file()
     spec.write_text(
+        "from PyInstaller.utils.hooks import collect_submodules, copy_metadata\n" +
+        ("agent_hidden = collect_submodules('langgraph')\n"
+         "agent_metadata = copy_metadata('langgraph', recursive=True)\n" if agent_support else
+         "agent_hidden = []\nagent_metadata = []\n") +
         f"a = Analysis([{str(source / 'main.py')!r}], pathex=[{str(source)!r}], "
-        f"binaries={vc_dlls!r}, datas={datas!r}, "
+        f"binaries={vc_dlls!r}, datas={datas!r} + agent_metadata, hiddenimports=agent_hidden, "
         f"runtime_hooks=[{str(source / 'scripts/pyinstaller_runtime.py')!r}], "
         "excludes=['pygame'], optimize=0)\npyz = PYZ(a.pure)\n"
         # Embedded Python ignores PYTHONIOENCODING; UTF-8 must be a bootloader option.
@@ -182,6 +206,7 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
 
 
 def main() -> None:
+    """校验源码版本与输出目录后构建或核验现有 exe，生成安装包、发布清单和校验和；调用 PyInstaller 与 Inno Setup，不发布附件。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-dir', type=Path, required=True)
     parser.add_argument('--output-dir', type=Path, required=True)

@@ -10,9 +10,11 @@ from ..tasks import begin_network, cancel_network, finish_network_result
 
 
 class ChaosRequest(QObject):
+    """固定输入与配置快照的单次混乱生成请求，复用共享网络准入。"""
     done = Signal(str, bool, str)
 
     def __init__(self, ai, topic, parent):
+        """建立混乱生成训练模式组件的依赖与初始状态。"""
         super().__init__(parent)
         self.id = uuid.uuid4().hex
         self.service = ai.snapshot()
@@ -22,17 +24,21 @@ class ChaosRequest(QObject):
         self._thread = None
 
     def start(self):
+        """取得准入后后台生成，带请求 ID 回传结果和用量。"""
         begin_network(self,self.service,lambda:self.service.generate_chaos(self.topic),
                       lambda result:self.done.emit(self.id,result.ok,result.body if result.ok else result.error))
 
     def cancel(self):
+        """使结果立即失效，传输完成前准入仍保留。"""
         cancel_network(self)
 
 
 class ChaosPanel(PaperPage):
+    """混乱生成的 Qt 展示页，正文最多 60 字，生成状态与原材料展示分离。"""
     settings_requested = Signal()
 
     def __init__(self, ai, parent=None):
+        """建立混乱生成训练模式组件的依赖与初始状态。"""
         super().__init__(parent)
         self.ai = ai
         self.request = None
@@ -77,6 +83,7 @@ class ChaosPanel(PaperPage):
         self.apply_theme()
 
     def generate(self):
+        """校验服务并冻结主题后启动请求，失败恢复可操作状态。"""
         if self.request:
             return
         if self.ai is None or not self.ai.enabled():
@@ -99,6 +106,7 @@ class ChaosPanel(PaperPage):
             self.status.setText(str(error))
 
     def _done(self, request_id, ok, result):
+        """仅接收当前请求结果，显示本次用量，结束结果处理租约。"""
         if self.request is None or self.request.id != request_id:
             return
         self.usage_label.set_usage(self.request.usage)
@@ -115,11 +123,13 @@ class ChaosPanel(PaperPage):
             self.status.setText(result)
 
     def _idle(self):
+        """恢复主题和生成按钮，保留已展示正文。"""
         self.generate_button.setEnabled(True)
         self.topic.setEnabled(True)
         self.generate_button.setText('放飞一次 →')
 
     def hideEvent(self, event):
+        """页面隐藏时取消未接收结果并清理请求对象，不取消其他页面的模型任务。"""
         if self.request:
             self.request.cancel()
             self.usage_label.set_usage(self.request.usage)
@@ -130,6 +140,7 @@ class ChaosPanel(PaperPage):
         super().hideEvent(event)
 
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到混乱生成训练模式，保持现有业务状态。"""
         self.output.setStyleSheet(f'QTextBrowser {{background:transparent;color:{P.paper_text};border:none;padding:12px;font-size:24px;}}')
         self.usage_label.apply_theme()
         self.paper.update()

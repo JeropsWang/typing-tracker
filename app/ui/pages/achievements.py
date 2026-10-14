@@ -165,6 +165,7 @@ _LOCK_CACHE: dict = {}
 
 
 def lock_pixmap(color: str, size: int = 14) -> QPixmap:
+    """按颜色/尺寸缓存绘制成就锁图标，不重复创建相同 SVG 资源。"""
     key = (color, int(size))
     if key not in _LOCK_CACHE:
         pixmap = QPixmap(int(size), int(size))
@@ -189,6 +190,7 @@ def _card_style(widget: QFrame, name: str, bg: str, border: str = '', *,
 
 def _label(text: str, role: str = '', size: int = 0, *, bold: bool = False,
            align=None, wrap: bool = False, color: str = '') -> QLabel:
+    """建立带文字角色、字号及可选换行/对齐的成就标签。"""
     lab = QLabel(text)
     if role:
         lab.setProperty('textRole', role)
@@ -249,6 +251,7 @@ def _activate_tree(widget: QWidget) -> None:
 
 
 def reward_text(item) -> str:
+    """把成就定义中的经验、卡片和称号奖励转成可读说明，不发奖励。"""
     parts = []
     for rw in item.get('rewards', []):
         kind, qty = rw['kind'], rw.get('qty', 1)
@@ -264,9 +267,11 @@ def reward_text(item) -> str:
 
 
 class AchievementsPage(QWidget):
+    """只读展示成就定义/状态并通过异步能力领取，反馈以提交成功为准。"""
     claimed = Signal()
 
     def __init__(self, repo, balance, ach_service, parent=None):
+        """建立成就进度与领取展示组件的依赖与初始状态。"""
         super().__init__(parent)
         self._presenter = QueryPresenter(repo)
         self._tasks = TaskBridge(self)
@@ -334,6 +339,7 @@ class AchievementsPage(QWidget):
     # ---------- 主题 ----------
     def apply_theme(self):
         # QSS 字号晚于 sizeHint 生效，显式给一行文字高度，避免中文被裁掉字头
+        """将当前主题颜色、字号和图标同步到成就进度与领取展示，保持现有业务状态。"""
         self._subtitle.setMinimumHeight(self._subtitle.fontMetrics().height() + 6)
         self._tabs.setStyleSheet(f'''
         QTabWidget::pane {{ border: none; background: transparent; }}
@@ -359,6 +365,7 @@ class AchievementsPage(QWidget):
 
     # ---------- 刷新 ----------
     def refresh(self):
+        """合并只读成就数据，更新分类计数、待领取及卡片布局。"""
         items = self._ach.all_achievements()
         unlocked = [i for i in items if i['unlocked_at']]
         pending = [i for i in unlocked if not i['claimed']]
@@ -457,6 +464,7 @@ class AchievementsPage(QWidget):
 
     def _build_tab(self, cat_items: list) -> QWidget:
         # 卡片网格直接铺在页签内，由页面骨架统一滚动（不做滚动套滚动）
+        """为单类成就创建统一网格，复用页面滚动而不嵌套独立滚动区。"""
         page = QWidget()
         grid = QGridLayout(page)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -473,6 +481,7 @@ class AchievementsPage(QWidget):
 
     # ---------- 徽章卡片 ----------
     def _card(self, item) -> QWidget:
+        """根据已解锁/已领取状态建立成就展示和合格领取入口。"""
         frame = QFrame()
         height = self._card_height
         frame.setFixedHeight(height)
@@ -569,9 +578,11 @@ class AchievementsPage(QWidget):
         return frame
 
     def _do_claim(self, code):
+        """将成就领取交异步命令，通过 TaskBridge 等实际提交结果。"""
         self._tasks.resolve(self._ach.claim(code),self._claimed)
 
     def _claimed(self,granted):
+        """仅实际发放结果到达后发布领取反馈并刷新卡片。"""
         if granted:
             self.claimed.emit()
             self.refresh()
@@ -579,10 +590,12 @@ class AchievementsPage(QWidget):
     # ---------- 版式 ----------
     @property
     def _card_spacing(self) -> int:
+        """按连续缩放比例派生成就网格间距。"""
         return _interp(CARD_SPACING_MIN, CARD_SPACING_MAX, self._scale)
 
     @property
     def _card_pad(self) -> int:
+        """按连续缩放比例派生成就卡片内边距。"""
         return _interp(12, 18, self._scale)
 
     @property
@@ -630,6 +643,7 @@ class AchievementsPage(QWidget):
         return stage_layout_for(self).compact
 
     def set_compact(self, compact: bool) -> None:
+        """更新成就进度与领取展示的紧凑布局、间距和尺寸约束。"""
         compact = bool(compact)
         changed = compact != self._compact
         self._compact = compact
@@ -650,6 +664,7 @@ class AchievementsPage(QWidget):
             self.refresh()
 
     def resizeEvent(self, event):
+        """尺寸改变时同步紧凑度、激活布局并重算纸张高度，避免卡片被旧几何裁切。"""
         if getattr(self, '_page', None) is not None:
             compact = self._is_compact_now()
             if compact != self._compact:
@@ -662,6 +677,7 @@ class AchievementsPage(QWidget):
         super().resizeEvent(event)
 
     def showEvent(self, event):
+        """页面显示时按当前尺寸恢复布局，保持已提交成就状态。"""
         if getattr(self, '_page', None) is not None:
             self.set_compact(self._is_compact_now())
             self.set_scale(scale_for(max(1, self.width()), max(1, self.height())))

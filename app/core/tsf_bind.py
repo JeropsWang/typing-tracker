@@ -29,6 +29,7 @@ IID_ITfTextEditSink = GUID('{7A80F2C0-1884-45A1-B59E-AC965E4D3D40}')
 
 
 class ITfThreadMgr(IUnknown):
+    """TSF 线程管理 COM ABI 声明，负责激活、焦点文档和线程上下文。"""
     _iid_ = GUID('{aa80e801-2021-11d2-93e0-0060b067b86e}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'Activate', (['in'], POINTER(TfClientId), 'ptid')),
@@ -48,6 +49,7 @@ class ITfThreadMgr(IUnknown):
 
 
 class ITfThreadMgrEventSink(IUnknown):
+    """TSF 焦点/文档事件接收 COM 接口声明，方法顺序对应系统 vtable。"""
     _iid_ = GUID('{aa80e80e-2021-11d2-93e0-0060b067b86e}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'OnInitDocumentMgr', (['in'], P_UNK, 'pdim')),
@@ -60,6 +62,7 @@ class ITfThreadMgrEventSink(IUnknown):
 
 
 class ITfDocumentMgr(IUnknown):
+    """TSF 文档管理 COM 接口声明，用于取得焦点编辑上下文。"""
     _iid_ = GUID('{aa80e7f4-2021-11d2-93e0-0060b067b86e}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'CreateContext', (['in'], TfClientId, 'tidOwner'),
@@ -74,6 +77,7 @@ class ITfDocumentMgr(IUnknown):
 
 
 class ITfContext(IUnknown):
+    """TSF 编辑上下文 COM 接口声明，用于请求只读编辑会话。"""
     _iid_ = GUID('{aa80e7fd-2021-11d2-93e0-0060b067b86e}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'RequestEditSession', (['in'], TfClientId, 'tid'),
@@ -108,6 +112,7 @@ class ITfContext(IUnknown):
 
 
 class ITfContextComposition(IUnknown):
+    """TSF 组字上下文 COM 接口声明，用于枚举当前组合输入。"""
     _iid_ = GUID('{D40C8AAE-AC92-4FC7-9A11-0EE0E23AA39B}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'StartComposition', (['in'], TfEditCookie, 'ecWrite'),
@@ -123,6 +128,7 @@ class ITfContextComposition(IUnknown):
 
 
 class IEnumITfCompositionView(IUnknown):
+    """TSF 组字视图枚举 COM 接口，按系统 ABI 获取组合范围。"""
     _iid_ = GUID('{5EFD22BA-7838-46CB-88E2-CADB14124F8F}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'Clone', (['in'], PP, 'ppEnum')),
@@ -135,6 +141,7 @@ class IEnumITfCompositionView(IUnknown):
 
 
 class ITfCompositionView(IUnknown):
+    """TSF 单个组字视图 COM 接口，用于取得临时文本范围。"""
     _iid_ = GUID('{D7540241-F9A1-4364-BEFC-DBCD2C4395B7}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetOwnerClsid', (['in'], POINTER(GUID), 'pclsid')),
@@ -143,6 +150,7 @@ class ITfCompositionView(IUnknown):
 
 
 class ITfRange(IUnknown):
+    """TSF 文本范围 COM 接口，文本读取需要对应编辑会话权限。"""
     _iid_ = GUID('{aa80e7ff-2021-11d2-93e0-0060b067b86e}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'GetText', (['in'], TfEditCookie, 'ec'),
@@ -200,6 +208,7 @@ class ITfRange(IUnknown):
 
 
 class ITfSource(IUnknown):
+    """TSF 事件源 COM 接口，负责注册/反注册接收器。"""
     _iid_ = GUID('{4EA48A35-60AE-446F-8FD6-E6A8D82459F7}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'AdviseSink', (['in'], POINTER(GUID), 'riid'),
@@ -209,6 +218,7 @@ class ITfSource(IUnknown):
 
 
 class ITfEditSession(IUnknown):
+    """TSF 编辑会话 COM 回调接口，在授予的读权限内访问临时文本。"""
     _iid_ = GUID('{1A8FE1F2-7590-4E33-8E16-ED9E952DE89B}')
     _methods_ = [
         COMMETHOD([], HRESULT, 'DoEditSession', (['in'], TfEditCookie, 'ec')),

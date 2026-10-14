@@ -13,9 +13,11 @@ from ..palette import P
 
 
 class KeyboardInput(PracticeInput):
+    """键盘侠主动输入控件，仅实际改变文档的普通/IME 上屏文字进入计数。"""
     text_entered = Signal(str)
 
     def keyPressEvent(self, event):
+        """原输入处理后核对文档版本，实际新增可打印文本才发布输入信号。"""
         revision = self.document().revision()
         super().keyPressEvent(event)
         text = event.text().replace('\r', '\n')
@@ -23,6 +25,7 @@ class KeyboardInput(PracticeInput):
             self.text_entered.emit(text)
 
     def inputMethodEvent(self, event):
+        """只对实际插入的 IME commitString 发布上屏信号，组字不计数。"""
         revision = self.document().revision()
         super().inputMethodEvent(event)
         if event.commitString() and self.document().revision() != revision:
@@ -30,9 +33,11 @@ class KeyboardInput(PracticeInput):
 
 
 class KeyboardWarriorPanel(PaperPage):
+    """十五秒键盘侠的 Qt 页面，纯会话计数、异步记录、失败原结果重试。"""
     running_changed = Signal(bool)
 
     def __init__(self, repo, balance, parent=None):
+        """建立十五秒键盘侠训练组件的依赖与初始状态。"""
         super().__init__(parent)
         self.service = keyboard_presenter(repo)
         self._tasks = TaskBridge(self)
@@ -98,6 +103,7 @@ class KeyboardWarriorPanel(PaperPage):
         self.apply_theme()
 
     def _action(self):
+        """按待保存/进行/空闲状态执行保存重试、取消或新建十五秒会话。"""
         if self._pending:
             self._save()
         elif self.session:
@@ -114,11 +120,13 @@ class KeyboardWarriorPanel(PaperPage):
             self._tick()
 
     def _text_changed(self, text):
+        """有效会话把主动文字交纯计数器，再更新临时速度展示。"""
         if self.session and not self._pending:
             self.session.add_text(text)
             self._tick()
 
     def _tick(self):
+        """显示真实剩余秒数和 tw 速度，到期冻结输入并启动保存。"""
         if self.session is None or self._pending:
             return
         remaining = self.session.remaining
@@ -134,6 +142,7 @@ class KeyboardWarriorPanel(PaperPage):
             self._save()
 
     def _save(self):
+        """只提交一次已结束会话，Future 完成前禁重复操作，失败保留原会话 ID。"""
         if self._saving:
             return
         result = self.session.result()
@@ -147,12 +156,14 @@ class KeyboardWarriorPanel(PaperPage):
         self._tasks.resolve(saved,lambda value:self._saved(value,result),self._save_failed)
 
     def _save_failed(self,error):
+        """恢复保存重试操作并保留成绩，不把失败记录当已完成。"""
         self._saving=False
         self.start_button.setEnabled(True)
         self.status.setText('成绩保存失败，本轮结果已保留，点击重试保存。')
         self.start_button.setText('重试保存')
 
     def _saved(self,saved,result):
+        """提交成功后展示本轮数值并刷新排行榜，空输入不产生记录。"""
         self._saving=False
         self.start_button.setEnabled(True)
         self.speed.setText(f"本轮累计 {result['tw']:g} tw · 速度 {result['speed']:.1f} tw/分")
@@ -163,6 +174,7 @@ class KeyboardWarriorPanel(PaperPage):
         self.refresh()
 
     def cancel(self):
+        """取消未完成会话，但已到期待保存结果保留供重试。"""
         self.timer.stop()
         if self._pending:
             return  # Retain a finished result until the user can retry saving it.
@@ -175,6 +187,7 @@ class KeyboardWarriorPanel(PaperPage):
             self.running_changed.emit(False)
 
     def refresh(self):
+        """从只读服务刷新已提交排行榜和空状态。"""
         rows = self.service.leaderboard()
         self.table.setRowCount(len(rows))
         self.empty.setVisible(not rows)
@@ -185,10 +198,12 @@ class KeyboardWarriorPanel(PaperPage):
                 self.table.setItem(index, column, item)
 
     def hideEvent(self, event):
+        """页面隐藏时复用会话取消语义，待保存成绩不丢弃。"""
         self.cancel()
         super().hideEvent(event)
 
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到十五秒键盘侠训练，保持现有业务状态。"""
         self.input.setStyleSheet(f'QPlainTextEdit {{background:{P.surface};color:{P.surface_text};border:1px solid {P.primary};border-radius:14px;padding:12px;font:18px Consolas;}}')
         self.table.setStyleSheet(f'QTableWidget {{background:transparent;color:{P.paper_text};border:none;}} QHeaderView::section {{background:transparent;color:{P.paper_muted};border:none;padding:6px;}}')
         self.paper.update()

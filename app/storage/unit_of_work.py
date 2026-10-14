@@ -9,7 +9,9 @@ from ..workflows.events import Change, EventBus
 
 
 class UnitOfWork:
+    """单数据库连接的事务/幂等提交协调者；仅最外层提交成功后发布变更通知。"""
     def __init__(self, conn, events=None):
+        """持有工作线程连接和事件总线，初始化事务深度及待提交变更。"""
         self.conn = conn
         self.events = events or EventBus()
         self._depth = 0
@@ -17,6 +19,7 @@ class UnitOfWork:
 
     @contextmanager
     def transaction(self):
+        """开启写事务或嵌套保存点；失败回滚对应数据/通知，外层成功后合并发布提交变更。"""
         nested = self.conn.in_transaction
         name = 'op_' + uuid.uuid4().hex
         offset = len(self._pending)
@@ -45,6 +48,7 @@ class UnitOfWork:
                 self.events.publish(Change('commit',tuple(changes.values())))
 
     def changed(self, topic, payload=None):
+        """在事务内登记业务变更；事务外调用抛错，避免未提交数据驱动 UI。"""
         if not self._depth:
             raise RuntimeError('Changes must be registered inside a transaction')
         self._pending.append(Change(topic, payload))
@@ -66,8 +70,10 @@ class UnitOfWork:
 
 
 def transactional(method):
+    """包装兼容业务方法为统一事务；方法未显式处理的操作 ID 交幂等记录协调。"""
     @wraps(method)
     def wrapped(self, *args, **kwargs):
+        """按稳定操作 ID 重放成功结果，或在同一事务内执行原业务方法。"""
         operation_id=kwargs.get('operation_id')
         if operation_id is not None and 'operation_id' not in inspect.signature(method).parameters:
             kwargs=dict(kwargs)

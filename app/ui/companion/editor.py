@@ -9,11 +9,13 @@ from ...modules.companion.api import STATES
 
 
 class StateEditor(QWidget):
+    """工坊内存草稿的状态/表情编辑器，维护当前条目，不直接写文件或统计。"""
     changed = Signal()
     selection_changed = Signal()
     replace_requested = Signal()
 
     def __init__(self, parent=None):
+        """创建状态按钮、话术、持续时间和预览帧控件，连接草稿变更信号。"""
         super().__init__(parent)
         self.draft = None
         self.editable = False
@@ -108,6 +110,7 @@ class StateEditor(QWidget):
             signal.connect(self._edited)
 
     def load(self, draft, editable):
+        """载入草稿并补全缺失状态为待机副本，按模板权限启用编辑。"""
         self._loading = True
         self.draft = draft
         self.editable = editable
@@ -124,6 +127,7 @@ class StateEditor(QWidget):
         self._loading = False
 
     def _populate(self):
+        """更新状态/表情选择列表并保留当前选项，屏蔽填充期间的选择回调。"""
         self.selection.blockSignals(True)
         self.selection.clear()
         for key, name in STATES.items():
@@ -136,14 +140,17 @@ class StateEditor(QWidget):
         self.selection.blockSignals(False)
 
     def current_entry(self):
+        """返回当前状态或表情的可编辑草稿条目，调用方修改该条目即修改草稿。"""
         kind, key = self._key
         return self.draft['states'][key] if kind == 'state' else self.draft['memes'][key]
 
     def select_state(self, state):
+        """把已支持的状态名转换成选择索引，复用状态切换回调。"""
         if state in STATES:
             self.selection.setCurrentIndex(list(STATES).index(state))
 
     def commit_current(self):
+        """将当前控件值写回内存条目，持续时间从秒转换为毫秒。"""
         if self.draft and self.editable and not self._loading:
             entry = self.current_entry()
             entry['lines'] = [line.strip() for line in self.lines.toPlainText().splitlines() if line.strip()]
@@ -151,6 +158,7 @@ class StateEditor(QWidget):
             entry['frame'] = self.frame.value()
 
     def _selected(self):
+        """切换条目前先保存当前话术/帧草稿，再展示新条目并通知预览。"""
         if self._loading or self.draft is None or self.selection.currentData() is None:
             return
         self.commit_current()
@@ -159,6 +167,7 @@ class StateEditor(QWidget):
         self.selection_changed.emit()
 
     def _show_entry(self):
+        """读取当前条目填充控件及按钮选中态，加载期间不触发草稿写回。"""
         previous = self._loading
         self._loading = True
         entry = self.current_entry()
@@ -176,11 +185,13 @@ class StateEditor(QWidget):
         self._loading = previous
 
     def _edited(self):
+        """用户修改有效可编辑草稿时提交当前条目并发布 changed 信号。"""
         if not self._loading and self.draft is not None:
             self.commit_current()
             self.changed.emit()
 
     def add_meme(self):
+        """在 20 条上限内复制待机条目作为新表情，切换到它并标记草稿变更。"""
         if not self.editable:
             return
         if len(self.draft['memes']) >= 20:
@@ -193,6 +204,7 @@ class StateEditor(QWidget):
         self.changed.emit()
 
     def remove_meme(self):
+        """仅删除当前选中的自有表情草稿，之后恢复待机状态编辑。"""
         if not self.editable or self._key[0] != 'meme':
             return
         self.draft['memes'].pop(self._key[1])

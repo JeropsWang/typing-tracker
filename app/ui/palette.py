@@ -9,6 +9,7 @@ from __future__ import annotations
 def mix(color_a: str, color_b: str, weight_a: float) -> str:
     """按权重混合两个 #RRGGBB 颜色（weight_a 为 color_a 的占比）。"""
     def parts(value: str):
+        """把六位十六进制颜色拆为 RGB 通道，供颜色混合。"""
         value = value.lstrip('#')
         return [int(value[i:i + 2], 16) for i in (0, 2, 4)]
 
@@ -21,7 +22,9 @@ def mix(color_a: str, color_b: str, weight_a: float) -> str:
 
 
 class _Palette:
+    """共享主题颜色角色的运行时快照，页面从它读取统一文字/纸张/按钮语义。"""
     def __init__(self):
+        """建立共享颜色角色组件的依赖与初始状态。"""
         self.reset()
 
     def reset(self):
@@ -63,6 +66,7 @@ class _Palette:
         self.danger_on_paper = '#963f52'
 
     def update(self, colors: dict, effects: dict):
+        """从用户主题和效果更新角色色及安全默认值，按钮文字按背景亮度选择对比色。"""
         self.dark = bool(effects.get('dark', False))
         colors = colors or {}
         self.background = colors.get('background', '#f5f6fa')

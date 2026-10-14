@@ -9,7 +9,9 @@ from ..palette import P
 
 
 class PracticeLeaderboard(ScrapbookCard):
+    """只显示已提交单次训练的排行榜便签，包含成绩和准确率口径。"""
     def __init__(self, parent=None):
+        """建立已提交单次训练排行榜组件的依赖与初始状态。"""
         super().__init__('lavender', parent)
         self.setMinimumWidth(400)
         layout = QVBoxLayout(self)
@@ -48,6 +50,7 @@ class PracticeLeaderboard(ScrapbookCard):
         self.apply_theme()
 
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到已提交单次训练排行榜，保持现有业务状态。"""
         self.table.setStyleSheet(f'''
 QTableWidget {{ background: transparent; color: {P.paper_text}; border: none; font-size: 13px; }}
 QTableWidget::item {{ border: none; padding: 3px; }}
@@ -57,6 +60,7 @@ QHeaderView::section {{ background: transparent; color: {P.paper_muted}; border:
         self.update()
 
     def set_records(self, passage_name, records):
+        """按范文/记录/主题缓存键更新表格，数据不变时复用已有单元格。"""
         key = (passage_name, tuple(tuple(row.get(field) for field in
                     ('id', 'score', 'speed', 'accuracy', 'elapsed_seconds', 'started_at'))
                     for row in records), P.primary, P.paper_text, P.paper_muted)

@@ -8,9 +8,11 @@ from .design import PaperField
 
 
 class AIThinkingControls(QWidget):
+    """模型思考开关/协议草稿与临时测试资格控件，不执行真实模型请求。"""
     test_mode_changed = Signal(bool)
 
     def __init__(self, thinking='0', protocol='auto', test_session=None, parent=None):
+        """建立模型思考协议配置草稿组件的依赖与初始状态。"""
         super().__init__(parent)
         self._context = {}
         self._test_session = test_session
@@ -59,14 +61,17 @@ class AIThinkingControls(QWidget):
         self.apply_theme()
 
     def values(self):
+        """交出思考开关与协议选项的规范配置值。"""
         return {'thinking': '1' if self.toggle.isChecked() else '0',
                 'thinking_protocol': self.protocol.currentData()}
 
     def set_context(self, config):
+        """捕获服务类型/端点/模型名供能力提示，不保存草稿。"""
         self._context = {key: config.get(key, '') for key in ('backend', 'base_url', 'model')}
         self._refresh()
 
     def _refresh(self, *_):
+        """依据配置和纯协议规则显示是否能开关思考，未配置时显示填写提示。"""
         config = dict(self._context, **self.values())
         try:
             service = AIService(config=config)
@@ -76,11 +81,13 @@ class AIThinkingControls(QWidget):
             self.capability.setText('填好服务地址与模型名称后，将自动识别思考协议。')
 
     def _egg_toggled(self, enabled):
+        """只修改当前运行的开发者测试资格并发布变化，不持久化临时权限。"""
         if self._test_session is not None:
             self._test_session.enabled = enabled
             self.test_mode_changed.emit(enabled)
 
     def apply_theme(self):
+        """将当前主题颜色、字号和图标同步到模型思考协议配置草稿，保持现有业务状态。"""
         self.egg_button.setStyleSheet(
             f'QPushButton {{background:transparent;color:{P.paper_muted};border:none;'
             'min-width:28px;max-width:28px;min-height:28px;max-height:28px;padding:0;font-size:18px;}'

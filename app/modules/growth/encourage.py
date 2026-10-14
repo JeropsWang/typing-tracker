@@ -11,7 +11,9 @@ from datetime import date, datetime, timedelta
 
 
 class EncourageService:
+    """比较两个七日区间表现的鼓励奖励服务，遵守有效分钟和冷却规则。"""
     def __init__(self, repo, balance):
+        """装配仓储和鼓励阈值/奖励配置。"""
         self._repo = repo
         self._balance = balance
 

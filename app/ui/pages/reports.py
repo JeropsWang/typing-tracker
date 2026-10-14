@@ -80,10 +80,12 @@ METRIC_VALUE_FONT = 18      # 关键指标数字（设计稿 18px；页级大数
 
 
 def _dstr(d: date) -> str:
+    """把应用日 date 转为 ISO 范围查询字符串。"""
     return d.isoformat()
 
 
 def _relative_luminance(color) -> float:
+    """按线性化 RGB 计算相对亮度，供图表/热力图配色判断。"""
     c = QColor(color)
     channels = []
     for value in (c.redF(), c.greenF(), c.blueF()):
@@ -132,11 +134,13 @@ class _InsightPanel(QFrame):
     """
 
     def __init__(self, parent=None):
+        """建立只读统计报表组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setObjectName('paperInsight')
         self.setAttribute(Qt.WA_StyledBackground, True)
 
     def apply_theme(self, compact: bool = False, scale: float = 1.0) -> None:
+        """将当前主题颜色、字号和图标同步到只读统计报表，保持现有业务状态。"""
         pad = _interp(12, 18, scale) if not compact else 12
         self.setStyleSheet('QFrame#paperInsight { background: transparent;'
                            ' border: none; border-radius: 0px; }')
@@ -146,7 +150,9 @@ class _InsightPanel(QFrame):
 
 
 class ReportsPage(QWidget):
+    """只读统计报表页面，使用版本化查询缓存；隐藏时仅标脏，显示后再刷新。"""
     def __init__(self, repo, engine, balance, parent=None):
+        """建立只读统计报表组件的依赖与初始状态。"""
         super().__init__(parent)
         self._presenter = QueryPresenter(repo)
         self._tasks = TaskBridge(self)
@@ -191,10 +197,12 @@ class ReportsPage(QWidget):
     # ---------- 构造 ----------
     @staticmethod
     def _size_hint_default():
+        """取得报表控件的默认几何约束，供布局测量。"""
         return (1440, 1024)
 
     def _build_head(self, parent):
         # 交付的转曲艺术标题（stats.svg）；副标题仍是普通可读文字（DECISIONS.md 第 5 条）
+        """创建报表标题、时间范围和统计视角选择，不启动网络。"""
         self._heading = ArtHeading('stats', '按真实记录回顾节奏，让练习有迹可循。')
         parent.addWidget(self._heading)
 
@@ -324,6 +332,7 @@ class ReportsPage(QWidget):
 
     # ---------- 统一刷新入口 ----------
     def refresh(self, *_):
+        """刷新范围汇总、趋势、时段、周月报告和热力图，并同步空数据提示。"""
         if not self.isVisible():
             self._dirty = True
             return
@@ -335,16 +344,19 @@ class ReportsPage(QWidget):
         self._sync_plot_empty_geometry()
 
     def data_changed(self):
+        """统计提交后标记报表脏；页面可见才立即刷新，后台不轮询。"""
         self._dirty=True
         if self.isVisible():
             self.refresh()
 
     def showEvent(self,event):
+        """页面显示时仅刷新尚未处理的数据变化。"""
         super().showEvent(event)
         if self._dirty:
             self.refresh()
 
     def resizeEvent(self, event):
+        """尺寸变化后定位图表空状态，不重复查询数据。"""
         super().resizeEvent(event)
         self._sync_plot_empty_geometry()
 
@@ -567,10 +579,12 @@ class ReportsPage(QWidget):
             disc.toggle.setMinimumHeight(height)
 
     def _unit(self) -> str:
+        """读取统计工作量单位名称，缺失时采用业务配置默认值。"""
         return self._presenter.get_setting('unit_name', self._balance['unit']['name'])
 
     # ---------- 关键指标 ----------
     def _refresh_metrics(self, summary, unit):
+        """展示范围汇总数值及未知占位，不混用平均日速度和区间 tw/分钟。"""
         if not summary:
             values = {'valid': '—', 'tw': '—', 'speed': '—', 'acc': '—'}
         else:
@@ -586,6 +600,7 @@ class ReportsPage(QWidget):
 
     # ---------- 主图表：趋势分析 ----------
     def _refresh_trend(self):
+        """根据所选日期范围/视角更新真实日期趋势及速度预测说明。"""
         today = date.fromisoformat(self._engine.current_day())
         n = self._range_combo.currentData() or 7
         start = today - timedelta(days=n - 1)
@@ -650,6 +665,7 @@ class ReportsPage(QWidget):
 
     # ---------- 次级：时段分布 ----------
     def _build_hours(self, content):
+        """创建小时分布图和缺少分钟记录时的空状态。"""
         body = QWidget()
         lay = QVBoxLayout(body)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -681,6 +697,7 @@ class ReportsPage(QWidget):
         content.addWidget(body)
 
     def _refresh_hours(self):
+        """聚合近七日已保存分钟数据到 24 小时桶，缺记录不伪造时段柱。"""
         today = date.fromisoformat(self._engine.current_day())
         start = today - timedelta(days=6)
         rows = self._presenter.get_hourly_stats(_dstr(start), _dstr(today))
@@ -701,6 +718,7 @@ class ReportsPage(QWidget):
 
     # ---------- 次级：打卡日历（GitHub 风格年度热力图） ----------
     def _build_heatmap(self, content):
+        """创建年度热力图容器、图例和空状态，日期格由刷新逻辑管理。"""
         body = QWidget()
         lay = QVBoxLayout(body)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -749,6 +767,7 @@ class ReportsPage(QWidget):
         content.addWidget(body)
 
     def _refresh_heatmap(self):
+        """按年份、主题及统计版本更新年度 tw 热力图，已有日期格尽量复用。"""
         import time
         now = time.monotonic()
         self._hm_last_build = now
@@ -764,6 +783,7 @@ class ReportsPage(QWidget):
         empty_color = self._hm_empty_color if not P.dark else rgba(P.paper_text, 0.05)
 
         def level(tw):
+            """把正 tw 与年度最大值比例映射到四档色阶，无量时返回空档。"""
             if tw <= 0 or max_tw <= 0:
                 return -1
             r = tw / max_tw
@@ -837,6 +857,7 @@ class ReportsPage(QWidget):
 
     # ---------- 次级：周月报 ----------
     def _build_reports(self, content):
+        """建立本周/上周/本月/上月摘要卡片及同比区域。"""
         body = QWidget()
         lay = QVBoxLayout(body)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -868,6 +889,7 @@ class ReportsPage(QWidget):
         content.addWidget(body)
 
     def _periods(self):
+        """用当前应用日派生完整前周/前月和截至今天的本周/本月范围。"""
         today = date.fromisoformat(self._engine.current_day())
         monday = today - timedelta(days=today.weekday())
         month_start = today.replace(day=1)
@@ -882,6 +904,7 @@ class ReportsPage(QWidget):
         }
 
     def _card_text(self, s, unit) -> str:
+        """把实际汇总转为卡片文字，无数据/未知比例明确展示，不推断不存在的统计。"""
         if s is None or not s.get('tw'):
             return '暂无数据'
         speed = s.get('avg_speed')
@@ -896,6 +919,7 @@ class ReportsPage(QWidget):
         return '<br>'.join(parts)
 
     def _refresh_reports(self):
+        """读取各期间版本化摘要并同步卡片与可计算的变化比例。"""
         unit = self._unit()
         periods = self._periods()
         sums = {key: self._presenter.get_summary(start, end) for key, (start, end) in periods.items()}
@@ -903,6 +927,7 @@ class ReportsPage(QWidget):
             body.setText(self._card_text(sums[key], unit))
 
         def delta(cur, prev, field):
+            """仅前期基数非零时计算字段变化百分比，否则返回未知占位。"""
             if not cur or not prev or not prev.get(field):
                 return '—'
             return f'{(cur[field] - prev[field]) / prev[field] * 100:+.0f}%'
@@ -922,6 +947,7 @@ class _RangeField(QWidget):
     """时间范围：可见字段标签 + 下拉框（宽度随尺度系数在区间内取值，字号不变）。"""
 
     def __init__(self, control, parent=None):
+        """建立只读统计报表组件的依赖与初始状态。"""
         super().__init__(parent)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -934,10 +960,12 @@ class _RangeField(QWidget):
         self.setFixedWidth(FIELD_WIDTH_MIN)
 
     def set_width(self, width: int) -> None:
+        """限制筛选字段逻辑像素宽度，保持最小可用尺寸。"""
         self.setFixedWidth(max(FIELD_WIDTH_MIN, int(width)))
 
     def set_compact(self, compact: bool) -> None:
         # 宽度由 `_sync_scale` 的区间值统一决定；紧凑档取区间下限
+        """更新只读统计报表的紧凑布局、间距和尺寸约束。"""
         self.set_width(FIELD_WIDTH_MIN if compact else FIELD_WIDTH_MAX)
 
 
@@ -945,6 +973,7 @@ class _MetricRow(QWidget):
     """关键指标：无数据显示 —，零与无数据分开（零显示 0）。"""
 
     def __init__(self, parent=None):
+        """建立只读统计报表组件的依赖与初始状态。"""
         super().__init__(parent)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -978,6 +1007,7 @@ class _MetricRow(QWidget):
         lay.addLayout(row)
 
     def set_values(self, values: dict) -> None:
+        """用只读汇总更新固定指标标签，缺字段显示破折号。"""
         for key, label in self._values.items():
             label.setText(values.get(key, '—'))
 
@@ -986,6 +1016,7 @@ class _ReportCard(QFrame):
     """周月报卡片：纸张上的次级块，标题 + 正文（同色系浅填充、大圆角、无描边）。"""
 
     def __init__(self, title, parent=None):
+        """建立只读统计报表组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground, True)
         # 配方第 96 行：纸面浅卡是同色系浅填充（`#E1D8D0` 之于纸张）+ 无描边

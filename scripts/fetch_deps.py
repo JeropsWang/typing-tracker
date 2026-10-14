@@ -18,6 +18,7 @@ PKGS = ['PySide6', 'shiboken6', 'PySide6_Essentials', 'PySide6_Addons', 'pyqtgra
 
 
 def pypi_json(name: str) -> dict:
+    """请求 PyPI 包元数据，供平台兼容 wheel 筛选使用；网络错误向调用方传播。"""
     with urllib.request.urlopen(f'https://pypi.org/pypi/{name}/json', timeout=60) as r:
         return json.load(r)
 
@@ -42,6 +43,7 @@ def pick_wheel(data: dict):
 
 
 def main() -> int:
+    """下载指定或默认依赖 wheel 到下载缓存并解包至 .deps；操作项目依赖目录，不安装到系统 Python。"""
     DEPS.mkdir(exist_ok=True)
     DL.mkdir(exist_ok=True)
     packages = sys.argv[1:] or PKGS

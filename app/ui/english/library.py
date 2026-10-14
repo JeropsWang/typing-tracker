@@ -9,9 +9,11 @@ from .typography import english_type
 
 
 class LibraryPanel(ScrapbookCard):
+    """英语页面的词库/轮次选择与只读学习概览面板。"""
     deck_changed = Signal()
 
     def __init__(self, parent=None):
+        """创建词库和每轮数量选择，设置只读进度与资料来源说明。"""
         super().__init__('rose', parent)
         self._type = english_type('large')
         self.setFixedWidth(254)
@@ -48,13 +50,16 @@ class LibraryPanel(ScrapbookCard):
 
     @property
     def deck(self):
+        """返回当前词库的稳定代号。"""
         return self.deck_combo.currentData()
 
     @property
     def count(self):
+        """返回当前每轮练习数量，交业务服务选词。"""
         return self.round_combo.currentData()
 
     def set_summary(self, result, plan=None):
+        """展示已训练、错词、独立正确率和可选到期/下次复习提示。"""
         accuracy = result['accuracy']
         rate = '—' if accuracy is None else f'{accuracy:.0%}'
         due = f"\n今日到期 {(plan or {}).get('due_count', 0)} 词"
@@ -63,10 +68,12 @@ class LibraryPanel(ScrapbookCard):
         self.summary.setText(f"已练 {result['trained']} 词 · 错词 {result['review_count']}\n独立答对率 {rate}" + due)
 
     def set_type(self, key):
+        """更新字号档位并同步主题文字布局。"""
         self._type = english_type(key)
         self.apply_theme()
 
     def apply_theme(self):
+        """按当前词库面板字号与颜色角色刷新 Qt 样式。"""
         t = self._type
         self.setStyleSheet(f'''LibraryPanel QLabel {{color:{P.paper_text}; background:transparent;font-size:{t.body}px;}}
             LibraryPanel QLabel[textRole="paperMuted"] {{font-size:{t.helper}px;color:{P.paper_muted};}}

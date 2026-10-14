@@ -37,6 +37,7 @@ def ico_entry_sizes(data: bytes) -> list:
 
 
 def main() -> int:
+    """由交付源图或程序绘制生成根目录 app.ico，并核验图标页数、各档尺寸和 Qt 读取结果。"""
     _app = QGuiApplication([])
     if not APP_ICON_PNG.is_file():
         print(f'[警告] 交付源图缺失，回退程序化绘制：{APP_ICON_PNG}')

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
+    """装配隔离小伙伴与作品坊预览，按选项启动交互窗口或导出截图，退出时关闭动画及测试连接。"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--interactive', action='store_true')
     parser.add_argument('--desktop', action='store_true')

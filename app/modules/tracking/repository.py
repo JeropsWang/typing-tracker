@@ -4,7 +4,9 @@ from ...storage.store import Store
 
 
 class TrackingRepository(Store):
+    """统计模块拥有的数值 SQL 仓储；仅使用应用线程连接，不覆盖成长统计列。"""
     def get_lifetime(self):
+        """读取终身统计行并转为独立字典，不存在时返回 None。"""
         row = self._conn.execute('SELECT * FROM lifetime WHERE id=1').fetchone()
         return dict(row) if row else None
 
@@ -20,6 +22,7 @@ class TrackingRepository(Store):
              life['total_tw'], life['total_active_minutes']))
 
     def upsert_daily(self, d) -> None:
+        """写入当日计数列，保留成长模块拥有的 exp_gained。"""
         self._conn.execute(
             'INSERT INTO daily_stats(date,typed_chars,deleted_chars,valid_chars,total_tw,'
             'active_minutes,avg_tw,accuracy,exp_gained) '
@@ -33,10 +36,12 @@ class TrackingRepository(Store):
             d)
 
     def get_daily(self, date):
+        """按应用日期读取日统计副本，不存在时返回 None。"""
         row = self._conn.execute('SELECT * FROM daily_stats WHERE date=?', (date,)).fetchone()
         return dict(row) if row else None
 
     def get_recent_days(self, n):
+        """按日期倒序读取有界日统计，供恢复和报表使用。"""
         rows = self._conn.execute(
             'SELECT * FROM daily_stats ORDER BY date DESC LIMIT ?', (n,)).fetchall()
         return [dict(r) for r in rows]
@@ -53,6 +58,7 @@ class TrackingRepository(Store):
             'DELETE FROM minute_stats WHERE date < ?', (before_date,))
 
     def upsert_minutes(self, rows) -> None:
+        """批量写入日期/分钟检查点数值，事务由外层 UnitOfWork 统一提交。"""
         self._conn.executemany(
             'INSERT INTO minute_stats(date,minute,typed_chars,deleted_chars,total_tw) '
             'VALUES(?,?,?,?,?) '

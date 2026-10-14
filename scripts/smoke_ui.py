@@ -40,6 +40,7 @@ ACH = json.loads((ROOT / 'config' / 'achievements.json').read_text(encoding='utf
 
 
 def main() -> int:
+    """以指定或新建临时数据装配离屏 UI，验证窗口、设置、刷新和落盘，最后仅清理自行创建的目录。"""
     ap = argparse.ArgumentParser()
     ap.add_argument('--data-dir', default=None)
     args = ap.parse_args()
@@ -61,6 +62,7 @@ def main() -> int:
         repo = Repository(conn)
 
         def gs(key, default=None):
+            """向冒烟测试中的同步服务提供隔离仓储设置，避免访问真实用户配置。"""
             return repo.get_setting(key, default)
 
         engine = StatsEngine(repo, gs, BALANCE)

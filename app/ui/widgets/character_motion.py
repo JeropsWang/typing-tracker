@@ -17,6 +17,7 @@ from .hand_drawn_hair import SvgHairLayer
 
 @dataclass(frozen=True)
 class IdlePose:
+    """人物待机动效的不可变采样值，包含眨眼比例和动画时间。"""
     blink: float = 0.0
     time: float = 0.0
 
@@ -24,13 +25,16 @@ class IdlePose:
 class IdleTimeline:
     """无控件依赖的待机时序，恢复时从睁眼、中性姿态重新开始。"""
     def __init__(self):
+        """建立人物局部待机动效组件的依赖与初始状态。"""
         self._random = random.Random()
         self.reset()
 
     def reset(self):
+        """重新安排下一次随机眨眼时间，避免隐藏期间积累待发动画。"""
         self.next_blink = self._random.uniform(4, 7)
 
     def sample(self, elapsed: float) -> IdlePose:
+        """按经过秒数生成闭眼/睁眼平滑帧，完整眨眼后安排下一次。"""
         phase = elapsed - self.next_blink
         if phase >= .26:
             self.next_blink = elapsed + self._random.uniform(4, 7)
@@ -47,6 +51,7 @@ class IdleTimeline:
 
     @staticmethod
     def _ease(value):
+        """用平滑三次曲线计算眨眼过渡，避免端点速度突变。"""
         return value * value * (3 - 2 * value)
 
 
@@ -55,6 +60,7 @@ class SarianaMotion(QObject):
     changed = Signal()
 
     def __init__(self, parent=None):
+        """建立人物局部待机动效组件的依赖与初始状态。"""
         super().__init__(parent)
         self.pose = IdlePose()
         self._enabled = False
@@ -68,6 +74,7 @@ class SarianaMotion(QObject):
         self._timer.timeout.connect(self._tick)
 
     def configure(self, source: Path | None, original: QPixmap | None, metadata=None):
+        """核对人物和局部动效素材再装配眼睛/头发层，缺失时保留静态插画。"""
         self._stop()
         self._eyes = None
         self._hair = []
@@ -128,14 +135,17 @@ class SarianaMotion(QObject):
         self._sync()
 
     def set_enabled(self, enabled: bool):
+        """更新用户动效开关并按可见性同步计时器。"""
         self._enabled = bool(enabled)
         self._sync()
 
     def set_visible(self, visible: bool):
+        """记录人物是否实际可见，不可见时停止视觉刷新。"""
         self._visible = bool(visible)
         self._sync()
 
     def _sync(self):
+        """只在开关、可见性和素材都合格时启动计时，否则恢复静态状态。"""
         if self._enabled and self._visible and self._eyes is not None:
             if not self._timer.isActive():
                 self._timeline.reset()
@@ -145,16 +155,19 @@ class SarianaMotion(QObject):
             self._stop()
 
     def _stop(self):
+        """停止人物计时并发布静态姿态变化，避免残留半闭眼。"""
         self._timer.stop()
         if self.pose != IdlePose():
             self.pose = IdlePose()
             self.changed.emit()
 
     def _tick(self):
+        """按经过毫秒转换为秒采样待机姿态，再通知视图重绘。"""
         self.pose = self._timeline.sample(self._clock.elapsed() / 1000)
         self.changed.emit()
 
     def paint(self, painter: QPainter):
+        """在原图上绘制头发和眼睛层，保存/恢复绘制状态，不更改业务数据。"""
         if self.pose.time <= 0 or self._eyes is None:
             return
         for layer in self._hair:

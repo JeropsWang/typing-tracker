@@ -29,8 +29,10 @@ SHOW_MS = 3200
 
 
 class ToastPopup(QFrame):
+    """Qt 主线程短暂通知浮层，持有关闭期限/过渡状态，不执行业务提交。"""
     def __init__(self, parent, title: str, msg: str, kind: str = 'star',
                  accent: str = None, dark: bool = True):
+        """建立短暂通知浮层组件的依赖与初始状态。"""
         super().__init__(parent)
         self._motion_enabled = True
         self._closing = False
@@ -101,6 +103,7 @@ class ToastPopup(QFrame):
         self._anim.start()
 
     def _fade_out(self) -> None:
+        """标记离场并滑出后销毁，减弱动态效果时立即释放。"""
         self._closing = True
         if not self._motion_enabled:
             self.deleteLater()
@@ -112,6 +115,7 @@ class ToastPopup(QFrame):
         self._anim.start()
 
     def set_motion_enabled(self, enabled):
+        """关闭动效时落到最终位置或直接完成已开始的关闭，避免半途中间态。"""
         self._motion_enabled = bool(enabled)
         if not enabled:
             self._anim.stop()

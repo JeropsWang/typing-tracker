@@ -9,7 +9,9 @@ from ..tracking.api import AppCalendar, SystemClock
 
 
 class ChallengeService:
+    """普通训练的成绩/纪录业务服务，写入与经验结算参与同一事务。"""
     def __init__(self, repo, clock=None):
+        """装配训练查询与提交所需的仓储能力。"""
         self._repo = repo
         self.clock = clock or SystemClock()
 
@@ -29,6 +31,7 @@ class ChallengeService:
             lambda: self._record(text_id,result,balance))
 
     def _record(self,text_id,result,balance):
+        """在已开启事务中比较旧纪录、写成绩并结算日上限经验，返回提交结果数据。"""
         prev = self._repo.get_best_challenge(text_id)
         best = prev['best'] or 0 if prev else 0
         prev_best = best
@@ -48,9 +51,11 @@ class ChallengeService:
                 'prev_best': prev_best, 'exp_gained': grant}
 
     def best(self, text_id: str):
+        """读取指定范文的历史最佳比较基线，无记录返回 None。"""
         return self._repo.get_best_challenge(text_id)
 
     def recent(self, n: int = 8):
+        """返回有界最近训练记录，供历史展示。"""
         return self._repo.get_recent_challenges(n)
 
     def leaderboard(self, text_id: str, n: int = 10):

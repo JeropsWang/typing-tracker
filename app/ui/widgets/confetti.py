@@ -22,6 +22,7 @@ class ConfettiOverlay(QWidget):
     """覆盖层：粒子从顶部飘落 + 旋转。start(tier) 后自动结束并隐藏。"""
 
     def __init__(self, parent=None):
+        """建立提交后庆祝彩带组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._particles = []
@@ -47,6 +48,7 @@ class ConfettiOverlay(QWidget):
         self._timer.start(30)
 
     def _tick(self) -> None:
+        """推进庆祝粒子的下落/旋转和秒级期限，到期自动清理浮层。"""
         self._t += 0.03
         h = max(self.height(), 400)
         for p in self._particles:
@@ -58,11 +60,13 @@ class ConfettiOverlay(QWidget):
         self.update()
 
     def stop(self):
+        """停止彩带计时并清除粒子/隐藏控件，不改变已提交成绩。"""
         self._timer.stop()
         self._particles.clear()
         self.hide()
 
     def paintEvent(self, event) -> None:
+        """在 Qt 主线程按当前状态绘制提交后庆祝彩带的可见内容，不在绘制回调执行业务提交。"""
         if not self._particles:
             return
         p = QPainter(self)

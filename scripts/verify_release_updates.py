@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def load_updater(executable=None):
+    """加载工作区更新服务或静态提取受信冻结包内代码，返回服务与版本；不启动 exe 或安装器。"""
     if executable is None:
         from app import __version__
         from app.integrations.updates import service
@@ -36,6 +37,7 @@ def load_updater(executable=None):
 def verify(*, cache_dir=None, expected_version=None, older_version='0.9.4', executable=None,
            expected_package_version=None, expected_source_commit=None,
            detect_installation_only=False, require_installed=False):
+    """验证安装类型、版本选择及下载摘要，可只做安装检测；完整模式访问发布服务并下载到隔离缓存，不执行安装器。"""
     module, package_version = load_updater(executable)
     if expected_package_version and package_version != expected_package_version:
         raise ValueError(f'Package version differs: {package_version}')
@@ -60,7 +62,9 @@ def verify(*, cache_dir=None, expected_version=None, older_version='0.9.4', exec
     # Exercise the fallback with the real GitHub checksum file, reusing the package
     # bytes already downloaded rather than fetching the same 100+ MB a second time.
     class ReuseDownloadedPackage:
+        """校验和回退场景的下载适配器，复用已下载安装包，其他请求交给原网络客户端。"""
         def open(self, request, timeout):
+            """安装包 URL 返回本地缓存文件流，其他 URL 沿用原 opener 和超时设置。"""
             if request.full_url == release.installer.url:
                 return installed.path.open('rb')
             return service._opener.open(request, timeout=timeout)
@@ -89,6 +93,7 @@ def verify(*, cache_dir=None, expected_version=None, older_version='0.9.4', exec
 
 
 def main():
+    """解析冻结包、版本和缓存参数，执行只读更新验证并输出或保存 JSON 报告。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--exe', type=Path)
     parser.add_argument('--expected-version')

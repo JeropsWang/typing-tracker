@@ -22,6 +22,7 @@ class BackdropImage(QWidget):
     """背景保持居中 cover；角色动效由独立控制器局部绘制。"""
 
     def __init__(self, parent=None):
+        """建立背景星光动效组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._source: Path | None = None
@@ -47,16 +48,20 @@ class BackdropImage(QWidget):
         self.update()
 
     def has_artwork(self) -> bool:
+        """判断背景人物图片是否已成功读取。"""
         return self._pixmap is not None
 
     def set_motion_enabled(self, enabled: bool) -> None:
+        """把统一动效开关转交人物局部动效对象。"""
         self._motion.set_enabled(enabled)
 
     def set_corner_radius(self, radius: int) -> None:
+        """设置背景裁切圆角的逻辑像素值并重绘。"""
         self._radius = int(radius)
         self.update()
 
     def paintEvent(self, event) -> None:
+        """在 Qt 主线程按当前状态绘制背景星光动效的可见内容，不在绘制回调执行业务提交。"""
         if self._pixmap is None:
             return
         painter = QPainter(self)
@@ -80,21 +85,26 @@ class BackdropImage(QWidget):
         painter.end()
 
     def resizeEvent(self, event) -> None:
+        """尺寸改变时清理等比覆盖缓存，下一次绘制重新计算。"""
         self._cover_cache = None
         self.update()
         super().resizeEvent(event)
 
     def showEvent(self, event) -> None:
+        """背景实际显示后恢复允许的人物动效。"""
         super().showEvent(event)
         self._motion.set_visible(True)
 
     def hideEvent(self, event) -> None:
+        """隐藏背景时暂停人物动效，保持静态素材。"""
         self._motion.set_visible(False)
         super().hideEvent(event)
 
 
 class StarField(QWidget):
+    """Qt 主线程的有界背景星光装饰，配置和暂停状态共同决定计时器是否运行。"""
     def __init__(self, parent=None):
+        """建立背景星光动效组件的依赖与初始状态。"""
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self._enabled = False
@@ -112,6 +122,7 @@ class StarField(QWidget):
 
     # ---------- 配置（主题 effects） ----------
     def configure(self, effects=None) -> None:
+        """读取主题星光开关/密度/速度并重建有界粒子，禁用时停掉计时器。"""
         stars = (effects or {}).get('stars') or {}
         self._enabled = bool(stars.get('enabled', False))
         self._color = QColor(stars.get('color', '#ffd700'))
@@ -135,6 +146,7 @@ class StarField(QWidget):
             self.update()
 
     def set_paused(self, paused: bool) -> None:
+        """根据主窗口可见性或练习状态暂停星光，不积累后台待补动画。"""
         self._paused = paused
         if paused or not self._enabled:
             self._timer.stop()
@@ -143,6 +155,7 @@ class StarField(QWidget):
 
     # ---------- 粒子 ----------
     def _reseed(self) -> None:
+        """按可用面积和密度重建最多 400 个星光样本。"""
         if not self._enabled:
             self._stars = []
             return
@@ -153,11 +166,13 @@ class StarField(QWidget):
                         _RNG.uniform(0.8, 2.0)] for _ in range(n)]
 
     def _tick(self) -> None:
+        """推进受主题速度控制的装饰秒数并请求重绘。"""
         self._t += 0.033 * self._speed
         self.update()
 
     # ---------- 绘制 ----------
     def paintEvent(self, event) -> None:
+        """在 Qt 主线程按当前状态绘制背景星光动效的可见内容，不在绘制回调执行业务提交。"""
         if not self._enabled or not self._stars:
             return
         p = QPainter(self)
@@ -185,5 +200,6 @@ class StarField(QWidget):
         p.end()
 
     def resizeEvent(self, event) -> None:
+        """背景尺寸变化后重新分布星光，避免旧坐标越界。"""
         self._reseed()
         super().resizeEvent(event)

@@ -4,7 +4,9 @@ from test_ui_workflow import UIFixture, APP
 
 
 class CompanionUITests(UIFixture):
+    """桌面模式、拖动、显示与动效的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def drag_to(self, view, global_target):
+        """模拟 Qt 鼠标手势，检查实际拖动阈值及全球坐标行为。"""
         from PySide6.QtGui import QMouseEvent
         from PySide6.QtTest import QTest
         anchor = QPoint(view.width() // 2, view.height() - 70)
@@ -17,6 +19,7 @@ class CompanionUITests(UIFixture):
                       Qt.LeftButton, Qt.NoButton, Qt.NoModifier))
 
     def companion(self):
+        """创建使用隔离数据的桌宠控制器，登记清理，避免残留视图。"""
         from app.ui.companion.controller import CompanionController
         window = self.window()
         controller = window._companion
@@ -25,6 +28,7 @@ class CompanionUITests(UIFixture):
         return window, controller
 
     def test_switch_keeps_single_view_and_current_reaction(self):
+        """验证桌面/应用内切换复用单一视图和当前反应。"""
         from app.companion.models import CompanionEvent
         window, c = self.companion()
         original = c.view
@@ -39,6 +43,7 @@ class CompanionUITests(UIFixture):
         self.assertIs(c.view.parentWidget(), window)
 
     def test_window_hidden_desktop_continues_and_shutdown_stops(self):
+        """验证主窗口隐藏时桌面宠继续，真正退出时停止。"""
         window, c = self.companion()
         window.hide()
         c.sync_visibility()
@@ -54,6 +59,7 @@ class CompanionUITests(UIFixture):
         self.assertFalse(c.view._animation.isActive())
 
     def test_reduced_motion_and_practice_disable_animation(self):
+        """验证减弱动效与练习资格都能停止装饰动画。"""
         window, c = self.companion()
         self.repo.set_setting('reduced_motion', '1')
         c.sync_settings()
@@ -65,6 +71,7 @@ class CompanionUITests(UIFixture):
         self.assertEqual(c.runtime.sample().state, 'focused')
 
     def test_screen_clamping_handles_negative_and_removed_screen(self):
+        """验证负坐标屏幕及移除显示器时位置约束正确。"""
         from app.ui.companion.desktop import clamp_position
         screens = [QRect(-1920, 0, 1920, 1040), QRect(0, 0, 1920, 1040)]
         self.assertEqual(clamp_position(QPoint(-1000, 100), 200, 280, screens), QPoint(-1000, 100))
@@ -72,6 +79,7 @@ class CompanionUITests(UIFixture):
         self.assertTrue(screens[1].contains(QRect(recovered.x(), recovered.y(), 200, 280)))
 
     def test_hide_cancels_scheduled_click(self):
+        """验证桌宠隐藏时取消尚未触发的延迟点击。"""
         from PySide6.QtTest import QTest
         window, c = self.companion()
         before = c.runtime.sample().token
@@ -81,6 +89,7 @@ class CompanionUITests(UIFixture):
         self.assertEqual(c.runtime.sample().token, before)
 
     def test_gif_is_static_when_motion_disabled_and_releases_source(self):
+        """验证 GIF 禁用动效后停在静态帧并释放旧素材句柄。"""
         from app.companion.packs import Sprite
         from PySide6.QtGui import QMovie
         from PySide6.QtTest import QTest
@@ -103,6 +112,7 @@ class CompanionUITests(UIFixture):
         self.assertFalse(path.exists())
 
     def test_double_click_is_one_reaction(self):
+        """验证双击不会额外触发延迟单击反应。"""
         from PySide6.QtTest import QTest
         window, c = self.companion()
         before = c.runtime.sample().token
@@ -112,6 +122,7 @@ class CompanionUITests(UIFixture):
         self.assertEqual(c.runtime.sample().state, 'surprised')
 
     def test_desktop_resizing_keeps_character_inside_available_screen(self):
+        """验证角色尺寸变化后仍处于显示器可用区域。"""
         from app.ui.companion.desktop import available_screens
         window, c = self.companion()
         c.switch_mode('desktop')
@@ -124,6 +135,7 @@ class CompanionUITests(UIFixture):
         self.assertTrue(area.contains(c.view.geometry()))
 
     def test_event_metrics_never_fall_back_to_daily_metrics(self):
+        """验证反馈指标属于本次成绩，不回退为日统计。"""
         from app.companion.models import CompanionEvent
         import copy
         window, c = self.companion()
@@ -138,6 +150,7 @@ class CompanionUITests(UIFixture):
         self.assertEqual(c.view._text, '本次速度 暂无数据，正确率 96%')
 
     def test_available_geometry_signal_recovers_desktop_position(self):
+        """验证显示器可用区域改变后桌宠被恢复到可见位置。"""
         from app.ui.companion.desktop import available_screens
         window, c = self.companion()
         c.switch_mode('desktop')
@@ -147,6 +160,7 @@ class CompanionUITests(UIFixture):
         self.assertTrue(area.contains(c.view.geometry()))
 
     def test_selected_random_meme_uses_custom_duration(self):
+        """验证随机选中表情按作品自定义期限展示。"""
         from app.companion.runtime import Runtime
         import copy
         window, c = self.companion()
@@ -166,6 +180,7 @@ class CompanionUITests(UIFixture):
         self.assertEqual(c.runtime.sample().kind, 'meme')
 
     def test_window_drag_stays_where_placed_across_refresh_and_mode_switch(self):
+        """验证应用内拖动位置跨刷新和模式切换仍保留。"""
         window, c = self.companion()
         target = window.mapToGlobal(QPoint(360, 350))
         self.drag_to(c.view, target)
@@ -181,6 +196,7 @@ class CompanionUITests(UIFixture):
                          __import__('json').dumps([placed.x(), placed.y()]))
 
     def test_drag_out_of_window_detaches_and_continues_same_gesture(self):
+        """验证拖出应用转桌面时保留原手势和抓取位置。"""
         from PySide6.QtGui import QMouseEvent
         from PySide6.QtTest import QTest
         window, c = self.companion()
@@ -211,6 +227,7 @@ class CompanionUITests(UIFixture):
         self.assertTrue(c.view.isVisible())
 
     def test_restored_window_position_is_clamped_when_window_changes(self):
+        """验证恢复应用内坐标时按新窗口大小限制边界。"""
         window, c = self.companion()
         self.repo.set_setting('companion_window_position', '[99999, -99999]')
         c.sync_settings()
@@ -220,6 +237,7 @@ class CompanionUITests(UIFixture):
         self.assertTrue(window.rect().contains(c.view.geometry()))
 
     def test_pose_transition_is_smooth_and_reduced_motion_is_immediate(self):
+        """验证姿态过渡连续，减弱动效直接采用终值。"""
         from app.companion.models import CompanionEvent
         window, c = self.companion()
         c._timer.stop()
@@ -235,6 +253,7 @@ class CompanionUITests(UIFixture):
         self.assertFalse(c.view._animation.isActive())
 
     def test_invalid_gif_static_frame_falls_back_after_animation(self):
+        """验证无效 GIF 预览帧在停止动画后安全回退。"""
         from app.companion.packs import Sprite
         window, c = self.companion()
         c._timer.stop()

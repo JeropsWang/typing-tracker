@@ -5,6 +5,7 @@ from .catalog import WORD_PATTERN
 
 
 def validate_sentences(sentences, words):
+    """校验 1–5 个目标词和 1–3 条英文/中文释义，确保全部目标词以完整词形出现。"""
     if not 1 <= len(words) <= 5 or any(not WORD_PATTERN.fullmatch(w) for w in words):
         raise ValueError('请选择 1—5 个有效词库单词。')
     if not isinstance(sentences, list) or not 1 <= len(sentences) <= 3:
@@ -28,10 +29,13 @@ def validate_sentences(sentences, words):
 
 
 class EnglishAI:
+    """英语造句提示词与结果校验适配器，使用独立配置快照复用共享模型传输。"""
     def __init__(self, ai_service):
+        """捕获模型服务配置快照，生成期间不受设置草稿变化影响。"""
         self.service = ai_service.snapshot()
 
     def generate(self, words, topic):
+        """用目标词/主题请求 JSON 造句并严格校验，返回成功材料或用户可读错误。"""
         if not self.service.enabled():
             return False, 'AI 未启用，请在设置 → AI 配置中配置服务。'
         prompt = ('Create 1 to 3 short natural English sentences for vocabulary typing practice. '

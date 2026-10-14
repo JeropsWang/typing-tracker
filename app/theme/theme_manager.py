@@ -25,7 +25,9 @@ DEFAULT_THEME_ID = 'arknights_endfield_lino'
 
 
 class ThemeManager:
+    """Qt 主线程主题装配器，管理内置/用户资源、共享色板和已注册展示窗口。"""
     def __init__(self, app, data_dir, get_setting, set_setting):
+        """装配应用/设置能力，建立用户主题目录并扫描可用资源。"""
         self._app = app
         self._user_dir = Path(data_dir) / 'themes'
         self._user_dir.mkdir(parents=True, exist_ok=True)
@@ -37,6 +39,7 @@ class ThemeManager:
 
     # ---------- 扫描注册 ----------
     def _scan(self) -> dict:
+        """枚举内置和用户主题清单，忽略不可读项，登记来源目录与内置资格。"""
         reg = {}
         for root in (BUILTIN_DIR, self._user_dir):
             if not root.exists():
@@ -60,6 +63,7 @@ class ThemeManager:
         return [theme] if theme else []
 
     def get(self, theme_id):
+        """按稳定主题 ID 取得已扫描清单，无匹配返回 None。"""
         return self._registry.get(theme_id)
 
     def default_id(self) -> str:
@@ -75,6 +79,7 @@ class ThemeManager:
 
     # ---------- 应用 ----------
     def apply(self, theme_id, *, persist=True) -> None:
+        """应用资源样式、色板和窗口效果；persist=False 仅预览，保存由设置事务决定。"""
         m = self._registry.get(theme_id)
         if not m:
             return
@@ -133,6 +138,7 @@ class ThemeManager:
                 window.apply_shell_style(shell_bg)
 
     def _render_qss(self, path: Path, manifest: dict) -> str:
+        """将主题清单变量替换到 QSS，程序生成的箭头路径留待应用阶段注入。"""
         if not path.exists():
             return ''
         text = path.read_text(encoding='utf-8')
@@ -140,6 +146,7 @@ class ThemeManager:
         def repl(mo):
             # {{arrow}} 是程序生成的 PNG 路径占位符（QSS 不支持 data URI），
             # 不由 manifest 提供：原样保留，交给 apply() 里的 replace 注入
+            """按点路径解析清单变量，缺失置空，arrow 占位符保持原样。"""
             if mo.group(1) == 'arrow':
                 return mo.group(0)
             node = manifest
@@ -181,6 +188,7 @@ class ThemeManager:
 
     @staticmethod
     def _load_charts(path: Path):
+        """读取可选图表配置 JSON，缺失/损坏时让调用方采用默认样式。"""
         if not path.exists():
             return None
         try:
@@ -231,6 +239,7 @@ class ThemeManager:
             return False, f'导入失败：{e}'
 
     def delete_theme(self, theme_id) -> tuple:
+        """仅删除已注册用户主题目录并重扫，内置主题不可删。"""
         m = self._registry.get(theme_id)
         if not m:
             return False, '主题不存在'

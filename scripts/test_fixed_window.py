@@ -8,7 +8,9 @@ from test_ui_workflow import APP, UIFixture
 
 
 class FixedWindowTests(UIFixture):
+    """固定窗口及系统状态请求的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_window_uses_design_size_and_rejects_resize(self):
+        """验证主窗口使用设计尺寸并拒绝系统非法缩放。"""
         window = self.window()
         expected = QSize(1440, 1024)
         self.assertEqual(window.size(), expected)
@@ -20,6 +22,7 @@ class FixedWindowTests(UIFixture):
             self.assertEqual(window.size(), expected)
 
     def test_titlebar_has_no_maximize_control_or_double_click_action(self):
+        """验证标题栏无最大化入口且双击不放大。"""
         window = self.window()
         self.assertFalse(window.windowFlags() & Qt.WindowMaximizeButtonHint)
         self.assertFalse(hasattr(window._titlebar, '_btn_max'))
@@ -29,6 +32,7 @@ class FixedWindowTests(UIFixture):
         self.assertEqual(window.size(), QSize(1440, 1024))
 
     def test_native_state_changes_cannot_enlarge_window(self):
+        """验证原生系统状态变化不能突破固定窗口尺寸。"""
         window = self.window()
         for state in (Qt.WindowMaximized, Qt.WindowFullScreen):
             window.setWindowState(state)
@@ -45,6 +49,7 @@ class FixedWindowTests(UIFixture):
             self.assertEqual(window.size(), QSize(1440, 1024))
 
     def test_minimize_restore_keeps_size_page_selection_and_movement(self):
+        """验证最小化恢复不改变窗口尺寸、页面或移动位置。"""
         window = self.window()
         window.open_training()
         window.move(80, 60)
@@ -61,6 +66,7 @@ class FixedWindowTests(UIFixture):
         self.assertTrue(window._nav.buttons['训练'].isChecked())
 
     def test_settings_dialog_keeps_its_form_size_without_resize_grip(self):
+        """验证固定设置窗口保留表单尺寸且无缩放把手。"""
         dialog = self.dialog()
         expected = QSize(820, 640)
         self.assertEqual(dialog.minimumSize(), expected)

@@ -7,7 +7,9 @@ from ..palette import P
 
 
 class ProfileHero(ScrapbookCard):
+    """资料页只读人物头图及头像展示，不保存用户设置或成绩。"""
     def __init__(self, parent=None):
+        """建立个人资料页头像及角色头图组件的依赖与初始状态。"""
         super().__init__('lavender', parent)
         row = QHBoxLayout(self)
         row.setContentsMargins(24, 20, 30, 23)

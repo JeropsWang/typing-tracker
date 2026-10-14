@@ -42,6 +42,7 @@ def _completion_text(data) -> str:
 
 
 class AIService:
+    """训练与英语共享的模型传输能力，网络使用脱离数据库的配置快照和共享准入。"""
     def __init__(self, repo=None, *, config=None, generation_gate=None):
         """主线程从仓储读设置；工作线程使用独立配置快照，不持有数据库连接。"""
         if repo is None and config is None:
@@ -58,6 +59,7 @@ class AIService:
 
     # ---------- 配置 ----------
     def _cfg(self):
+        """返回请求快照或当前已提交设置的独立配置字典，不返回可变存储引用。"""
         if self._config is not None:
             return dict(self._config)
         return {
@@ -70,14 +72,17 @@ class AIService:
         }
 
     def enabled(self) -> bool:
+        """判断配置是否选用了支持的云端兼容或本地模型后端。"""
         return self._cfg()['backend'] in ('openai', 'ollama')
 
     def backend_label(self) -> str:
+        """返回当前服务的用户可读名称，用于连接/配置提示。"""
         cfg = self._cfg()
         names = {'openai': 'OpenAI 兼容', 'ollama': 'Ollama 本地'}
         return names.get(cfg['backend'], '未启用')
 
     def _endpoint(self) -> str:
+        """补全默认地址并生成 chat/completions 端点，用户已填写完整端点时不重复拼接。"""
         cfg = self._cfg()
         base = cfg['base_url'] or DEFAULTS.get(cfg['backend'], {}).get('base_url', '')
         base = base.rstrip('/')
@@ -87,11 +92,13 @@ class AIService:
         return base + '/chat/completions'
 
     def _model(self) -> str:
+        """取得配置模型名，空值采用所选后端预设。"""
         cfg = self._cfg()
         return (cfg['model']
                 or DEFAULTS.get(cfg['backend'], {}).get('model', 'gpt-4o-mini'))
 
     def _headers(self) -> dict:
+        """构造模型请求 Content-Type 与可选 Bearer 凭据，不在日志展示密钥。"""
         cfg = self._cfg()
         h = {'Content-Type': 'application/json'}
         if cfg['api_key']:
@@ -100,6 +107,7 @@ class AIService:
 
     # ---------- 请求 ----------
     def _chat(self, messages, max_tokens=600, timeout=90) -> str:
+        """按配置组装协议/鉴权并读取完整正文，捕获本次用量供异步结果使用。"""
         self.last_usage = None
         endpoint = self._endpoint()
         model = self._model()
@@ -119,6 +127,7 @@ class AIService:
         return _completion_text(data)
 
     def _capture_usage(self, data):
+        """从本次响应提取不可变 token 用量快照，未知字段不虚构计数。"""
         usage = TokenUsage.from_response(data)
         if usage is not None:
             self.last_usage = usage

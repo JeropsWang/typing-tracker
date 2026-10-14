@@ -20,15 +20,18 @@ AVATAR_NOTES = {
 
 
 def avatar_path(preset=DEFAULT_AVATAR):
+    """将规范头像标识转换为内置 PNG 路径，未知标识使用默认头像。"""
     return ASSETS / 'avatars' / f'{normalize_avatar(preset)}.png'
 
 
 @lru_cache(maxsize=12)
 def _pixmap(path, modified):
+    """以路径/修改时间为缓存键加载图片，文件更新会自然产生新键。"""
     return QPixmap(path)
 
 
 def load_portrait(path):
+    """读取本机头像，缺失/无法解码时回退品牌图标。"""
     path = Path(path)
     try:
         image = _pixmap(str(path), path.stat().st_mtime_ns)
@@ -41,6 +44,7 @@ def load_portrait(path):
 
 
 def draw_portrait(painter, image, rect, *, round_crop=False):
+    """等比居中裁切圆形或圆角头像，恢复绘制状态避免影响后续控件。"""
     path = QPainterPath()
     if round_crop:
         path.addEllipse(rect)
@@ -59,6 +63,7 @@ def draw_portrait(painter, image, rect, *, round_crop=False):
 class AvatarPortrait(QWidget):
     """个人中心圆形头像；上传失败或无上传时显示所选 Sariana。"""
     def __init__(self, size=96, parent=None):
+        """建立用户头像与预设选择组件的依赖与初始状态。"""
         super().__init__(parent)
         self.preset = DEFAULT_AVATAR
         self._size = size
@@ -67,18 +72,22 @@ class AvatarPortrait(QWidget):
         self.setAccessibleName('Sariana 头像')
 
     def set_size(self, size):
+        """同步头像控件的固定逻辑像素边长。"""
         self._size = size
         self.setFixedSize(size, size)
 
     def set_preset(self, preset):
+        """选择规范内置头像并清除上传图片展示。"""
         self.preset = normalize_avatar(preset)
         self.set_image(None)
 
     def set_image(self, path):
+        """读取指定本机图片或内置头像，并请求重绘。"""
         self._image = load_portrait(path or avatar_path(self.preset))
         self.update()
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制用户头像与预设选择的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect()).adjusted(5, 5, -5, -5)
@@ -93,6 +102,7 @@ class AvatarPortrait(QWidget):
 class PortraitCard(QWidget):
     """偏移拍立得：装饰底纸旋转，人物与文字保持端正。"""
     def __init__(self, parent=None):
+        """建立用户头像与预设选择组件的依赖与初始状态。"""
         super().__init__(parent)
         self._image = load_portrait(avatar_path())
         self.caption = 'Sariana · 默认'
@@ -100,11 +110,13 @@ class PortraitCard(QWidget):
         self.setAccessibleName('当前头像预览')
 
     def set_portrait(self, preset, image=None):
+        """展示已有头像图像或内置预设，同步来源说明。"""
         self._image = QPixmap.fromImage(image) if image is not None else load_portrait(avatar_path(preset))
         self.caption = '本地头像' if image is not None else f'Sariana · {dict(AVATAR_PRESETS)[normalize_avatar(preset)]}'
         self.update()
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制用户头像与预设选择的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.save()
@@ -128,7 +140,9 @@ class PortraitCard(QWidget):
 
 
 class _AvatarButton(QPushButton):
+    """保留原生选择语义的头像预设按钮，实际绘制不读写配置。"""
     def __init__(self, key, label, parent=None):
+        """建立用户头像与预设选择组件的依赖与初始状态。"""
         super().__init__(label, parent)
         self.key = key
         self._image = load_portrait(avatar_path(key))
@@ -142,6 +156,7 @@ class _AvatarButton(QPushButton):
                           ' min-height: 110px; max-height: 110px; }')
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制用户头像与预设选择的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
@@ -162,9 +177,11 @@ class _AvatarButton(QPushButton):
 
 
 class AvatarPicker(QWidget):
+    """头像预设选择组件，仅持有当前选择草稿。"""
     selected = Signal(str)
 
     def __init__(self, preset=DEFAULT_AVATAR, parent=None):
+        """建立用户头像与预设选择组件的依赖与初始状态。"""
         super().__init__(parent)
         self.buttons = {}
         self._group = QButtonGroup(self)
@@ -180,7 +197,9 @@ class AvatarPicker(QWidget):
         self.set_preset(preset)
 
     def current_preset(self):
+        """返回互斥按钮组当前选中的稳定头像标识。"""
         return self._group.checkedButton().key
 
     def set_preset(self, key):
+        """规范化预设并同步选中按钮，不自行保存。"""
         self.buttons[normalize_avatar(key)].setChecked(True)

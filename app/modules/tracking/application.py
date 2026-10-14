@@ -3,7 +3,9 @@ from .domain import TrackingCounter
 from .clock import SystemClock
 
 class TrackingService(TrackingCounter):
+    """兼容统计应用入口，从仓储恢复内存计数并装配检查点写入工作流。"""
     def __init__(self, repo, get_setting, balance, *, clock=None):
+        """读取近期日期/分钟、终身总量和持久版本，恢复计数器并装配保存能力。"""
         clock = clock or SystemClock()
         days = repo.get_recent_days(2)
         minutes = [row for d in days for row in repo.get_minutes(d['date'])]
@@ -15,5 +17,6 @@ class TrackingService(TrackingCounter):
         self._save = CheckpointWriter(repo,balance).save
 
     def update_day_start(self):
+        """同步已保存日切设置并立即执行日切检查。"""
         self.set_day_start(int(self._get_setting('day_start_hour',self._balance.get('day_start_hour',4))))
         return self.check_rollover()

@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
+    """按页面与主题参数装配隔离界面，生成截图和布局报告，或进入交互预览；返回布局问题状态。"""
     parser = argparse.ArgumentParser()
     parser.add_argument('--interactive', action='store_true')
     parser.add_argument('--out', default='.local/ui-night-stage/previews',
@@ -66,7 +67,9 @@ def main():
     theme = ThemeManager(app, data, repo.get_setting, repo.set_setting)
 
     class PreviewWindow(MainWindow):
+        """预览专用主窗口，关闭时结束预览事件循环，不转入托盘运行。"""
         def closeEvent(self, event):
+            """接受关闭并退出预览 QApplication，使交互预览能够正常结束。"""
             event.accept()
             app.quit()
 

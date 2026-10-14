@@ -9,7 +9,9 @@ from PySide6.QtGui import QClipboard
 
 
 class PlaygroundUITests(UIFixture):
+    """键盘侠、混乱生成和模式切换的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def playground(self, mode):
+        """创建带键盘侠和混乱模式的隔离训练页。"""
         window = self.window()
         window._nav_buttons['训练'].click()
         page = window._challenge_page
@@ -18,6 +20,7 @@ class PlaygroundUITests(UIFixture):
         return window, page
 
     def test_keyboard_deadline_and_saved_local_ranking(self):
+        """验证十五秒期限及实际保存后的本机排行榜。"""
         _, page = self.playground('keyboard')
         panel = page.keyboard_panel
         panel.start_button.click()
@@ -36,6 +39,7 @@ class PlaygroundUITests(UIFixture):
         self.assertEqual(len(panel.service.leaderboard()), 1)
 
     def test_keyboard_paste_and_mode_switch_cannot_create_score(self):
+        """验证粘贴或模式切换不能绕过有效训练生成成绩。"""
         _, page = self.playground('keyboard')
         panel = page.keyboard_panel
         panel.start_button.click()
@@ -48,6 +52,7 @@ class PlaygroundUITests(UIFixture):
         self.assertFalse(page._running)
 
     def test_keyboard_same_text_replacement_and_unicode_count_actual_insertions(self):
+        """验证同文替换及 Unicode 输入按实际插入内容计数。"""
         _, page = self.playground('keyboard')
         panel = page.keyboard_panel
         panel.start_button.click()
@@ -68,6 +73,7 @@ class PlaygroundUITests(UIFixture):
         self.assertEqual(panel.session.tw, 6)
 
     def test_keyboard_failed_save_is_retryable_without_duplicate_score(self):
+        """验证键盘侠保存失败原 ID 重试且不重复记录。"""
         _, page = self.playground('keyboard')
         panel = page.keyboard_panel
         panel.start_button.click()
@@ -87,6 +93,7 @@ class PlaygroundUITests(UIFixture):
         self.assertEqual(len(panel.service.leaderboard()), 1)
 
     def test_chaos_generates_short_plain_text_and_recovers_from_error(self):
+        """验证混乱生成输出短纯文本，失败后恢复操作。"""
         self.repo.set_setting('ai_backend', 'openai')
         _, page = self.playground('chaos')
         panel = page.chaos_panel
@@ -102,11 +109,13 @@ class PlaygroundUITests(UIFixture):
         self.assertTrue(panel.generate_button.isEnabled())
 
     def test_chaos_stale_result_is_ignored_on_mode_switch(self):
+        """验证模式切换后旧混乱生成结果被拒绝。"""
         self.repo.set_setting('ai_backend', 'openai')
         _, page = self.playground('chaos')
         panel = page.chaos_panel
         release = threading.Event()
         def delayed(*args, **kwargs):
+            """用可控延迟模拟较慢模型，验证 UI 响应及结果保存/取消边界。"""
             release.wait(2)
             return '月亮在煮键盘。'
         with patch.object(AIService, '_chat', side_effect=delayed):
@@ -118,12 +127,14 @@ class PlaygroundUITests(UIFixture):
         self.assertEqual(panel.output.toPlainText(), '')
 
     def test_background_passage_completion_does_not_end_keyboard_running_state(self):
+        """验证后台范文生成完成不会错误结束键盘侠练习状态。"""
         self.repo.set_setting('ai_backend', 'openai')
         self.repo.add_reward('ai_pass', 1, 'test')
         window, page = self.playground('practice')
         page._topic_edit.setText('星星')
         release = threading.Event()
         def delayed(*args, **kwargs):
+            """用可控延迟模拟较慢模型，验证 UI 响应及结果保存/取消边界。"""
             release.wait(2)
             return '星星在天空中闪烁。'
         with patch.object(AIService, '_chat', side_effect=delayed):

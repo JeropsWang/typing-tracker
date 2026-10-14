@@ -68,6 +68,7 @@ def scale_factor(width: int, height: int) -> float:
 
 
 def asset_path(*parts) -> Path:
+    """以受控素材目录拼接资源路径，供原生绘制组件统一访问。"""
     return ASSETS.joinpath(*parts)
 
 
@@ -96,10 +97,12 @@ def scale_px(value: float, scale: float, *, minimum: int = 0) -> int:
 
 
 def field_height(compact: bool = False) -> int:
+    """返回普通或紧凑输入字段的标准逻辑像素高度。"""
     return FIELD_HEIGHT_COMPACT if compact else FIELD_HEIGHT
 
 
 def button_height(compact: bool = False) -> int:
+    """返回普通或紧凑按钮的标准逻辑像素高度。"""
     return BUTTON_HEIGHT_COMPACT if compact else BUTTON_HEIGHT
 
 
@@ -126,6 +129,7 @@ def mix(color_a: str, color_b: str, weight_a: float) -> str:
     原样返回 `color_a`，避免把半透明色混成实色。
     """
     def parts(value: str):
+        """解析纯六位十六进制颜色为 RGB，拒绝渐变/透明/非法格式。"""
         value = value.strip()
         if value.startswith('rgba') or value.startswith('qlinear'):
             raise ValueError(value)

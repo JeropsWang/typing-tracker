@@ -5,7 +5,9 @@ from test_ui_workflow import UIFixture, APP
 
 
 class MotionValueTests(UIFixture):
+    """共享动效资格与生命周期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_cancel_motion_sets_stable_end(self):
+        """验证停止过渡采用稳定终值而非遗留半途状态。"""
         from app.ui.widgets.motion import MotionValue
         values = []
         motion = MotionValue(None, values.append)
@@ -18,6 +20,7 @@ class MotionValueTests(UIFixture):
         self.assertEqual(motion.animation.state(), QAbstractAnimation.Stopped)
 
     def test_repeated_hover_reuses_one_animation(self):
+        """验证反复悬停复用同一动画对象。"""
         from app.ui.widgets.motion import MotionValue
         motion = MotionValue(None, lambda value: None)
         original = motion.animation
@@ -29,7 +32,9 @@ class MotionValueTests(UIFixture):
 
 
 class MotionLifecycleTests(UIFixture):
+    """共享动效资格与生命周期的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_motion_toggle_persists_and_cancel_keeps_value(self):
+        """验证动效开关提交生效，取消保留原值。"""
         dlg = self.dialog()
         self.assertEqual(dlg._motion.text(), '动态效果')
         self.assertTrue(dlg._motion.isChecked())
@@ -44,6 +49,7 @@ class MotionLifecycleTests(UIFixture):
         self.assertFalse(restored._motion.isChecked())
 
     def test_disabled_confetti_and_hidden_window_do_not_tick(self):
+        """验证彩带关闭或主窗口隐藏后不继续刷新。"""
         window = self.window()
         window.play_confetti()
         self.assertTrue(window._confetti._timer.isActive())
@@ -71,6 +77,7 @@ class MotionLifecycleTests(UIFixture):
         self.assertTrue(window._starfield._timer.isActive())
 
     def test_training_reset_does_not_override_disabled_motion(self):
+        """验证训练重置不覆盖用户禁用动效设置。"""
         window = self.window()
         window._nav_buttons['英语'].click()
         page = window._english_page

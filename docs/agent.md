@@ -34,6 +34,7 @@ rg -n '相关类名|相关方法|业务关键词' app scripts
 | AI 协议、用量、并发 | integrations/ai、ui/tasks、请求包装类 | 配置快照、共享 gate、迟到结果、保存重试不再计费 |
 | 设置、头像 | profile API、bootstrap/features、settings_dialog | 草稿取消、提交失败、头像补偿、异步关闭 |
 | 小伙伴、作品包 | companion API、ActivityProvider、ui/companion | 公共活动状态、拖动、模式、素材校验与动效 |
+| 桌宠智能体 | companion API、integrations/companion_agent、ui/companion/agent_* | 真实图执行、配置隔离、取消与迟到结果、来源、流式思考过滤 |
 | 报表与性能 | reporting API、bootstrap/read_models、reports | 缓存失效、隐藏后刷新、格子复用、无 UI SQL |
 | 旧库升级和发布 | storage/db、build_release、工作流与安装脚本 | 版本迁移、迁移备份、包内代码/素材、安装升级 |
 | 自动更新 | integrations/updates、ui/updates、bootstrap/application、main | 校验/取消、最终保存失败重试、安装交接授权、真实 Windows 安装 |
@@ -52,6 +53,18 @@ rg -n '相关类名|相关方法|业务关键词' app scripts
 
 遇到边界违规先调整服务接口/用例；不要通过关闭线程检查、吞异常、复制 SQL 或额外轮询绕过问题。确实需要修改架构时，同步更新架构文档和导入检查。
 
+## 代码注释与维护说明
+
+所有新增或修改的代码必须补充清晰的中文功能说明，作为交付要求执行。维护者应能从注释直接知道代码负责什么、从哪里调用及有哪些边界，不应依靠重新推演实现来猜测功能。
+
+- 模块说明写清业务用途与所在层；类说明写清职责、持有的状态与线程归属。
+- 每个新增或修改的函数、方法都要有功能说明，Python 优先使用 docstring；私有辅助函数、嵌套函数、UI 槽函数和脚本入口同样适用。简单函数可用一句话说明，复杂函数说明主要输入、返回结果、异常或副作用；涉及单位、编号、限额或特殊约定时写明其含义。
+- 关键流程、复杂分支、状态转换、异步回调、事务、取消/迟到结果、隐私与安全检查、兼容处理必须在对应代码旁说明原因和需要守住的约束。注释解释设计意图，避免只把赋值、循环等语法重复一遍。
+- 修改功能时同步更新注释，删除过时说明；修改已有函数时补齐其缺失的功能说明。用户文案、模型提示词和独立架构文档不能代替函数注释。
+- 测试与检查脚本说明验证场景和隔离条件。交付前检查本次新增/修改的模块、类、函数与关键分支是否已注释，并核对说明与实际代码一致；不能把补注释变成无关的全仓格式重写。
+
+整个项目的历史代码也遵守此规范。运行 `python -B scripts/check_comments.py` 检查 `app/`、`scripts/` 和 `main.py` 的模块、类、函数（含私有方法与嵌套回调）是否有非空 docstring；`--json` 可输出覆盖明细。检查不导入应用、不请求网络、不操作数据库，不扫描 `.local` 中的第三方 Pi 源码或依赖。它只检查说明存在性，维护者仍须核对内容、关键分支及 PowerShell/SQL/安装配置的说明是否准确。
+
 ## 环境与验证命令
 
 Windows 源码支持 Python 3.10+；发布与 CI 使用 Python 3.13 和 `requirements-release.txt` 中锁定的依赖。架构重构与依赖升级分别验证。
@@ -63,6 +76,7 @@ $env:QT_QPA_PLATFORM = 'offscreen'
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 .venv\Scripts\python.exe -B scripts/check_architecture.py
+.venv\Scripts\python.exe -B scripts/check_comments.py
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_architecture.py' -v
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_desktop_architecture.py' -v
 .venv\Scripts\python.exe -B -m unittest discover -s scripts -p 'test_*.py' -v
@@ -109,3 +123,9 @@ Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 修改边界、目录、线程、事务、恢复、构建或验证命令时更新 [architecture.md](architecture.md)；修改维护流程时更新这份指南。运行记录写入 [validation.md](validation.md)，注明样本与环境，不把本机性能数值当成所有机器的保证。
 
 英语交互参考见 [english-research.md](english-research.md)，更新机制见 [updates.md](updates.md)。更新回归使用模拟 GitHub 响应和隔离数据，不启动真实安装包；干净 Windows 环境另测安装向导、钩子恢复和升级后数据保留。
+
+桌宠智能体迭代、配置与验证见 [companion-agent.md](companion-agent.md)。安装新增 LangGraph 依赖后运行 `test_companion_agent*.py`、小伙伴回归和真实桌面工作线程测试。真实本机模型验证需用户授权；默认验证工具用 HTTP 搜索夹具，不能据此宣称真实搜索服务连通。打包需收集 LangGraph 子模块及依赖元数据，并运行冻结程序 `--companion-agent-selfcheck`。
+
+桌宠 ReAct/MCP 工具层变化同时运行 `test_companion_react.py`，覆盖自主补搜、错误观察、稳定引用、来源读取白名单、截断调用、次数/上下文/截止时间和取消。默认角色在 companion 纯规则层维护，新增纯文件列入架构检查。Pi 固定版本源码位置与对照见 [pi-agent-study.md](pi-agent-study.md)；参考目录不进入发布。不要把 MCP 工具子集说成已支持任意外部服务器，也不要把短连接测试通过说成已验证原生工具调用。
+
+模型/搜索连接测试见 `test_companion_setup.py`；公开 RSS 的错误回退、来源限额、取消和 XML 过滤见 `test_companion_agent.py`；Edge DOM、原文读取限额、内网拒绝与所属进程清理见 `test_companion_edge.py`。自动化使用模拟响应；真实联网上游验证通过 `verify_companion_agent_local.py --public-search`，只使用隔离数据及用户授权的本地模型。测试不得保存草稿或输出 Key；取消后保持后台准入直至任务结束。已有 SearXNG 仅连接，禁止操作外部容器。

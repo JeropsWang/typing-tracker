@@ -8,6 +8,7 @@ from .visual_tokens import mix
 
 
 def star_path(x, y, size):
+    """生成指定中心/尺寸的静态星形路径，供便签装饰复用。"""
     path = QPainterPath()
     for i in range(8):
         angle = i * math.pi / 4 - math.pi / 2
@@ -19,12 +20,15 @@ def star_path(x, y, size):
 
 
 class ScrapbookCard(QFrame):
+    """原生便签纸张容器，以绘制层提供层次，子控件保留原输入语义。"""
     def __init__(self, tone='rose', parent=None):
+        """建立便签风格容器组件的依赖与初始状态。"""
         super().__init__(parent)
         self.tone = tone
         self.setStyleSheet('QFrame { background: transparent; border: none; }')
 
     def paintEvent(self, event):
+        """在 Qt 主线程按当前状态绘制便签风格容器的可见内容，不在绘制回调执行业务提交。"""
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()

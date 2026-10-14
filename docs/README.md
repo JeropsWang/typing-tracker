@@ -11,3 +11,9 @@
 英语交互参考与 REA 证据见 [english-research.md](english-research.md)；GitHub 检查、下载校验与更新退出流程见 [updates.md](updates.md)。
 
 代码是实现事实的来源。修改接口、模块边界、迁移或验证命令时，同步更新相关文档。验证记录见 [validation.md](validation.md)，记录结果和未验证项，不把未运行的检查写成通过。
+
+注释规范与检查命令见 [AI 协作指南](agent.md#代码注释与维护说明)；[注释覆盖检查](../scripts/check_comments.py) 只读扫描全部自有 Python 模块、类与函数，内容准确性仍需结合代码审核。
+
+桌宠智能体的三期计划、模型/搜索配置、LangGraph 边界和本机模型验证见 [companion-agent.md](companion-agent.md)。
+已下载 Pi 源码的位置、固定版本、阅读顺序与本项目的架构对照见 [Pi 源码导读](pi-agent-study.md)。
+桌宠轮盘、手信卡片与配置页的公开网页参考及 REA 证据见 [companion-agent-design.md](companion-agent-design.md)。

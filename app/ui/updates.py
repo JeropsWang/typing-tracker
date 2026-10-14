@@ -16,11 +16,13 @@ from .presenters import PracticeState
 
 
 class UpdateController(QObject):
+    """Qt 主线程更新展示控制器，网络异步执行，自动检查限频且安装请求独立交接。"""
     changed = Signal()
     progressed = Signal(object, object)
     install_requested = Signal(object)
 
     def __init__(self, application, service, parent=None, *, kind=None, clock=time.time):
+        """装配应用/网络/安装类型和检查时钟，创建异步桥及低频自动检查计时器。"""
         super().__init__(parent)
         self.application, self.service = application, service
         self.kind = kind or installation_kind()
@@ -43,6 +45,7 @@ class UpdateController(QObject):
         QTimer.singleShot(8_000, self.auto_check)
 
     def auto_check(self):
+        """仅开关允许且未暂停时按最后尝试时间每天最多检查一次。"""
         if self._paused or self.application.models.get_setting('updates_auto_check', '1') == '0':
             return
         try:
@@ -54,6 +57,7 @@ class UpdateController(QObject):
             self.check()
 
     def check(self, manual=False):
+        """异步检查正式版本并记录尝试时刻，网络故障不会导致启动反复检查。"""
         if self.busy or self._paused:
             return
         self.busy = True
@@ -65,6 +69,7 @@ class UpdateController(QObject):
         self._tasks.resolve(background(self.service.check), self._checked, self._failed)
 
     def _checked(self, release):
+        """显示较新版本或当前版本状态，依据源码/安装/便携类型提示可用附件。"""
         self.busy = False
         self.release = release
         self.installer = None
@@ -81,11 +86,13 @@ class UpdateController(QObject):
         self.changed.emit()
 
     def _failed(self, error):
+        """恢复检查/下载状态并区分用户取消与可见错误。"""
         self.busy = self.downloading = False
         self.status = str(error) if not isinstance(error, UpdateCancelled) else '下载已取消。'
         self.changed.emit()
 
     def download(self):
+        """仅安装版合格附件启动后台下载，创建本次取消信号和真实字节进度。"""
         if self.busy or self._paused or self.kind != 'installed' or not self.release or not self.release.installer:
             return
         self._cancel = threading.Event()
@@ -98,29 +105,34 @@ class UpdateController(QObject):
                             self._downloaded, self._failed)
 
     def _progress(self, received, total):
+        """仅下载仍在进行时更新排队的接收/总字节数。"""
         if self.downloading:
             self.progress = (received, total)
             self.changed.emit()
 
     def _downloaded(self, installer):
+        """记录已校验安装器并开放后续退出安装，不自动启动安装包。"""
         self.busy = self.downloading = False
         self.installer = installer
         self.status = '安装包已通过大小与 SHA-256 校验，可以退出并安装。'
         self.changed.emit()
 
     def cancel(self):
+        """请求取消本次下载，实际网络结束前保留忙碌状态。"""
         if self.downloading:
             self._cancel.set()
             self.status = '正在取消下载…'
             self.changed.emit()
 
     def request_install(self):
+        """安装前后台再次核对缓存文件，成功才发布独立安装请求。"""
         if self.busy or self.installer is None or self._paused:
             return
         self.busy = True
         self.status = '正在重新校验安装包…'
         self.changed.emit()
         def verified(installer):
+            """重新校验成功后发布安装器，交应用退出协调流程处理。"""
             self.busy = False
             self.status = '安装包已校验。'
             self.changed.emit()
@@ -128,9 +140,11 @@ class UpdateController(QObject):
         self._tasks.resolve(background(self.installer.verify), verified, self._failed)
 
     def set_paused(self, paused):
+        """暂停新的检查/下载/安装入口，供退出交接使用。"""
         self._paused = paused
 
     def shutdown(self):
+        """停止自动检查并取消当前下载，供应用退出清理。"""
         self._paused = True
         self._timer.stop()
         self.cancel()
@@ -139,6 +153,7 @@ class UpdateController(QObject):
 class UpdateExitCoordinator(QObject):
     """Serialize stop, final commit, helper launch and worker close without UI waits."""
     def __init__(self, application, stop_input, launch_helper, completed, failed, parent=None):
+        """装配停止输入、最终提交、辅助进程启动和退出回调，所有 UI 更新经 TaskBridge。"""
         super().__init__(parent)
         self.application = application
         self.stop_input, self.launch_helper = stop_input, launch_helper
@@ -148,6 +163,7 @@ class UpdateExitCoordinator(QObject):
         self._tasks = TaskBridge(self)
 
     def begin(self, installer):
+        """幂等开始更新退出，先异步停止输入采集再请求最后提交。"""
         if self.busy:
             return
         self.busy = True
@@ -156,26 +172,32 @@ class UpdateExitCoordinator(QObject):
         self._tasks.resolve(background(self.stop_input), self._stopped, self._failed)
 
     def _stopped(self, _):
+        """输入停止后排空并提交已接收写入，工作线程暂不关闭。"""
         self._tasks.resolve(self.application.prepare_update_exit(), self._prepared, self._failed)
 
     def _prepared(self, _):
+        """最后保存成功后启动隐藏安装辅助进程，但尚不授权它执行安装。"""
         self._tasks.resolve(background(lambda: self.launch_helper(self._installer)), self._launched, self._failed)
 
     def _launched(self, helper):
+        """记录本次辅助进程，再异步关闭已准备好的数据库工作线程。"""
         self._helper = helper
         self._tasks.resolve(self.application.finish_update_exit(), self._closed, self._failed)
 
     def _closed(self, _):
+        """数据库实际关闭后才给辅助进程写授权，避免统计丢失时启动安装。"""
         if self._helper is not None:
             self._tasks.resolve(background(self._helper.authorize), self._authorized, self._failed)
         else:
             self._authorized(None)
 
     def _authorized(self, _):
+        """授权完成后调用主程序退出回调，辅助进程继续等主进程终止。"""
         self.busy = False
         self.completed()
 
     def _failed(self, error):
+        """取消本次辅助进程并恢复可重试应用状态，向 UI 返回失败。"""
         self.busy = False
         if self._helper is not None:
             helper,self._helper=self._helper,None
@@ -185,7 +207,9 @@ class UpdateExitCoordinator(QObject):
 
 
 class UpdatesWidget(QWidget):
+    """设置页的更新展示/操作面板，保存检查开关草稿，网络动作交控制器。"""
     def __init__(self, queries, controller=None, parent=None):
+        """创建版本、开关、检查/下载/取消控件并订阅更新展示变化。"""
         super().__init__(parent)
         self.controller = controller
         layout = QVBoxLayout(self)
@@ -223,9 +247,11 @@ class UpdatesWidget(QWidget):
         self.refresh()
 
     def values(self):
+        """交出自动检查开关草稿，供外层设置统一保存。"""
         return {'updates_auto_check': '1' if self.auto_check.isChecked() else '0'}
 
     def _action(self):
+        """按运行类型打开版本/便携下载链接，或请求安装版下载/交接。"""
         controller = self.controller
         if controller.kind == 'portable':
             if controller.release and controller.release.portable:
@@ -239,6 +265,7 @@ class UpdatesWidget(QWidget):
             controller.download()
 
     def refresh(self):
+        """按控制器状态同步按钮、文本和真实字节进度，无能力时禁用网络操作。"""
         controller = self.controller
         if not controller:
             self.status.setText('源码或预览环境未装配更新服务。')
@@ -279,6 +306,7 @@ def update_exit_status(window):
 
 
 def discard_learning_for_update(window):
+    """在用户已选择放弃之后清理未完成练习/生成，已受理保存不能由此撤销。"""
     page = window._challenge_page
     page._cancel_generation()
     page._reset()

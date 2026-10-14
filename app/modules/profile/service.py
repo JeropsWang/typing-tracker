@@ -8,6 +8,7 @@ from ...core.avatars import normalize_avatar
 
 
 def validate_ai(config: dict) -> str:
+    """检查启用 AI 的接口地址，合法/未启用返回空串，否则返回可见校验提示。"""
     if config.get('backend') == 'off' or not config.get('base_url'):
         return ''
     try:
@@ -20,7 +21,9 @@ def validate_ai(config: dict) -> str:
 
 
 class SettingsService:
+    """工作线程中的设置/头像提交服务，文件写入失败或数据库失败都保留原有状态。"""
     def __init__(self, repo, data_dir=None):
+        """装配配置仓储和可选数据目录，头像写入只发生在指定目录。"""
         self._repo = repo
         self._data_dir = Path(data_dir) if data_dir else None
 

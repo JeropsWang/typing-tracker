@@ -18,10 +18,12 @@ class PracticeInput(QPlainTextEdit):
     paste_blocked = Signal()
 
     def insertFromMimeData(self, source):
+        """拒绝粘贴并发信号提示，保留真正逐字输入的训练资格。"""
         self.paste_blocked.emit()
 
 
 class TrainingWorkspace(PaperSurface):
+    """训练参考正文、主动输入和结算操作的共用纸张工作区。"""
     source_changed = Signal(int)
     restart_requested = Signal()
     next_requested = Signal()
@@ -30,6 +32,7 @@ class TrainingWorkspace(PaperSurface):
     paste_blocked = Signal()
 
     def __init__(self, parent=None):
+        """建立训练正文和主动输入区域组件的依赖与初始状态。"""
         super().__init__(parent)
         self._stage = None
         self.content = QVBoxLayout(self)
@@ -116,6 +119,7 @@ class TrainingWorkspace(PaperSurface):
         self.apply_layout(StageLayout(900, 526), force=True)
 
     def apply_layout(self, stage, *, force=False):
+        """按响应式模型统一调整纸张/参考/输入/操作间距和高度，实际内容最小高度优先。"""
         if self._stage == stage and not force:
             return
         self._stage = stage

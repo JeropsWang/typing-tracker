@@ -7,6 +7,7 @@ from .typography import english_type
 
 
 class SpellingPanel(QWidget):
+    """只负责拼写题目/答案/纠正提示的 Qt 展示面板，通过信号请求业务动作。"""
     start_requested = Signal()
     submit_requested = Signal()
     hint_requested = Signal()
@@ -14,6 +15,7 @@ class SpellingPanel(QWidget):
     correction_skipped = Signal()
 
     def __init__(self, parent=None):
+        """创建题目、输入、提交/提示/揭示/纠正和反馈控件，初始无活动题目。"""
         super().__init__(parent)
         self._type = english_type('large')
         layout = QVBoxLayout(self)
@@ -70,6 +72,7 @@ class SpellingPanel(QWidget):
         self.apply_theme()
 
     def set_active(self, active, judged=False):
+        """根据是否作答/已判定控制输入只读和辅助操作，避免保存期间改变答案资格。"""
         self.answer.setEnabled(active)
         self.answer.setReadOnly(judged)
         self.submit_button.setEnabled(active)
@@ -78,6 +81,7 @@ class SpellingPanel(QWidget):
         self.submit_button.setText('下一词 →' if judged else '提交 →')
 
     def show_word(self, word, index, total):
+        """展示当前词的释义与进度，清空本题输入并聚焦。"""
         self.skip_button.hide()
         self.progress.setText(f'单词 {index + 1:02d} / {total:02d}')
         self.meaning.setPlainText(word.meaning)
@@ -87,6 +91,7 @@ class SpellingPanel(QWidget):
         self.answer.setFocus()
 
     def show_result(self, word, result):
+        """区分独立、辅助和错误结果，展示已提交反馈与正确词/音标。"""
         self.set_active(True, judged=True)
         phonetic = f'  /{word.phonetic}/' if word.phonetic else ''
         if result['independent']:
@@ -100,6 +105,7 @@ class SpellingPanel(QWidget):
         self.answer.setFocus()
 
     def show_correction(self, word):
+        """切到纠正输入提示并提供显式跳过，首测结果不因此改变。"""
         self.answer.clear()
         self.set_active(True)
         self.hint_button.setEnabled(False)
@@ -110,13 +116,16 @@ class SpellingPanel(QWidget):
         self.answer.setFocus()
 
     def set_type(self, key):
+        """设置拼写区域字号档位并重新应用样式。"""
         self._type = english_type(key)
         self.apply_theme()
 
     def set_motion_enabled(self, enabled):
+        """按页面动效设置启停正确作答的反馈装饰。"""
         self.spark.set_motion_enabled(enabled)
 
     def apply_theme(self):
+        """同步题目、释义、输入和操作的字号/对比色，不修改学习数据。"""
         t = self._type
         for button in (self.submit_button, self.start_button):
             button.setStyleSheet('QPushButton {min-height:44px;max-height:44px;padding:0 18px;}')

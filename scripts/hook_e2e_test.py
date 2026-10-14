@@ -24,6 +24,7 @@ from app.storage.session import DataSession as Repository  # noqa: E402
 
 
 def main() -> int:
+    """在隔离库中启动真实 Windows 键盘钩子并注入测试按键，验证钩子到计数引擎的链路后清理测试目录。"""
     tmp = ROOT / '.tmptest'
     tmp.mkdir(exist_ok=True)
     td = tmp / ('tt_' + uuid.uuid4().hex)

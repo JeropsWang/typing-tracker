@@ -98,6 +98,7 @@ def audit_window(win: MainWindow, label: str) -> list:
 
 
 def main() -> int:
+    """用隔离数据装配离屏窗口，检查各页面越界、溢出及重叠并打印问题；清理测试目录后返回检查状态。"""
     app = QApplication([])
     load_fonts()
     tmp = ROOT / '.tmptest'
@@ -109,6 +110,7 @@ def main() -> int:
     repo = Repository(conn)
 
     def gs(key, default=None):
+        """从布局审计专用仓储读取设置，作为旧式同步服务的测试装配回调。"""
         return repo.get_setting(key, default)
 
     engine = StatsEngine(repo, gs, BALANCE)

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class EnglishType:
+    """不可变英语字号角色，分别定义正文、辅助、释义、答案和句子尺寸。"""
     body: int
     meaning: int
     answer: int
@@ -19,4 +20,5 @@ SIZES = {
 
 
 def english_type(key):
+    """按档位取得字号方案，未知值回退到 large。"""
     return SIZES.get(key, SIZES['large'])

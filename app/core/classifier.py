@@ -36,6 +36,7 @@ def classify_char(ch: str) -> str:
 
 
 def char_tw(ch: str, balance=None) -> int:
+    """按统一字符分类计算单字符 tw，汉字权重可从配置读取。"""
     kind = classify_char(ch)
     if kind == 'hanzi':
         return 2 if balance is None else balance.get('unit', {}).get('hanzi_tw', 2)
@@ -43,6 +44,7 @@ def char_tw(ch: str, balance=None) -> int:
 
 
 def text_tw(text: str, balance=None) -> int:
+    """累加文本的单字符 tw，供统计与训练使用同一工作量单位。"""
     return sum(char_tw(ch, balance) for ch in text)
 
 

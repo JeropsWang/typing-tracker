@@ -10,7 +10,9 @@ from PySide6.QtGui import QImage, QColor
 
 
 class PackTests(unittest.TestCase):
+    """不可变作品版本及 ZIP 边界的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         from app.companion.packs import PackStore
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -25,9 +27,11 @@ class PackTests(unittest.TestCase):
         self.store = PackStore(self.root / 'data', self.root / 'builtin')
 
     def save(self, manifest=None):
+        """以本例有效或变更清单保存隔离作品，供版本/失败回滚断言。"""
         return self.store.save(manifest or self.manifest, {'assets/idle.png': self.image})
 
     def test_save_import_export_roundtrip_assigns_new_identity(self):
+        """验证作品保存/导出/导入往返后分配新身份并保留内容。"""
         pack = self.save()
         archive = self.root / 'creation.zip'
         self.store.export_zip(pack.id, archive)
@@ -38,6 +42,7 @@ class PackTests(unittest.TestCase):
         self.assertEqual(len(self.store.list_packs()), 2)
 
     def test_rejects_missing_idle_unknown_fields_and_template_expression(self):
+        """验证作品拒绝缺待机、未知字段及话术模板表达式。"""
         for change in ('no_idle', 'expression', 'secret'):
             manifest = copy.deepcopy(self.manifest)
             if change == 'no_idle':
@@ -51,12 +56,14 @@ class PackTests(unittest.TestCase):
         self.assertEqual(self.store.list_packs(), [])
 
     def test_optional_bad_asset_falls_back_to_idle(self):
+        """验证非待机素材损坏时安全回退已校验待机图。"""
         manifest = copy.deepcopy(self.manifest)
         manifest['states']['shy'] = {'asset': 'assets/missing.png', 'lines': ['害羞']}
         pack = self.save(manifest)
         self.assertEqual(pack.asset_for('shy').path, pack.asset_for('idle').path)
 
     def test_bad_save_preserves_previous_revision(self):
+        """验证作品保存失败保留上一版不可变内容和当前指针。"""
         old = self.save()
         manifest = copy.deepcopy(old.manifest)
         manifest['name'] = '新版本'
@@ -69,6 +76,7 @@ class PackTests(unittest.TestCase):
         self.assertEqual(self.store.load(old.id).manifest['name'], '新版本')
 
     def test_final_revision_read_failure_preserves_old_pointer(self):
+        """验证暂存成功但最终版本读取失败时仍保留旧 current 指针。"""
         old = self.save()
         pointer = self.store.user_dir / old.id / 'current.json'
         previous = pointer.read_bytes()
@@ -81,6 +89,7 @@ class PackTests(unittest.TestCase):
         self.assertEqual(self.store.load(old.id).revision, old.revision)
 
     def test_zip_rejects_windows_paths_and_case_collisions(self):
+        """验证作品 ZIP 拒绝 Windows 越界/保留名和大小写冲突路径。"""
         for names in (['../escape.png'], ['C:/outside.png'], ['assets/A.png', 'assets/a.png'],
                       ['assets/../escape.png'], ['assets/CON.png'], ['assets/a.png:stream']):
             archive = self.root / 'unsafe.zip'
@@ -93,6 +102,7 @@ class PackTests(unittest.TestCase):
         self.assertEqual(self.store.list_packs(), [])
 
     def test_export_contains_only_creation_files(self):
+        """验证作品导出只含清单与被引用素材，不含用户统计/设置。"""
         manifest = copy.deepcopy(self.manifest)
         manifest['states']['idle']['lines'] = ['Lv.{level}，{accuracy}']
         pack = self.save(manifest)

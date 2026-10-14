@@ -10,13 +10,16 @@ import threading
 
 
 class AIUsageUITests(UIFixture):
+    """单次模型用量和页面回传的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def setUp(self):
+        """准备本组回归需要的隔离对象和初始状态，不使用用户真实数据。"""
         super().setUp()
         self.provider = FakeProvider()
         self.addCleanup(self.provider.close)
         self.repo.set_settings(dict(ai_backend='openai', ai_base_url=self.provider.base, ai_model='custom-model'))
 
     def test_thinking_defaults_off_and_warning_is_explicit(self):
+        """验证训练默认非思考及对应能力提示明确。"""
         dialog = self.dialog()
         boxes = [b for b in dialog.findChildren(QCheckBox) if b.text() == '思考模式']
         self.assertEqual(len(boxes), 1)
@@ -25,6 +28,7 @@ class AIUsageUITests(UIFixture):
                             for label in dialog.findChildren(QLabel)))
 
     def test_thinking_and_protocol_are_drafts_until_saved(self):
+        """验证思考开关/协议未保存前只影响草稿。"""
         dialog = self.dialog()
         controls = getattr(dialog, '_ai_thinking_controls', None)
         self.assertIsNotNone(controls)
@@ -42,6 +46,7 @@ class AIUsageUITests(UIFixture):
         self.assertEqual(self.repo.get_setting('ai_thinking_protocol'), 'thinking')
 
     def test_connection_result_scrolls_to_show_usage(self):
+        """验证连接检查结果及 token 用量能滚动进入可见区域。"""
         dialog = self.dialog()
         dialog._sections.setCurrentRow(3)
         dialog.show()
@@ -54,6 +59,7 @@ class AIUsageUITests(UIFixture):
         self.assertLessEqual(bottom, viewport.height())
 
     def test_passage_worker_displays_usage_on_success_and_truncation(self):
+        """验证范文后台成功/截断均展示本次实际用量。"""
         window = self.window()
         self.repo.add_exp(4410)
         page = window._challenge_page
@@ -74,6 +80,7 @@ class AIUsageUITests(UIFixture):
         self.assertEqual(len(self.repo.list_ai_texts()), 1)
 
     def test_english_worker_displays_usage_without_replacing_material_status(self):
+        """验证英语后台用量展示不覆盖材料保存状态。"""
         window = self.window()
         self.repo.add_exp(4410)
         page = window._english_page
@@ -90,6 +97,7 @@ class AIUsageUITests(UIFixture):
         self.assertIn('已经收好', page.sentences.status.text())
 
     def test_cancelled_sentence_request_does_not_leave_usage_waiting_forever(self):
+        """验证取消造句后用量标签不会永久停在等待状态。"""
         window = self.window()
         self.repo.add_exp(4410)
         page = window._english_page
@@ -98,6 +106,7 @@ class AIUsageUITests(UIFixture):
         started, release = threading.Event(), threading.Event()
 
         def delayed(*args, **kwargs):
+            """用可控延迟模拟较慢模型，验证 UI 响应及结果保存/取消边界。"""
             started.set()
             release.wait(2)
             return 'invalid response'
@@ -113,6 +122,7 @@ class AIUsageUITests(UIFixture):
                 release.set()
 
     def test_developer_egg_unlocks_both_pages_without_persisting_levels_or_passes(self):
+        """验证开发者临时资格作用于两个 AI 页面但不持久化等级/券。"""
         window = self.window()
         session = getattr(window, '_ai_session', None)
         self.assertIsNotNone(session)

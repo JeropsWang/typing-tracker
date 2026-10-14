@@ -12,7 +12,9 @@ sys.path.insert(0, str(ROOT))
 
 
 class VocabularyTests(unittest.TestCase):
+    """词库、英语评分及材料事务的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_imported_counts_and_cet6_contains_cet4(self):
+        """验证导入词库数量及六级包含四级的资料约束。"""
         from app.english.catalog import VocabularyCatalog
         catalog = VocabularyCatalog()
         books = {key: catalog.load(key) for key in ('cet4', 'cet6', 'kaoyan')}
@@ -29,6 +31,7 @@ class VocabularyTests(unittest.TestCase):
                       (ROOT / 'config/vocabulary/LICENSE-ECDICT.txt').read_text(encoding='utf-8'))
 
     def test_catalog_missing_phonetic_and_unknown_deck(self):
+        """验证缺音标词条的兼容行为及未知词库拒绝。"""
         from app.english.catalog import VocabularyCatalog
         catalog = VocabularyCatalog()
         self.assertTrue(any(not w.phonetic for w in catalog.load('cet4')))
@@ -41,7 +44,9 @@ class VocabularyTests(unittest.TestCase):
 
 
 class SpellingTests(unittest.TestCase):
+    """词库、英语评分及材料事务的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_spelling_normalization_and_single_submission(self):
+        """验证拼写规范化及同题只确认一次结果。"""
         from app.english.catalog import Word
         from app.english.session import SpellingSession
         session = SpellingSession([Word('Apple', '苹果'), Word('mother-in-law', '岳母')])
@@ -55,6 +60,7 @@ class SpellingTests(unittest.TestCase):
         self.assertTrue(session.finished)
 
     def test_hint_and_reveal_are_assisted(self):
+        """验证首字母提示和查看答案均记为辅助作答。"""
         from app.english.catalog import Word
         from app.english.session import SpellingSession
         session = SpellingSession([Word('apple', '苹果'), Word('pear', '梨')])
@@ -68,6 +74,7 @@ class SpellingTests(unittest.TestCase):
         self.assertFalse(session.result['independent'])
 
     def test_empty_answer_does_not_finish_question(self):
+        """验证空拼写答案不结束当前题目。"""
         from app.english.catalog import Word
         from app.english.session import SpellingSession
         session = SpellingSession([Word('apple', '苹果')])
@@ -77,7 +84,9 @@ class SpellingTests(unittest.TestCase):
 
 
 class EnglishStorageTests(unittest.TestCase):
+    """词库、英语评分及材料事务的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_failed_reveal_keeps_question_unconfirmed(self):
+        """验证查看答案事件写入失败不确认当前题目。"""
         from app.storage.db import init_schema
         from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
@@ -95,6 +104,7 @@ class EnglishStorageTests(unittest.TestCase):
         self.assertFalse(service.session.results)
 
     def test_failed_spelling_and_reveal_remain_retryable(self):
+        """验证拼写与查看答案写入失败均保留重试资格。"""
         from app.storage.db import init_schema
         from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
@@ -134,6 +144,7 @@ class EnglishStorageTests(unittest.TestCase):
         self.assertEqual(repo.english.summary('cet4')['attempts'], 2)
 
     def test_capitalized_word_uses_stable_review_key(self):
+        """验证单词大小写不同仍对应同一复习键。"""
         from app.storage.db import init_schema
         from app.storage.session import DataSession as Repository
         from app.english.service import EnglishService
@@ -149,6 +160,7 @@ class EnglishStorageTests(unittest.TestCase):
         self.assertEqual(service.start('cet4', 1, review=True).current.key, word.key)
 
     def test_review_and_progress_survive_reopen(self):
+        """验证学习进度与复习计划在库重新打开后保留。"""
         from app.storage.db import init_schema
         from app.english.repository import EnglishRepository
         with tempfile.TemporaryDirectory() as folder:
@@ -178,6 +190,7 @@ class EnglishStorageTests(unittest.TestCase):
                 conn.close()
 
     def test_old_database_and_backup_include_english(self):
+        """验证旧库迁移与备份包含英语学习数据。"""
         from app.storage.db import init_schema
         from app.storage.session import DataSession as Repository
         from app.services.export_service import export_all
@@ -200,7 +213,9 @@ class EnglishStorageTests(unittest.TestCase):
 
 
 class EnglishAITests(unittest.TestCase):
+    """词库、英语评分及材料事务的回归用例，使用隔离对象与受控输入验证实际行为。"""
     def test_sentence_json_and_keyword_validation(self):
+        """验证造句 JSON 结构、英文/中文释义和目标完整词形。"""
         from app.english.ai import EnglishAI
         from app.services.ai_service import AIService
         api = AIService(config=dict(backend='openai', base_url='', api_key='', model='test'))
@@ -218,6 +233,7 @@ class EnglishAITests(unittest.TestCase):
             self.assertFalse(generator.generate(['apple'], '')[0])
 
     def test_ai_failure_does_not_spend_pass(self):
+        """验证模型失败不会消费训练券。"""
         from app.english.service import EnglishService
         from app.storage.db import init_schema
         from app.storage.session import DataSession as Repository

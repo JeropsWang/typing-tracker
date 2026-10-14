@@ -98,6 +98,7 @@ STATE_STYLE = {
 
 
 def _dstr(d: date) -> str:
+    """将日历 date 转为查询用 ISO 日期字符串。"""
     return d.isoformat()
 
 
@@ -250,8 +251,10 @@ def _label(text: str, role: str = '', size: int = 0, *, bold: bool = False,
 
 
 class CheckinPage(QWidget):
+    """按应用日展示打卡、库存和里程碑的 Qt 页面，消费/补签由异步成长能力执行。"""
     def __init__(self, repo, balance, checkin_service, reward_service, engine,
                  parent=None):
+        """建立应用日打卡、库存与里程碑组件的依赖与初始状态。"""
         super().__init__(parent)
         self._presenter = QueryPresenter(repo)
         self._tasks = TaskBridge(self)
@@ -324,6 +327,7 @@ class CheckinPage(QWidget):
     def _build_sections(self) -> None:
         # 纸张首行留给主窗口挂入的成长子导航（打卡/成就/个人资料），这里直接追加内容
         # 连签大数字 + 今日状态
+        """创建连签、七日条、月历、里程碑和库存区域，保留统一纸张/滚动布局。"""
         head = QWidget()
         head_row = QHBoxLayout(head)
         head_row.setContentsMargins(0, 0, 0, 0)
@@ -593,6 +597,7 @@ class CheckinPage(QWidget):
 
     # ---------- 刷新 ----------
     def refresh(self, *_):
+        """读取已提交打卡和库存，更新当前应用日及操作资格，不自行授予奖励。"""
         today = date.fromisoformat(self._engine.current_day())
         streak = self._presenter.get_streak(_dstr(today)) or self._presenter.get_streak(
             _dstr(today - timedelta(days=1)))
@@ -710,6 +715,7 @@ class CheckinPage(QWidget):
 
     # ---------- 最近 7 天格子（主视图） ----------
     def _build_strip(self, today: date) -> None:
+        """以当前应用日为末尾建立最近七天打卡条和只读完成数。"""
         _clear_layout(self._strip_grid)
 
         days = [today - timedelta(days=STRIP_DAYS - 1 - i) for i in range(STRIP_DAYS)]
@@ -728,6 +734,7 @@ class CheckinPage(QWidget):
             cell.show()   # 新建控件默认隐藏，布局会把隐藏项算成 0 高度
 
     def _day_cell(self, day: date, state: str, row: dict) -> QFrame:
+        """按已签/漏签/未来等状态绘制单日便签与业务说明提示。"""
         bg, border, dash, width, symbol, symbol_color, text = _state_style(state)
         cell = QFrame()
         cell.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
@@ -751,6 +758,7 @@ class CheckinPage(QWidget):
 
     @staticmethod
     def _cell_tip(day: date, text: str, row: dict) -> str:
+        """组合单日记录与状态提示，不把未来日或缺记录标为已签到。"""
         tip = f'{day.isoformat()}　{text}'
         if row:
             tip += f'　连签 {row.get("streak", 0)} 天'
@@ -760,6 +768,7 @@ class CheckinPage(QWidget):
 
     # ---------- 月历（既有能力，折叠区） ----------
     def _shift_month(self, delta: int) -> None:
+        """在当前显示月份上移动月历，实际应用日与打卡资格不变。"""
         month = self._month.month + delta
         year = self._month.year + (month - 1) // 12
         self._month = date(year, (month - 1) % 12 + 1, 1)
@@ -809,6 +818,7 @@ class CheckinPage(QWidget):
             day += timedelta(days=1)
 
     def _month_cell(self, day: date, state: str, row: dict) -> QFrame:
+        """为月历单元格构造日期及状态显示，保持当前月历布局限制。"""
         bg, border, dash, width, symbol, symbol_color, text = _state_style(state)
         cell = QFrame()
         _card_style(cell, 'monthCell', bg, border, radius=10, width=width, dash=dash)
@@ -825,6 +835,7 @@ class CheckinPage(QWidget):
 
     # ---------- 里程碑 ----------
     def _build_milestones(self) -> None:
+        """从配置和已发记录刷新各连签奖励档位。"""
         cfg = self._balance['checkin']
         milestones = cfg.get('milestones', [])
         rewards = cfg.get('milestone_rewards', {})
@@ -870,6 +881,7 @@ class CheckinPage(QWidget):
         self._ms_host.setMaximumHeight(16777215)
 
     def _milestone_chip(self, days: int, reward: dict, granted: bool) -> QFrame:
+        """构造单档里程碑进度/奖励的只读说明。"""
         chip = QFrame()
         # 高度随尺度系数在区间内取值（紧凑档取区间下限，首行要整体落在首屏内）
         compact = bool(getattr(self, '_compact', False))
@@ -916,6 +928,7 @@ class CheckinPage(QWidget):
 
     @staticmethod
     def _reward_text(reward: dict) -> str:
+        """把配置奖励种类/数量转换成可读文字，不消费或发放库存。"""
         return ' + '.join(
             (f'{qty} exp' if kind == 'exp'
              else f'补签卡×{qty}' if kind == 'makeup_card'
@@ -926,6 +939,7 @@ class CheckinPage(QWidget):
     # ---------- 库存与加成卡 ----------
     def _build_inventory(self, boost: int, cards: int, titles: list) -> None:
         # 同色系浅填充 + 大圆角，无深灰硬边（配方第 96/97 行的纸面浅卡）
+        """把未使用卡片与称号库存转为有界展示。"""
         _card_style(self._inventory, 'checkinInventory',
                     rgba(P.paper_text, 0.055), radius=self._cell_radius,
                     pad=' padding: 10px 14px;')
@@ -944,11 +958,13 @@ class CheckinPage(QWidget):
             self._boost_btn.setEnabled(boost > 0)
 
     def _use_boost(self):
+        """请求异步原子消费一张经验加成卡，结果到达后更新页面。"""
         self._boost_btn.setEnabled(False)
         self._tasks.resolve(self._rewards.use_exp_boost(30),lambda _:self.refresh(),
                             lambda error:self._action_failed(error))
 
     def _repair(self):
+        """按应用日请求补昨天打卡，卡片消费和奖励由同一业务事务完成。"""
         today = date.fromisoformat(self._engine.current_day())
         missed = _dstr(today - timedelta(days=1))
         if not self._presenter.has_checkin(missed):
@@ -960,6 +976,7 @@ class CheckinPage(QWidget):
                                     lambda _:self.refresh(),self._action_failed)
 
     def _action_failed(self,error):
+        """展示消费/补签失败并保留可重试状态，不提前修改库存展示。"""
         self.refresh()
         QMessageBox.warning(self,'操作未保存','数据未修改，请稍后重试。')
 
@@ -970,6 +987,7 @@ class CheckinPage(QWidget):
         return stage_layout_for(self).compact
 
     def set_compact(self, compact: bool) -> None:
+        """更新应用日打卡、库存与里程碑的紧凑布局、间距和尺寸约束。"""
         compact = bool(compact)
         changed = compact != self._compact
         self._compact = compact
@@ -992,6 +1010,7 @@ class CheckinPage(QWidget):
             self.refresh()
 
     def resizeEvent(self, event):
+        """尺寸变化时重算动作换行和纸张范围，保证控件可用高度。"""
         if getattr(self, '_page', None) is not None:
             compact = self._is_compact_now()
             # 无条件套用一遍尺寸档：`PaperPage.set_compact` 会连带重设纸张内边距，
@@ -1012,6 +1031,7 @@ class CheckinPage(QWidget):
         self._fit_paper()
 
     def showEvent(self, event):
+        """页面显示时同步当前尺寸与打卡概览。"""
         if getattr(self, '_page', None) is not None:
             self.set_compact(self._is_compact_now())
             self._sync_scale()

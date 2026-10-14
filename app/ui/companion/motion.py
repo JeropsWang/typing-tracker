@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class MotionFrame:
+    """纯角色动效帧，包含位移、角度和缩放，不持有 Qt 控件或素材。"""
     x: float = 0
     y: float = 0
     angle: float = 0
@@ -14,7 +15,9 @@ class MotionFrame:
 
 
 class CharacterMotion:
+    """可注入单调时钟的连续姿态采样器，平滑衔接反应、拖动倾斜和落地回弹。"""
     def __init__(self, clock=time.monotonic):
+        """初始化姿态 token、时间基线和拖动/落地状态，使用静止帧作为起点。"""
         self.clock = clock
         self.state = 'idle'
         self.token = None
@@ -27,26 +30,31 @@ class CharacterMotion:
         self.frame = MotionFrame()
 
     def set_state(self, state, token=None, now=None):
+        """状态或 token 改变时记录新姿态起点，重复刷新不会重启动作。"""
         if (state, token) != (self.state, self.token):
             self.state, self.token = state, token
             self._started = self.clock() if now is None else now
 
     def set_drag(self, dx, now=None):
+        """记录有界水平拖动增量和时刻，供下一帧计算倾斜。"""
         self.dragging = True
         self._drag_delta = max(-50, min(50, dx))
         self._drag_at = self.clock() if now is None else now
 
     def release(self, now=None):
+        """结束拖动并记录落地时间，使后续帧从当前姿态连续回弹。"""
         self.dragging = False
         self._landed = self.clock() if now is None else now
 
     def reset(self, now=None):
+        """重置为静止帧及时间基线，用于关闭动效或恢复显示。"""
         self._last = self._started = self.clock() if now is None else now
         self._landed = self._drag_at = -100
         self.dragging = False
         self.frame = MotionFrame()
 
     def sample(self, now=None):
+        """按状态/拖动/落地计算目标姿态，再依实际秒级步长平滑插值并返回当前帧。"""
         now = self.clock() if now is None else now
         dt = max(0, min(.25, now - self._last))
         self._last = now

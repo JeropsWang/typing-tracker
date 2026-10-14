@@ -14,6 +14,7 @@ Sariana 是 Windows 本机桌面应用，使用 Python、PySide6 Widgets、pyqtg
 | `app/workflows/` | 跨模块用例、检查点、提交通知和导出 | 原子性、幂等、提交后的副作用 |
 | `app/storage/` | 连接、版本迁移、工作单元、内部数据会话 | 旧库兼容、回滚、备份 |
 | `app/integrations/ai/` | AI 协议、传输、请求结果和生成准入控制 | 配置快照、用量、超时、取消 |
+| `app/integrations/companion_agent/` | 桌宠 LangGraph、模型适配、只读搜索工具 | 独立配置、流式正文过滤、取消与来源 |
 | `app/integrations/updates/` | GitHub 版本查询、附件校验和安装进程交接 | HTTPS、取消、校验、退出授权 |
 | `app/ui/` | Widgets、Presenter、Qt 异步桥接、主题和图表 | 输入法、保存状态、结果失效、布局 |
 | `app/core/` | Windows 输入/TSF 适配、基础工具及旧入口 | 隐私、组字、不重复计数 |
@@ -144,3 +145,15 @@ flowchart TD
 更新服务由 bootstrap 装配，独立网络线程检查版本与下载安装包，Qt TaskBridge 把状态回传 UI。自动检查每天最多一次；新版本通过应用通知提示，失败只更新设置状态。设置的「数据备份」分组包含更新入口，设置草稿开关仍在用户保存后生效。
 
 安装前阻止在途学习保存，并对未完成学习要求明确放弃。停止采集后 `prepare_update_exit()` 在 ApplicationWorker 排空已受理命令并提交最终检查点；失败保持数据库线程、脏统计和重试能力，shell 恢复采集。成功才通过 `finish_update_exit()` 关闭数据库线程，授权本次隐藏安装辅助进程，释放单实例锁并退出。辅助进程等待主进程实际结束、验证授权标记和安装包后打开现有安装向导；关闭后的安装准备失败会安全退出并提示重新启动，不恢复已关闭工作线程。详细协议和人工验证范围见 [updates.md](updates.md)。
+
+## 桌宠智能体
+
+companion API 公开不可变配置、模型轮次、工具调用、运行限额、来源、进度与报告契约，默认角色/资料规则属于 companion 纯业务层；bootstrap 装配独立网络能力。LangGraph 在后台执行有界 `model → tools → model` 条件循环，模型可改写关键词、选择来源和补搜。MCP 工具层使用进程内 JSON-RPC 初始化/发现/调用子集，白名单只有公开搜索和已搜索来源的正文读取，错误作为观察反馈；未接入外部 MCP 服务器。次数、上下文、合作式截止时间与取消由运行层执行，不持有数据库、访问 QWidget 或开放文件/系统工具。桌宠 Presenter 通过 TaskBridge 和排队信号处理展示，使用请求 ID 丢弃取消后的进度与迟到结果；取消仍持有准入直到网络实际结束。源码对照见 [Pi 导读](pi-agent-study.md)。
+
+智能体卡片与输入共用 `agent_visuals.py` 的纸张和颜色角色，轮盘/阶段控件位于 `agent_controls.py`。思考短句、进度亮点与短暂完成回应只由 Qt 主线程控制，隐藏与退出停止视觉定时器，减弱动态效果关闭动效。反馈不进入业务 Runtime 的奖励事件，在练习或已有互动/奖励反应出现时让出显示优先级；配置提交边界、数据库与网络行为不因此改变。
+
+配置页的分区按钮与无边框内容栈使用同一章节调色板，显式覆盖窗口/导航底色。`agent_settings_art.py` 只负责静态 QPainter 几何与原有桌宠作品缩略图，装饰不响应鼠标、无新计时器或网络请求；宽窄布局重排同一组控件，保留草稿与异步任务状态。
+
+桌宠模型配置与训练 AI 独立，兼容模型适配负责原生工具调用和 SSE 分片拼接。流式正文过滤思考字段和标签；DeepSeek 工具续接所需的 `reasoning_content` 只在本次任务内存中回传，不进入报告、Qt 进度、日志或数据库。配置保存仍由 ApplicationWorker/UnitOfWork 提交；报告当前仅驻留内存，无新增数据库迁移。LangGraph 不引入云端运行服务，图执行显式关闭 tracing。冻结构建收集子模块与递归依赖元数据，并运行无网络、无数据库的 `--companion-agent-selfcheck`，覆盖 ReAct 与 MCP 工具调用。界面组件与后两期边界见 [companion-agent.md](companion-agent.md)。
+
+草稿连接测试由 bootstrap 装配的 AgentSetupService 执行，独立后台线程不接收数据会话；模型测试仅短消息，搜索测试校验来源。搜索默认用独立临时配置的 Edge 无头进程读取中文搜索 DOM，通过主题词相关性筛选（每次工具搜索无相关来源时最多一次核心词/换入口重试）。正文由模型选择稳定来源编号后单独读取；取消/超时只关闭本次拥有的进程。RSS、Tavily 与已有 SearXNG 为可选适配器，不管理容器。网络不占数据库事务，保存设置由用户独立提交。Qt 以任务 token 拒绝取消、关闭或草稿变更后的结果，任务结束前保持准入。冻结自检仍验证 Edge DOM/公开 RSS 解析，无搜索模板依赖。

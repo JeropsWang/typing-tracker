@@ -7,10 +7,12 @@ ROOT=Path(__file__).resolve().parents[1]
 PURE_FILES={'app/modules/tracking/domain.py','app/modules/tracking/clock.py',
             'app/modules/practice/domain.py','app/modules/practice/keyboard_session.py',
             'app/modules/english/session.py','app/modules/english/scoring.py','app/modules/english/review.py',
-            'app/modules/companion/models.py','app/modules/companion/runtime.py'}
+            'app/modules/companion/models.py','app/modules/companion/runtime.py',
+            'app/modules/companion/agent.py','app/modules/companion/persona.py'}
 
 
 def dependencies(path,source):
+    """解析导入语句并按当前包还原相对导入，逐项返回源代码行号与目标模块。"""
     package=list(path.parent.relative_to(ROOT).parts)
     for node in ast.walk(ast.parse(source)):
         if isinstance(node,ast.Import):
@@ -26,6 +28,7 @@ def dependencies(path,source):
 
 
 def check(path,source):
+    """静态检查单个文件的 UI、纯领域和跨业务模块依赖边界，返回带位置的违规说明。"""
     relative=path.relative_to(ROOT).as_posix()
     errors=[]
     for line,target in dependencies(path,source):
@@ -46,6 +49,7 @@ def check(path,source):
 
 
 def main():
+    """扫描 app 中的 Python 源码并输出架构违规；没有违规返回 0，全程不启动应用或数据库。"""
     errors=[]
     for path in (ROOT/'app').rglob('*.py'):
         errors.extend(check(path,path.read_text(encoding='utf-8-sig')))
