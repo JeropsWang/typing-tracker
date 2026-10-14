@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from app.integrations.updates.service import (API_URL, UpdateService, UpdateCancelled,
+from app.integrations.updates.service import (API_URL, RELEASES_URL, UpdateService, UpdateCancelled, UpdateRateLimited,
     parse_release, stable_version, installation_kind, VerifiedInstaller, InstallerHandoff,
     run_installer_helper, _Redirects)
 from app.bootstrap.application import DesktopApplication
@@ -170,6 +170,63 @@ class UpdateTransportTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 service.check()
 
+    def test_primary_limit_shows_reset_and_blocks_requests_until_recovery(self):
+        """真实额度耗尽响应携带恢复时间；冷却期间不再次联网，恢复后正常识别新版本。"""
+        body = io.BytesIO(b'{"message":"API rate limit exceeded for 192.0.2.1"}')
+        failure = HTTPError(API_URL, 403, 'limited',
+                            {'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '100600'}, body)
+        opener = FakeOpener({API_URL: failure})
+        service = UpdateService(self.cache, '0.9.5', opener=opener)
+        with patch('app.integrations.updates.service.time.time', return_value=100000):
+            with self.assertRaises(UpdateRateLimited) as raised:
+                service.check()
+            self.assertEqual(raised.exception.retry_at, 100600)
+            self.assertIn('本机时间', str(raised.exception))
+            self.assertIn('手动下载', str(raised.exception))
+            self.assertNotIn('192.0.2.1', str(raised.exception))
+            with self.assertRaises(UpdateRateLimited):
+                service.check()
+            self.assertEqual(opener.requests, [API_URL])
+        opener.entries[API_URL] = json.dumps(payload()[0]).encode()
+        with patch('app.integrations.updates.service.time.time', return_value=100601):
+            self.assertEqual(service.check().version, '1.0.0')
+        self.assertEqual(len(opener.requests), 2)
+
+    def test_secondary_limit_honors_retry_after_and_handles_invalid_headers(self):
+        """次级限流遵守 Retry-After，损坏或极端头部仍给出有限且可表示的冷却时间。"""
+        for headers, expected in (({'Retry-After': '120'}, 100120),
+                                  ({'Retry-After': 'invalid'}, 100060),
+                                  ({'Retry-After': '999999999999999'}, 186400),
+                                  ({'x-ratelimit-remaining': '0', 'x-ratelimit-reset': 'invalid'}, 100060)):
+            with self.subTest(headers=headers):
+                failure = HTTPError(API_URL, 429, 'limited', headers, None)
+                service = UpdateService(self.cache, '0.9.5', opener=FakeOpener({API_URL: failure}))
+                with patch('app.integrations.updates.service.time.time', return_value=100000):
+                    with self.assertRaises(UpdateRateLimited) as raised:
+                        service.check()
+                self.assertEqual(raised.exception.retry_at, expected)
+
+    def test_plain_forbidden_response_is_not_misreported_as_rate_limit(self):
+        """无额度证据的 403 保留拒绝访问含义，不虚构恢复时间或输出上游错误正文。"""
+        failure = HTTPError(API_URL, 403, 'forbidden', {},
+                            io.BytesIO(b'{"message":"Resource not accessible"}'))
+        service = UpdateService(self.cache, '0.9.5', opener=FakeOpener({API_URL: failure}))
+        with self.assertRaises(RuntimeError) as raised:
+            service.check()
+        self.assertNotIsInstance(raised.exception, UpdateRateLimited)
+        self.assertIn('HTTP 403', str(raised.exception))
+        self.assertNotIn('额度', str(raised.exception))
+        self.assertEqual(service._check_retry_at, 0)
+
+    def test_check_cooldown_does_not_block_known_verified_installer_download(self):
+        """API 额度冷却不阻止已知附件下载，安装包仍须大小与摘要验证。"""
+        service, release, opener = self.service()
+        with patch('app.integrations.updates.service.time.time', return_value=100000):
+            service._check_retry_at = 100600
+            installer = service.download(release, threading.Event())
+        self.assertEqual(installer.verify().path.read_bytes(), BODY)
+        self.assertEqual(opener.requests, [release.installer.url])
+
     def test_source_portable_and_stable_appid_install_detection(self):
         """验证源码/便携/安装类型及稳定 AppId 检测。"""
         executable = self.cache / 'Sariana.exe'
@@ -281,6 +338,127 @@ class UpdateDesktopTests(unittest.TestCase):
                 self.assertTrue(pump_until(lambda: not controller.busy))
                 self.assertEqual(len(self.service._opener.requests), 2)
         finally:
+            controller.shutdown()
+            controller.deleteLater()
+
+    def test_manual_release_page_remains_available_after_failed_check(self):
+        """异步检查限流后保留官方手动入口，点击只打开固定版本页，不重查或自动安装。"""
+        self.service._opener.entries[API_URL] = HTTPError(API_URL, 429, 'limited', {'Retry-After': '60'}, None)
+        controller = UpdateController(self.application, self.service, kind='installed')
+        widget = UpdatesWidget(self.application.models, controller)
+        try:
+            controller.check(manual=True)
+            self.assertTrue(pump_until(lambda: not controller.busy))
+            self.assertIn('手动下载', widget.status.text())
+            self.assertTrue(widget.manual_download.isEnabled())
+            self.assertFalse(widget.manual_download.isHidden())
+            self.assertTrue(widget.action.isHidden())
+            with patch('app.ui.updates.QDesktopServices.openUrl') as opened:
+                widget.manual_download.click()
+                opened.assert_called_once()
+                self.assertEqual(opened.call_args.args[0].toString(), RELEASES_URL)
+            controller.check(manual=True)
+            self.assertTrue(pump_until(lambda: not controller.busy))
+            self.assertEqual(self.service._opener.requests, [API_URL])
+            self.assertIsNone(controller.installer)
+        finally:
+            widget.deleteLater()
+            controller.shutdown()
+            controller.deleteLater()
+
+    def test_rapid_clicks_keep_one_request_until_background_completion(self):
+        """用真实后台线程暂停传输，连续点击和直接调用都只发一次，完成回传后才恢复按钮。"""
+        entered, release = threading.Event(), threading.Event()
+        original = self.service._opener.open
+
+        def blocked(request, timeout):
+            """暂停本例传输直到主动放行，核对在途状态而不请求外网。"""
+            entered.set()
+            if not release.wait(3):
+                raise TimeoutError('isolated blocked request')
+            return original(request, timeout)
+
+        controller = UpdateController(self.application, self.service, kind='source')
+        widget = UpdatesWidget(self.application.models, controller)
+        try:
+            with patch.object(self.service._opener, 'open', side_effect=blocked) as opened:
+                widget.check.click()
+                self.assertTrue(pump_until(entered.is_set))
+                self.assertTrue(controller.busy)
+                self.assertFalse(widget.check.isEnabled())
+                for _ in range(50):
+                    widget.check.click()
+                    controller.check(manual=True)
+                self.assertEqual(opened.call_count, 1)
+                self.assertIsNone(controller.release)
+                release.set()
+                self.assertTrue(pump_until(lambda: not controller.busy))
+                self.assertTrue(widget.check.isEnabled())
+                self.assertEqual(controller.release.version, '1.0.0')
+                self.assertEqual(opened.call_count, 1)
+        finally:
+            release.set()
+            pump_until(lambda: not controller.busy)
+            widget.deleteLater()
+            controller.shutdown()
+            controller.deleteLater()
+
+    def test_automatic_check_cannot_start_a_second_request_while_manual_is_pending(self):
+        """手动请求未结束时，即使自动检查已满足日间隔，也必须复用忙碌状态而不重复发送。"""
+        entered, release = threading.Event(), threading.Event()
+        now = [100000]
+        original = self.service._opener.open
+
+        def blocked(request, timeout):
+            """阻塞本例手动检查，供自动触发与暂停状态并发场景观察。"""
+            entered.set()
+            if not release.wait(3):
+                raise TimeoutError('isolated blocked request')
+            return original(request, timeout)
+
+        controller = UpdateController(self.application, self.service, kind='source', clock=lambda: now[0])
+        try:
+            with patch.object(self.service._opener, 'open', side_effect=blocked) as opened:
+                controller.check(manual=True)
+                self.assertTrue(pump_until(entered.is_set))
+                now[0] += 86401
+                for _ in range(10):
+                    controller.auto_check()
+                self.assertTrue(controller.busy)
+                self.assertEqual(opened.call_count, 1)
+                controller.set_paused(True)
+                controller.check(manual=True)
+                self.assertEqual(opened.call_count, 1)
+                release.set()
+                self.assertTrue(pump_until(lambda: not controller.busy))
+                self.assertEqual(controller.release.version, '1.0.0')
+        finally:
+            release.set()
+            pump_until(lambda: not controller.busy)
+            controller.shutdown()
+            controller.deleteLater()
+
+    def test_network_timeout_finishes_request_without_retry_loop_and_allows_manual_retry(self):
+        """模拟网络超时后结束忙碌状态，不自动循环重发；下一次显式点击才创建新请求。"""
+        controller = UpdateController(self.application, self.service, kind='source')
+        widget = UpdatesWidget(self.application.models, controller)
+        try:
+            with patch.object(self.service._opener, 'open', side_effect=TimeoutError('isolated timeout')) as opened:
+                widget.check.click()
+                self.assertTrue(pump_until(lambda: not controller.busy))
+                self.assertTrue(widget.check.isEnabled())
+                self.assertIsNone(controller.release)
+                self.assertIn('无法连接', controller.status)
+                for _ in range(10):
+                    APP.processEvents()
+                    controller.auto_check()
+                self.assertEqual(opened.call_count, 1)
+            widget.check.click()
+            self.assertTrue(pump_until(lambda: not controller.busy))
+            self.assertEqual(controller.release.version, '1.0.0')
+            self.assertEqual(self.service._opener.requests, [API_URL])
+        finally:
+            widget.deleteLater()
             controller.shutdown()
             controller.deleteLater()
 

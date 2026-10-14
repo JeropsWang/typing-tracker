@@ -9,7 +9,7 @@ from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from .. import __version__
-from ..integrations.updates import UpdateCancelled, installation_kind
+from ..integrations.updates import UpdateCancelled, installation_kind, RELEASES_URL
 from ..integrations.updates.service import background
 from .tasks import TaskBridge
 from .presenters import PracticeState
@@ -239,6 +239,15 @@ class UpdatesWidget(QWidget):
             button.setStyleSheet('QPushButton { min-height:42px; }')
             row.addWidget(button)
         layout.addLayout(row)
+        # 手动入口独立占一行；尚未查到版本、限流或断网时也能访问官方发布页。
+        self.manual_download = QPushButton('打开版本页 · 手动下载')
+        self.manual_download.setProperty('buttonRole', 'secondary')
+        self.manual_download.setAutoDefault(False)
+        self.manual_download.setMinimumHeight(44)
+        self.manual_download.setStyleSheet('QPushButton { min-height:42px; }')
+        self.manual_download.setToolTip('打开官方版本页，选择安装包或免安装 ZIP。')
+        self.manual_download.clicked.connect(self._open_versions)
+        layout.addWidget(self.manual_download)
         if controller:
             self.check.clicked.connect(lambda: controller.check(manual=True))
             self.action.clicked.connect(self._action)
@@ -249,6 +258,10 @@ class UpdatesWidget(QWidget):
     def values(self):
         """交出自动检查开关草稿，供外层设置统一保存。"""
         return {'updates_auto_check': '1' if self.auto_check.isChecked() else '0'}
+
+    def _open_versions(self):
+        """打开固定仓库的官方最新版本页，不依赖 API 查询、不下载或启动安装器。"""
+        QDesktopServices.openUrl(QUrl(RELEASES_URL))
 
     def _action(self):
         """按运行类型打开版本/便携下载链接，或请求安装版下载/交接。"""

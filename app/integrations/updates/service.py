@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from dataclasses import dataclass
+from datetime import datetime
 import hashlib
 import json
 import os
@@ -11,6 +12,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
@@ -18,6 +20,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 REPOSITORY = 'JeropsWang/typing-tracker'
 API_URL = f'https://api.github.com/repos/{REPOSITORY}/releases/latest'
+RELEASES_URL = f'https://github.com/{REPOSITORY}/releases/latest'
 APP_ID = '{8A3CAB17-B864-4379-9BAA-A2C7AE85706D}'
 _HASH = re.compile(r'[0-9a-fA-F]{64}')
 
@@ -25,6 +28,41 @@ _HASH = re.compile(r'[0-9a-fA-F]{64}')
 class UpdateCancelled(Exception):
     """更新下载被明确取消的异常，界面应与网络/校验失败区分。"""
     pass
+
+
+class UpdateRateLimited(RuntimeError):
+    """GitHub 已明确限流的可重试错误，携带服务器允许再次检查的本机时间戳。"""
+    def __init__(self, retry_at):
+        """生成脱敏提示及恢复时间，不展示上游正文中的出口 IP 或认证信息。"""
+        self.retry_at = retry_at
+        resume = datetime.fromtimestamp(retry_at).strftime('%m-%d %H:%M:%S')
+        super().__init__(f'GitHub 请求额度暂时用完，预计 {resume} 后可再检查（本机时间）。\n'
+                         '可打开版本页手动下载。')
+
+
+def _rate_limit_error(error, now):
+    """根据响应头和有界错误正文识别限流，区分普通 403；返回限流凭据或 None。"""
+    headers = {key.lower(): str(value) for key, value in (error.headers or {}).items()}
+    try:
+        body = error.read(8192).decode('utf-8', errors='replace').lower()
+    except OSError:
+        body = ''
+    if not (error.code == 429 or headers.get('x-ratelimit-remaining') == '0' or
+            'retry-after' in headers or 'rate limit' in body):
+        return None
+    # 默认至少等待一分钟；遵守服务器的 Retry-After 和额度恢复时刻，不自动反复重试。
+    delays = [60]
+    try:
+        delays.append(int(headers.get('retry-after', '0')))
+    except ValueError:
+        pass
+    if headers.get('x-ratelimit-remaining') == '0':
+        try:
+            delays.append(int(headers.get('x-ratelimit-reset', '0')) - now)
+        except ValueError:
+            pass
+    # 恶意/异常头部不能生成不可表示的日期或永久封锁本次应用会话。
+    return UpdateRateLimited(now + min(max(delays), 24 * 60 * 60))
 
 
 def background(action):
@@ -159,21 +197,33 @@ class UpdateService:
         self.cache_dir = Path(cache_dir)
         self.current_version = current_version
         self._opener = opener or build_opener(_Redirects())
+        self._check_retry_at = 0.0
 
     def _open(self, url):
         """打开受信任更新 URL，设置请求标识和超时，将上游错误转为可读提示。"""
         _trusted_url(url)
+        if url == API_URL and time.time() < self._check_retry_at:
+            raise UpdateRateLimited(self._check_retry_at)
         request = Request(url, headers={'User-Agent': f'Sariana/{self.current_version}',
                                        'Accept': 'application/vnd.github+json' if url == API_URL else 'application/octet-stream',
                                        'X-GitHub-Api-Version': '2026-03-10'})
         try:
             return self._opener.open(request, timeout=20)
         except HTTPError as error:
-            if error.code in (403, 429):
-                raise RuntimeError('GitHub 请求受限，请稍后再检查。') from error
-            if error.code == 404:
-                raise RuntimeError('暂无可用的正式版本或下载文件。') from error
-            raise RuntimeError(f'GitHub 请求失败（HTTP {error.code}）。') from error
+            try:
+                if error.code in (403, 429):
+                    limited = _rate_limit_error(error, time.time())
+                    if limited:
+                        # API 额度不影响已知附件的独立下载入口，冷却只阻止再次检查版本。
+                        if url == API_URL:
+                            self._check_retry_at = limited.retry_at
+                        raise limited from error
+                    raise RuntimeError('GitHub 拒绝了更新请求（HTTP 403），可打开版本页手动下载。') from error
+                if error.code == 404:
+                    raise RuntimeError('暂无可用的正式版本或下载文件。') from error
+                raise RuntimeError(f'GitHub 请求失败（HTTP {error.code}）。') from error
+            finally:
+                error.close()
         except (URLError, TimeoutError, OSError) as error:
             raise RuntimeError('无法连接 GitHub，请检查网络后重试。') from error
 

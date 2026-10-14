@@ -22,6 +22,18 @@ on:
         required: false
         default: ''
         type: string
+      source_ref:
+        # 同版本重打包先验证新提交，避免构建前就改动公开标签；留空继续读取版本标签。
+        description: 'Optional full source commit SHA; empty uses the release tag'
+        required: false
+        default: ''
+        type: string
+      build_only:
+        # 先生成可核验附件；显式开启后跳过上传，现有正式 Release 保持可下载。
+        description: 'Build and verify artifacts without replacing release assets'
+        required: false
+        default: false
+        type: boolean
   pull_request:
     paths:
       - '.github/workflows/windows-release.yml'
@@ -62,13 +74,20 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           if ($env:EVENT_NAME -in @('pull_request', 'push')) {
             "ref=$env:GITHUB_SHA" >> $env:GITHUB_OUTPUT
             "version=" >> $env:GITHUB_OUTPUT
           } else {
             if ($env:RELEASE_TAG -notmatch '^v?\d+\.\d+\.\d+$') { throw 'Expected a numeric release tag' }
-            "ref=refs/tags/$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+            if ($env:SOURCE_REF) {
+              # 输入只允许完整提交摘要，经环境变量读取，不插入可执行脚本。
+              if ($env:SOURCE_REF -notmatch '^[0-9a-f]{40}$') { throw 'Expected a full source commit SHA' }
+              "ref=$env:SOURCE_REF" >> $env:GITHUB_OUTPUT
+            } else {
+              "ref=refs/tags/$env:RELEASE_TAG" >> $env:GITHUB_OUTPUT
+            }
             "version=$($env:RELEASE_TAG -replace '^v','')" >> $env:GITHUB_OUTPUT
           }
       - uses: actions/checkout@v4
@@ -165,6 +184,26 @@ jobs:
             if ((Get-FileHash -LiteralPath $taskPreviousSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw '0.9.4 installer checksum mismatch' }
             ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/sariana-094-upgrade-smoke" -UpgradeFromSetup $taskPreviousSetup
           }
+      - name: Verify reinstall from the same published version
+        # 重打包构建不上传，先下载旧附件验工同版本覆盖安装；保留旧资产直到验证结束。
+        if: github.event_name == 'workflow_dispatch' && inputs.build_only && inputs.source_ref != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          $taskManifest = Get-Content -LiteralPath 'release-output/payload/release-manifest.json' | ConvertFrom-Json
+          $taskHeaders = @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GH_TOKEN" }
+          $taskPrevious = Invoke-RestMethod -Uri "https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/$env:RELEASE_TAG" -Headers $taskHeaders
+          $taskName = "$($taskManifest.product_name)-$($taskManifest.version)-windows-x64-setup.exe"
+          $taskAsset = @($taskPrevious.assets | Where-Object name -eq $taskName)
+          if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw 'Original same-version installer missing' }
+          if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw 'Original installer digest missing' }
+          $taskExpectedHash = $Matches[1]
+          $taskOldSetup = Join-Path $env:RUNNER_TEMP 'same-version-original-setup.exe'
+          Invoke-WebRequest -Uri ($taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id) -OutFile $taskOldSetup
+          if ((Get-FileHash -LiteralPath $taskOldSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw 'Original installer checksum mismatch' }
+          ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/same-version-smoke" -UpgradeFromSetup $taskOldSetup
       - uses: actions/upload-artifact@v4
         with:
           name: windows-release-assets
@@ -174,7 +213,7 @@ jobs:
 
   publish:
     # 只有 build 成功才可上传；此权限仅授予发布任务，不授予构建任务。
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.build_only)
     needs: build
     runs-on: ubuntu-latest
     permissions:
