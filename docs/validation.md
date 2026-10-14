@@ -346,3 +346,21 @@ Docker Desktop 已安装，但查询 Linux 容器引擎时对应 named pipe 不�
 按用户明确要求打包并发布 0.9.6，将应用版本、README 下载文件名及更新日志同步为 0.9.6。原分支 `0.9.6realse` 的工作区在本轮开始时干净，既有桌宠智能体和注释变更已由用户提交。Windows Release 手动调度新增可选 `tooling_ref`，锁定包含 LangGraph 依赖收集和冻结自检的构建工具；留空保留历史补编译行为，避免新源码使用默认分支的旧打包脚本。
 
 本地发布品牌回归 5 项、架构检查、全项目注释覆盖、源码智能体自检和 `git diff --check` 通过；工作流 YAML 与新增参数解析通过。品牌回归使用离屏 Qt 和隔离测试目录。未在当前用户机器执行安装/卸载，发布构建与升级验工交由干净 Windows CI 执行；最终附件和在线发布结果以对应 Actions 与 GitHub Release 实际状态为准，不能据本段宣称尚未完成的构建通过。
+
+### 2026-10-14 0.9.6 正式发布完成
+
+按用户授权提交、推送 `0.9.6realse` 分支，发布源码与工具固定为 `17c12fdb3be457195ba063439957ab1c8f6d1fbe`，标签 `v0.9.6` 指向同一提交。先建立草稿，完整回归和预构建通过后，调度指定 `tooling_ref` 的正式构建；四项附件上传成功才由工作流公开并设为 Latest。没有合并或改写默认分支。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| [干净 Windows 回归](https://github.com/JeropsWang/typing-tracker/actions/runs/38572083773) | 334 项完整回归一次整组通过，103 项自检通过；包含架构、真实 ApplicationWorker/Qt 异步和桌宠智能体相关测试 |
+| [预构建与安装升级](https://github.com/JeropsWang/typing-tracker/actions/runs/38572083766) | 成功，公开草稿前确认新工具能收集 LangGraph 并完成冻结与安装验工 |
+| [正式构建/上传/公开](https://github.com/JeropsWang/typing-tracker/actions/runs/38573319803) | build/publish 均成功；Windows x64 / Python 3.13.16，发布依赖使用锁定清单 |
+| 最终冻结程序 | 启动帮助与智能体自检通过，162 个源码模块与 66 项运行资源逐项匹配；LangGraph/MCP/流式过滤自检无真实模型或搜索请求 |
+| 干净 Windows 安装验工 | 安装、卸载及从 TypingTracker 0.9.2 / Sariana 0.9.3 / 0.9.4 升级均通过，负载一致、旧安装位置沿用、旧程序/快捷方式迁移、数据标记保留 |
+| [GitHub Release](https://github.com/JeropsWang/typing-tracker/releases/tag/v0.9.6) | `draft=false`、`prerelease=false`，匿名最新版本接口返回 `v0.9.6`；安装 EXE、免安装 ZIP、清单与 SHA256SUMS 四项附件齐全 |
+| 已发布附件下载复核 | 下载到 `.local/release-0.9.6/assets/`，清单/ZIP/安装包 SHA-256 通过；ZIP CRC、包内外清单及 exe 摘要一致；版本与源码提交匹配 |
+
+最终 ZIP 为 116,688,228 字节，安装包为 118,401,501 字节；冻结 exe 的 SHA-256 为 `fbfa7f444cdf47f67082fd26551fa7fbaa678d9f76008f2e9d2e900c316b11eb`。预构建与正式构建是两次独立打包，最终附件以正式工作流与下载校验结果为准，不混用预构建二进制摘要。
+
+测试、发布日志及下载核验报告保存在忽略目录 `.local/release-0.9.6/`；构建产物不进入 Git。没有在当前用户机器安装、卸载或更改真实数据，没有真实付费模型与公共搜索端到端调用，也未人工重验 IME、跨显示器或 DPI。定时汇报/占卜未开放、外部 MCP 未接入，发布说明如实保留这些范围；模型实际工具选择效果取决于配置的服务。
