@@ -157,7 +157,7 @@ companion API 公开不可变配置、模型轮次、工具调用、运行限额
 
 配置页的分区按钮与无边框内容栈使用同一章节调色板，显式覆盖窗口/导航底色。`agent_settings_art.py` 只负责静态 QPainter 几何与原有桌宠作品缩略图，装饰不响应鼠标、无新计时器或网络请求；宽窄布局重排同一组控件，保留草稿与异步任务状态。
 
-桌宠模型配置与训练 AI 独立，兼容模型适配负责原生工具调用和 SSE 分片拼接。流式正文过滤思考字段和标签；DeepSeek 工具续接所需的 `reasoning_content` 只在本次任务内存中回传，不进入报告、Qt 进度、日志或数据库。配置保存仍由 ApplicationWorker/UnitOfWork 提交；报告当前仅驻留内存，无新增数据库迁移。LangGraph 不引入云端运行服务，图执行显式关闭 tracing。冻结构建收集子模块与递归依赖元数据，并运行无网络、无数据库的 `--companion-agent-selfcheck`，覆盖 ReAct 与 MCP 工具调用。界面组件与后两期边界见 [companion-agent.md](companion-agent.md)。
+桌宠模型配置与训练 AI 独立，兼容模型适配负责原生工具调用和 SSE 分片拼接。流式正文过滤思考字段和标签；DeepSeek 工具续接所需的 `reasoning_content` 只在本次任务内存中回传，不进入报告、Qt 进度、日志或数据库。配置保存仍由 ApplicationWorker/UnitOfWork 提交；主动搜索报告仅驻留内存，0.9.7来信报告通过下文schema3事务保存。LangGraph 不引入云端运行服务，图执行显式关闭 tracing。冻结构建收集子模块与递归依赖元数据，并运行无网络、无数据库的 `--companion-agent-selfcheck`，覆盖 ReAct 与 MCP 工具调用。界面组件与迭代边界见 [companion-agent.md](companion-agent.md)。
 
 草稿连接测试由 bootstrap 装配的 AgentSetupService 执行，独立后台线程不接收数据会话；模型测试仅短消息，搜索测试校验来源。搜索默认用独立临时配置的 Edge 无头进程读取中文搜索 DOM，通过主题词相关性筛选（每次工具搜索无相关来源时最多一次核心词/换入口重试）。正文由模型选择稳定来源编号后单独读取；取消/超时只关闭本次拥有的进程。RSS、Tavily 与已有 SearXNG 为可选适配器，不管理容器。网络不占数据库事务，保存设置由用户独立提交。Qt 以任务 token 拒绝取消、关闭或草稿变更后的结果，任务结束前保持准入。冻结自检仍验证 Edge DOM/公开 RSS 解析，无搜索模板依赖。
 

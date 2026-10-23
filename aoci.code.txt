@@ -358,18 +358,18 @@ start.ps1[ON6T]: F:准备本机 SearXNG 配置、校验 Compose 并按开关启�
 README.md[SG6T]: F:导航架构协作、0.9.7计划接续、验证及开发产品记忆文档 | R:code:AGENTS.md,code:docs/project-state.md | A:维护阅读顺序;设计实施链接;验证导航 | S:实现和发布状态以当前代码与实际验证证据为准
 agent.md[SG8S]: F:规定模块维护、中文说明、隔离验证、故障回归及授权本机验收流程 | R:code:AGENTS.md,code:docs/architecture.md,code:scripts/check_comments.py | A:任务接续;线程事务约束;验证命令;代码说明;交付 | S:不触碰真实数据；技能不授权发布；开发索引与用户画像分开；模型验收需授权且夹具和公开搜索证据分开
 aoci.md[SG6T]: F:说明AOCI核验接入、正式代码索引查看及应用内可选索引分工 | R:code:AGENTS.md,code:docs/project-state.md | A:包核验;MCP配置;只读面板;维护命令;产品快照边界 | S:15资源技术跳过且未配置数据库卷；full仍纳入忽略的本机配置；产品本地快照不证明治理对齐，旧Overview不因维护自动有效
-architecture.md[SG9S]: F:说明模块化单体数据归属、线程事务及来信记忆和故障反馈协议 | R:code:app/bootstrap/application.py,code:app/storage/unit_of_work.py,code:app/modules/companion/api.py | A:模块边界;异步协议;schema3;来信记忆;故障分类 | S:UI只读模型和异步命令，SQL唯一工作线程；事务无网络，提交后确认统计和反馈；自然日来信独立统计日切；故障码白名单，无异常原文；本机I/O120秒不提前释放取消准入
+architecture.md[SG9S]: F:说明模块化单体数据归属、线程事务及搜索内存与来信持久化协议 | R:code:app/bootstrap/application.py,code:app/storage/unit_of_work.py,code:app/modules/companion/api.py | A:模块边界;异步协议;schema3;来信记忆;故障分类 | S:UI只读模型和异步命令，SQL唯一工作线程；事务无网络，提交后确认统计和反馈；自然日来信独立统计日切；故障码白名单，无异常原文；本机I/O120秒不提前释放取消准入
 companion-agent-design.md[SU5T]: F:记录公开网站视觉观察证据及原生 Widgets 转译和验证范围 | R:code:app/ui/companion/agent_visuals.py | A:视觉映射;REA Evidence索引;局限 | S:只借鉴设计规律，不把外站角色脚本作为生产资产；静态 CSS 不等于动效已实测
-companion-agent.md[SA8S]: F:说明搜索来信记忆配置、故障处理与显式本机模型及定时联网验收 | R:code:app/modules/companion/api.py,code:app/integrations/companion_agent/graph.py,code:scripts/verify_companion_news_local.py | A:配置与限额;ReAct工具;来信记忆;故障说明;本机验收 | S:0.9.7未发布，占卜仍计划；MCP仅进程内子集；短连接测试不证明工具或新闻时效；RSS通过不代表Edge通过；过去自动任务改用现在准备
+companion-agent.md[SA8S]: F:说明已发布搜索来信记忆配置、故障处理及本机模型定时联网验收 | R:code:app/modules/companion/api.py,code:app/integrations/companion_agent/graph.py,code:scripts/verify_companion_news_local.py | A:配置与限额;ReAct工具;来信记忆;故障说明;本机验收 | S:占卜仍计划；MCP仅进程内子集；搜索仅内存，来信提交后可重启阅读；连接测试不证明工具或新闻时效；RSS不证明Edge；过期自动任务用现在准备
 english-research.md[SU5T]: F:记录英语网站交互观察及本机首测纠正复测和排期的独立设计 | R:code:app/modules/english/api.py | A:REA观察;自主实现要求;未验证范围 | S:不复制外站课程素材；不能从局部场景推断账号持久化或长期复习算法
 pi-agent-study.md[SA6T]: F:定位固定 Pi 源码版本并对照角色、模型、工具与行动循环分层 | R:code:app/integrations/companion_agent/graph.py | A:本机参考路径;阅读顺序;架构对照 | S:参考副本位于忽略目录，不安装 npm、不进入产品包；借鉴不等于复用其运行时
-project-state.md[SG7T]: F:记录0.9.7实现修复、本机验收及470项回归后的已授权发布准备 | R:code:docs/superpowers/plans/2026-10-23-companion-news-reliability.md,code:docs/validation.md | A:分支基线;当前阶段;验证边界;后续事项 | S:最新授权允许必要提交推送发布；锁同一源码工具SHA，门禁通过才公开；接手仍核源码及实时治理
+project-state.md[SG7T]: F:记录0.9.7正式发布、来信修复、验证及历史接续和后续模块化关注点 | R:code:docs/superpowers/plans/2026-10-23-companion-news-reliability.md,code:docs/validation.md | A:发布分支与标签;当前结果;历史阶段;未验范围;下一步 | S:发布标签固定构建SHA，后续文档不移标签；历史未发布表述不覆盖最新结果；接手仍核源码及实时治理
 updates.md[SR8T]: F:说明正式版本检查、限流冷却、校验下载和更新退出恢复流程 | R:code:app/integrations/updates/service.py,code:app/ui/updates.py | A:更新协议;安装交接;发布兼容;验证范围 | S:失败也限制自动检查频率；传输20秒不是整体截止；同版本重打包需手动重装，不能提前释放在途准入
-validation.md[SQ7L]: F:保存发布、470项隔离回归及0.9.7来信修复与真实Ollama定时RSS证据 | R:code:docs/agent.md,code:docs/aoci.md | A:分组与全量回归;本机验收;静态检查;发布准备;未验证项 | S:各轮重叠不相加；4B预热不算来信，RSS不算Edge；发布准备并非最终附件及安装证据
+validation.md[SQ7L]: F:保存0.9.7发布及回归、真实定时RSS、安装升级和冻结更新器联网证据 | R:code:docs/agent.md,code:docs/aoci.md | A:隔离与云端回归;模型验收;发布CI;附件摘要;包内更新器;未验项 | S:各轮重叠不相加；4B预热不算来信，RSS不算Edge；下载停滞后代理续传全量校验；冻结更新器联网验证未启动安装器；物理IME等仍未验
 
 ===D:/Sariana-typing-tracker/typing-tracker/docs/superpowers/specs/===
 2026-10-20-companion-news-design.md[SW7S]: F:规定已确认的定时来信排期、稳定尝试、持久化和通知设计 | R:code:docs/companion-agent.md,code:docs/validation.md | A:第二期设计;线程事务;验收场景 | S:仅显式兴趣不分析被动输入；保存先通知；失败不自动重复付费；自然日自动名额及删除墓碑保留；实现状态看当前源码
-2026-10-20-memory-views-design.md[SU7T]: F:规定应用内普通用户与开发者共享记忆记录的已确认设计 | R:code:docs/superpowers/specs/2026-10-20-companion-news-design.md,code:docs/validation.md | A:我的记忆;开发者;来源结构;代码入口 | S:不把内存报告标已保存，不将网页当用户偏好；可选AOCI不阻塞产品；路径白名单与冻结回退；未发布
+2026-10-20-memory-views-design.md[SU7T]: F:规定普通用户与开发者共享记忆记录的设计并链接0.9.7发布验收 | R:code:docs/superpowers/specs/2026-10-20-companion-news-design.md,code:docs/validation.md | A:我的记忆;开发者;来源结构;代码入口 | S:不把内存报告标已保存，不将网页当用户偏好；可选AOCI不阻塞产品；路径白名单与冻结回退
 
 ===D:/Sariana-typing-tracker/typing-tracker/packaging/windows/===
 TypingTracker.iss[OV8T]: F:为稳定安装标识构建 Windows 品牌兼容安装卸载流程 | R:code:scripts/build_release.py | A:AppVersion;PayloadDir;OutputDir;AppBrand;Inno Setup | S:更名只删除旧 exe 和快捷方式，不清用户记录；不定义用户数据 UninstallDelete；保留稳定 AppId

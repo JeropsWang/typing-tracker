@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-20T08:30:40Z",
-  "updated_at": "2026-10-23T10:25:02Z",
+  "updated_at": "2026-10-23T14:09:51Z",
   "files": {
     ".codex/config.toml": {
       "role": "index",
@@ -65,9 +65,9 @@
     },
     "aoci.code.txt": {
       "role": "index",
-      "sha256": "afe9b00adeee7439136b96ea8db13d358ac911ac086563045710d99c54c07f2c",
-      "size": 96122,
-      "normalized_sha256": "afe9b00adeee7439136b96ea8db13d358ac911ac086563045710d99c54c07f2c"
+      "sha256": "667e4b0bedebddb104e314507a923f632a496e55f35003dac5a481278e908716",
+      "size": 96252,
+      "normalized_sha256": "667e4b0bedebddb104e314507a923f632a496e55f35003dac5a481278e908716"
     },
     "aoci.meta.txt": {
       "role": "index",
@@ -1713,9 +1713,9 @@
     },
     "docs/architecture.md": {
       "role": "index",
-      "sha256": "9485f1908f9f01f7aa7de95c041630b219d7846549d9a4b7eb9fcaa2e09a1e0f",
-      "size": 21047,
-      "normalized_sha256": "b70607fda7fbc4570dccb868a224925e752ba1ff21a918f00704bd816b351af5"
+      "sha256": "4a5e88b5b4d7c8387374fb66eceb395ef4efb7ed8396507d8723647b4b0486f5",
+      "size": 21074,
+      "normalized_sha256": "dfa11d973464b388b78e369dbee3a71d9a7a4e2a79614f95b21a8b9ffa380c52"
     },
     "docs/companion-agent-design.md": {
       "role": "index",
@@ -1725,9 +1725,9 @@
     },
     "docs/companion-agent.md": {
       "role": "index",
-      "sha256": "cc04a0188b0b58366913e2143656ec6fd588d6bfd55df1b8a3b1344bfa5b9f00",
-      "size": 17866,
-      "normalized_sha256": "c47363a1528119d24777a824b0cfaccd5cf86b4ff9f54268251de25554d0e60f"
+      "sha256": "8761a31ef70fddb615a3c7b4d74048bb289f26fa4f806b24cdb45a0ff5ca86e2",
+      "size": 18076,
+      "normalized_sha256": "ee5cb65b3780c84361ddd32051fa5bacc29cdff284674a3edde871e22dc56f06"
     },
     "docs/english-research.md": {
       "role": "index",
@@ -1743,9 +1743,9 @@
     },
     "docs/project-state.md": {
       "role": "index",
-      "sha256": "6836d30307c08a84e81250b383919f7fd3d30d86290fda32ad5103eb8360223b",
-      "size": 7365,
-      "normalized_sha256": "6836d30307c08a84e81250b383919f7fd3d30d86290fda32ad5103eb8360223b"
+      "sha256": "5426e5719117a34de379699e036cf74b78e746e189ae896551afa782d604ab14",
+      "size": 7604,
+      "normalized_sha256": "5426e5719117a34de379699e036cf74b78e746e189ae896551afa782d604ab14"
     },
     "docs/superpowers/plans/2026-10-20-companion-news-memory.md": {
       "role": "index",
@@ -1767,9 +1767,9 @@
     },
     "docs/superpowers/specs/2026-10-20-memory-views-design.md": {
       "role": "index",
-      "sha256": "5ccaface247867a5027cf4bf2c0de360551d30381c32167e7a83acf24f77e1ed",
-      "size": 4581,
-      "normalized_sha256": "5ccaface247867a5027cf4bf2c0de360551d30381c32167e7a83acf24f77e1ed"
+      "sha256": "72ff9eb51f282843930eefab1780745e501aa9e3209ee7d82dcbf3ac65445d55",
+      "size": 4577,
+      "normalized_sha256": "72ff9eb51f282843930eefab1780745e501aa9e3209ee7d82dcbf3ac65445d55"
     },
     "docs/updates.md": {
       "role": "index",
@@ -1779,9 +1779,9 @@
     },
     "docs/validation.md": {
       "role": "index",
-      "sha256": "d9f3e2a0f3dd9ccfb305c1e3a66f5f05f27ad744a4168081287178b7a1b3f182",
-      "size": 61665,
-      "normalized_sha256": "9802f83cdd7bc66d1ce30b379f78a3d65cb2ad6c6ecd8ec004b79de7a1388b3e"
+      "sha256": "2b5bd8334f4299dd45e4c99fc11a8bdf6e0fa20bce2a44645f33daaed552c6a3",
+      "size": 64912,
+      "normalized_sha256": "0af42ecfb8e826d008cd4cf54339701bdbb562f76914d809b9eb293645c63387"
     },
     "main.py": {
       "role": "index",
