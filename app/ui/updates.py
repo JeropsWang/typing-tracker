@@ -303,7 +303,7 @@ class UpdatesWidget(QWidget):
 
 
 def update_exit_status(window):
-    """Return saving/unfinished flags across existing learning surfaces."""
+    """汇总学习、来信和设置的保存／未完成状态，更新不得吞掉内存待存报告。"""
     page = window._challenge_page
     keyboard = page.keyboard_panel
     state = page._presenter.state
@@ -315,6 +315,11 @@ def update_exit_status(window):
     saving = saving or english_saving or window._application.has_pending_commands()
     # Includes an open settings dialog's unsaved asynchronous submission.
     saving = saving or any(getattr(child, '_saving', False) for child in window.findChildren(QWidget))
+    companion = getattr(window, '_companion', None)
+    news = getattr(getattr(companion, 'agent', None), 'news', None)
+    if news is not None:
+        saving = saving or news.saving or news._claim_pending or news._transition
+        unfinished = unfinished or news.busy
     return bool(saving), bool(unfinished or english_unfinished)
 
 
@@ -329,3 +334,7 @@ def discard_learning_for_update(window):
     page.keyboard_panel._pending = False
     page.chaos_panel.hide()
     window._english_page.discard_for_update()
+    companion = getattr(window, '_companion', None)
+    news = getattr(getattr(companion, 'agent', None), 'news', None)
+    if news is not None:
+        news.discard_for_update()

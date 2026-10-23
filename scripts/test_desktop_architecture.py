@@ -48,6 +48,57 @@ class DesktopWorkflowTests(unittest.TestCase):
         """通过隔离应用线程添加测试训练券，不修改真实用户库存。"""
         self.application.worker.submit(lambda context:context['repo'].add_reward('ai_pass',1,'test')).result(5)
         APP.processEvents()
+
+    def test_news_production_wiring_and_forget_clears_visible_content(self):
+        """正式桌宠共用同一网络服务，持久化先于弹卡；删除也清除当前阅读浮层。"""
+        from test_companion_agent import FakeModel, FakeSearch
+        from app.integrations.companion_agent.service import CompanionAgentService
+        from app.modules.companion.api import NewsConfig
+        agent = self.window._companion.agent
+        self.assertIsNotNone(agent.news)
+        self.assertIs(agent.news.service, agent.service)
+        agent.service.close()
+        agent.service = CompanionAgentService(model_factory=FakeModel, search_factory=FakeSearch)
+        agent.news.service = agent.service
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        self.application.news_commands.save_settings(dict(companion_agent_enabled='1', companion_agent_provider='local',
+            **NewsConfig(interests=('天文学',)).settings_values()), operation_id='production-news', now_utc=stamp).result(5)
+        self.assertTrue(agent.news.run_now())
+        self.assertTrue(pump_until(lambda: agent.card.isVisible() and bool(self.queries.news_snapshot().reports), timeout=10),
+                        (agent.news.status, self.queries.news_snapshot(), self.window._companion.view.isVisible(),
+                         self.window._companion._practicing(), agent.can_show_news()))
+        task = self.queries.news_snapshot().reports[0]
+        self.assertTrue(task.notified_at)
+        self.assertIsNone(agent.report)
+        agent.open_detail()
+        self.application.news_commands.forget(task.task_id, operation_id='production-forget', now_utc=stamp).result(5)
+        self.assertTrue(pump_until(lambda: not agent.card.isVisible() and not agent.detail.isVisible()))
+        self.assertIsNone(agent._shown_report)
+
+    def test_memory_interest_save_blocks_stale_outer_config_save(self):
+        """记忆页提交期间外层不得排旧画像，避免工作线程成功后又被旧草稿覆盖。"""
+        from app.modules.companion.api import NewsConfig
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        self.application.news_commands.save_settings(NewsConfig(interests=('旧兴趣',)).settings_values(),
+            operation_id='old-interests', now_utc=stamp).result(5)
+        agent = self.window._companion.agent
+        agent.open_settings()
+        dialog = agent.settings
+        gate = threading.Event()
+        self.application.worker.submit(lambda context: gate.wait(5))
+        try:
+            dialog.memory_page.interests.setPlainText('新兴趣')
+            dialog.memory_page.save_interests()
+            dialog.save_config()
+            self.assertFalse(dialog.saving)
+            self.assertIn('记忆', dialog.feedback.text())
+        finally:
+            gate.set()
+        self.assertTrue(pump_until(lambda: not dialog.memory_page._saving))
+        self.assertEqual(self.queries.news_snapshot().config.interests, ('新兴趣',))
+        self.assertEqual(dialog.news_panel.interests.toPlainText(), '新兴趣')
     def test_practice_result_is_committed_before_completion_and_reaction(self):
         """验证成绩提交在完成展示和桌宠反应之前。"""
         page=self.window._challenge_page

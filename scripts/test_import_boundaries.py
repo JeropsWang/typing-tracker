@@ -5,6 +5,12 @@ from check_architecture import ROOT, check
 
 class ImportBoundaryTests(unittest.TestCase):
     """公开 API 与 SQL/纯规则导入限制的回归用例，使用隔离对象与受控输入验证实际行为。"""
+    def test_pure_report_codec_can_parse_urls_but_cannot_request_them(self):
+        """来信协议可用无 I/O 的 URL 文本解析，仍拒绝网络传输导入。"""
+        path = ROOT / 'app/modules/companion/news_codec.py'
+        self.assertFalse(check(path, 'from urllib.parse import urlsplit'))
+        self.assertTrue(check(path, 'from urllib.request import urlopen'))
+
     def test_sql_backend_submodules_are_rejected_from_ui(self):
         """验证 UI 不能经 SQL 后端子模块绕过导入边界。"""
         path=ROOT/'app/ui/pages/example.py'

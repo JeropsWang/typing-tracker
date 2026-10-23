@@ -54,3 +54,4 @@ class TrayIcon(QSystemTrayIcon):
         companion.addAction('应用窗口内', lambda: controller.switch_mode('window'))
         companion.addAction('桌面宠物', lambda: controller.switch_mode('desktop'))
         companion.addAction('本地二创工坊…', controller.open_workshop)
+        companion.addAction('来信与定时配置…', controller.agent.open_news)

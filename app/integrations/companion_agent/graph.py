@@ -7,7 +7,8 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import TypedDict
-from ...modules.companion.api import AgentReport, AgentProgress, AgentRunLimits, search_system_prompt
+from ...modules.companion.api import (AgentReport, AgentProgress, AgentRunLimits,
+                                      search_system_prompt, news_system_prompt, agent_failure_code)
 from .search import AgentError, AgentCancelled, check_cancel
 from .model import CompanionModel
 from .mcp_tools import SearchMcpServer, McpToolClient
@@ -22,6 +23,7 @@ class SearchState(TypedDict, total=False):
     summary: str
     warning: str
     correction: bool
+    failure_code: str
 
 
 class RunSignal:
@@ -35,11 +37,25 @@ class RunSignal:
         if self.parent.is_set():
             return True
         if time.monotonic() >= self.deadline:
-            raise AgentError('这次寻找资料用时太久，先把已有线索交给你。')
+            raise AgentError('这次寻找资料用时太久，先把已有线索交给你。', code='timeout')
         return False
 
 
 def run_search(request_id, topic, model, search, cancel, progress, *, limits=None, reader=None):
+    """保持主动搜索兼容入口，复用有界图执行器，不改变话题和工具权限。"""
+    return _run_agent(request_id, topic, model, search, cancel, progress, limits=limits, reader=reader)
+
+
+def run_news(request_id, request, model, search, cancel, progress, *, limits=None, reader=None):
+    """以独立来信契约运行同一张图；无来源结果不能被当成成功持久化。"""
+    report = _run_agent(request_id, request.topic, model, search, cancel, progress,
+                         limits=limits, reader=reader, news_request=request)
+    if not report.sources:
+        raise AgentError(report.warning or '这次没有找到可引用的新动态。')
+    return report
+
+
+def _run_agent(request_id, topic, model, search, cancel, progress, *, limits=None, reader=None, news_request=None):
     """执行有界搜索任务并返回只读报告，progress 回调只传数据给 UI 桥接层。
 
     model/search 是可替换的网络适配器，reader 可注入原文读取夹具。
@@ -65,12 +81,12 @@ def run_search(request_id, topic, model, search, cancel, progress, *, limits=Non
     declarations = client.declarations()
     seen_ids = set()
 
-    def incomplete(message):
-        """构造失败/限额终态，保留真实工具证据，不展示未经核实的模型答案。"""
+    def incomplete(message, *, failure_code=''):
+        """构造失败/限额终态，保留工具证据及明确终止类别，不以无来源覆盖超时。"""
         check_cancel(cancel)
         text = ('资料找到了，暂时没能整理成回答。你可以先查看下面的搜索摘录。'
                 if server.sources else '这次没有找到可引用的资料，可以换个关键词再试试。')
-        return dict(summary=text, warning=message, pending=())
+        return dict(summary=text, warning=message, pending=(), failure_code=failure_code)
 
     def model_node(state):
         """请求一轮模型判断，分流工具调用或最终答案，并校验来源与引用编号。"""
@@ -124,7 +140,7 @@ def run_search(request_id, topic, model, search, cancel, progress, *, limits=Non
             check_cancel(cancel)
             if not server.sources:
                 raise
-            return incomplete(str(error))
+            return incomplete(str(error), failure_code=agent_failure_code(error))
 
     def tools_node(state):
         """顺序执行本轮工具调用，把成功或错误观察按 tool_call_id 回填上下文。"""
@@ -148,7 +164,7 @@ def run_search(request_id, topic, model, search, cancel, progress, *, limits=Non
             raise
         except AgentError as error:
             check_cancel(cancel)
-            return incomplete(str(error))
+            return incomplete(str(error), failure_code=agent_failure_code(error))
 
     def next_node(state):
         """按图状态选择终止、执行工具或再调用模型，不在 UI 中维护行动循环。"""
@@ -163,13 +179,24 @@ def run_search(request_id, topic, model, search, cancel, progress, *, limits=Non
     graph.add_conditional_edges('model', next_node)
     graph.add_conditional_edges('tools', next_node)
     from langsmith import tracing_context
-    messages = [dict(role='system', content=search_system_prompt(
-        datetime.now(timezone.utc).isoformat(timespec='seconds'), limits)), dict(role='user', content=topic)]
+    current = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    system = (news_system_prompt(current, news_request, limits) if news_request
+              else search_system_prompt(current, limits))
+    # 兴趣是有结构的用户数据，不向消息中添加模型配置、统计或被动输入。
+    user = (json.dumps(dict(task_type='news', local_date=news_request.local_day,
+                            interests=news_request.interests), ensure_ascii=False)
+            if news_request else topic)
+    messages = [dict(role='system', content=system), dict(role='user', content=user)]
     with tracing_context(enabled=False):
         # 即使外部环境开启 tracing，也不上传桌宠话题和含协议推理的上下文。
         state = graph.compile().invoke(dict(messages=messages, turns=0, actions=0, correction=False),
                                        config={'recursion_limit': limits.model_turns * 2 + 3})
     check_cancel(cancel)
     # 对外报告只含可见答案和真实来源，协议推理与工具对话留在本次运行内存中。
+    if news_request and not server.sources:
+        # MCP 错误先反馈模型；最终没有证据时仍保留最后一次真实搜索失败类别。
+        stage, code = (state.get('failure_code') or server.last_search_failure_code
+                       or server.last_failure_code or 'agent.no_sources').split('.')
+        raise AgentError(state.get('warning') or '这次没有找到可引用的新动态。', stage=stage, code=code)
     return AgentReport(request_id, topic, state['summary'], tuple(server.sources),
                        datetime.now(timezone.utc).isoformat(timespec='seconds'), state.get('warning', ''))

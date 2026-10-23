@@ -2,12 +2,13 @@
 from PySide6.QtCore import QObject, Signal, Qt, QTimer, QEvent, QPoint
 from PySide6.QtGui import QCursor
 from ...modules.companion.api import AgentConfig
-from ...bootstrap.features import companion_agent_service, companion_setup_service
+from ...bootstrap.features import companion_agent_service, companion_setup_service, companion_news_capabilities
 from ..tasks import TaskBridge
 from .desktop import clamp_position, available_screens
 from .agent_widgets import AgentActions, AgentInputDialog, AgentDialogueCard, AgentReportDialog, agent_style
 from .agent_settings import AgentSettingsDialog
 from .artwork import sprite_icon
+from .news_controller import CompanionNewsController
 
 
 class CompanionAgentController(QObject):
@@ -28,6 +29,9 @@ class CompanionAgentController(QObject):
         self.detail = AgentReportDialog()
         self.settings = None
         self.report = None
+        self._shown_report = None
+        self._shown_news_id = None
+        self.news = None
         self._request_id = None
         self._busy = False
         self._stopped = False
@@ -35,6 +39,7 @@ class CompanionAgentController(QObject):
         self._thinking_stage = 'searching'
         self._thinking_index = 0
         self.actions.search_requested.connect(self.open_search)
+        self.actions.news_requested.connect(self.open_news)
         self.input.submitted.connect(self.search)
         self.card.detail_requested.connect(self.open_detail)
         self.card.config_requested.connect(self.open_settings)
@@ -49,6 +54,11 @@ class CompanionAgentController(QObject):
         self._thinking = QTimer(self)
         self._thinking.setInterval(6000)
         self._thinking.timeout.connect(self._thinking_tick)
+        capabilities = companion_news_capabilities(self.presenter)
+        if capabilities is not None:
+            commands, local_clock, utc_clock = capabilities
+            self.news = CompanionNewsController(companion, self, commands, self.presenter,
+                                                now_local=local_clock, now_utc=utc_clock)
 
     def sync_motion(self):
         """读取减弱动态效果设置，同步轮盘和阶段指示器的动效开关。"""
@@ -204,6 +214,8 @@ class CompanionAgentController(QObject):
             return
         self._request_id = None
         self.report = report
+        self._shown_report = report
+        self._shown_news_id = None
         self.card.show_report(report)
         self.companion.set_agent_feedback('happy' if not report.warning else 'surprised',
             '回来啦！把新鲜事装进手信给你。' if not report.warning else '先带回这些线索，我们再看看。', duration=5)
@@ -226,7 +238,8 @@ class CompanionAgentController(QObject):
 
     def cancel(self):
         """取消网络任务并立即作废 UI 请求 ID；后台准入由服务在实际结束后释放。"""
-        self.service.cancel()
+        if self._request_id is not None:
+            self.service.cancel(self._request_id)
         self._request_id = None
         self._thinking.stop()
         self.actions.set_busy(False)
@@ -235,9 +248,10 @@ class CompanionAgentController(QObject):
 
     def open_detail(self):
         """将内存中的有效报告装入详情窗口，定位后激活，不重新请求网络。"""
-        if self.report is not None and not self._stopped:
+        report = self._shown_report or self.report
+        if report is not None and not self._stopped:
             self.detail.setStyleSheet(agent_style())
-            self.detail.set_report(self.report)
+            self.detail.set_report(report)
             self._place(self.detail)
             self.detail.show()
             self.detail.raise_()
@@ -246,9 +260,41 @@ class CompanionAgentController(QObject):
     def show_last_report(self):
         """重新展示最近一次内存报告，不保存数据库也不重新搜索。"""
         if self.report is not None and not self._stopped:
+            self._shown_report = self.report
+            self._shown_news_id = None
             self.card.show_report(self.report)
             self._place(self.card)
             self.card.show()
+
+    def can_show_news(self):
+        """来信不覆盖正在搜索、输入话题或阅读中的卡片与详情。"""
+        return not (self._stopped or self._busy or self.input.isVisible()
+                    or self.card.isVisible() or self.detail.isVisible())
+
+    def show_news_task(self, task):
+        """仅展示已保存报告，复用短卡和详情，保留最近一次主动搜索结果。"""
+        if task.report is None or self._stopped:
+            return
+        self._shown_report = task.report
+        self._shown_news_id = task.task_id
+        self.card.setStyleSheet(agent_style())
+        self.card.show_report(task.report)
+        self._place(self.card)
+        self.card.show()
+        self.companion.set_agent_feedback('happy', '你的兴趣来信送到啦，点开看看吧。', duration=5)
+
+    def sync_news_memory(self):
+        """记忆删除提交后清除仍在阅读的对应来信，避免浮层继续保留已忘掉正文。"""
+        if self._shown_news_id is None or self.news is None:
+            return
+        if any(task.task_id == self._shown_news_id for task in self.presenter.news_snapshot().reports):
+            return
+        self._shown_report = None
+        self._shown_news_id = None
+        self.card.hide()
+        self.detail.hide()
+        self.card._body_text('这封来信已从记忆中删除。')
+        self.detail.body.clear()
 
     def open_settings(self, parent=None):
         """复用已打开的配置窗口，或用当前桌宠头像创建新的草稿配置页。"""
@@ -262,10 +308,21 @@ class CompanionAgentController(QObject):
             self.settings.deleteLater()
         sprite = self.companion.pack.asset_for('idle')
         self.settings = AgentSettingsDialog(self.presenter, parent, setup=self.setup,
-                                           portrait=sprite_icon(sprite.path, sprite.rect))
+                                           portrait=sprite_icon(sprite.path, sprite.rect), news=self.news)
         self.settings.show()
         self.settings.raise_()
         self.settings.activateWindow()
+
+    def open_news(self):
+        """轮盘只打开最近已保存来信或配置，不隐式调用模型与搜索。"""
+        if self._stopped:
+            return
+        reports = self.presenter.news_snapshot().reports if self.news is not None else ()
+        if reports and not self._busy:
+            self.show_news_task(reports[0])
+        else:
+            self.open_settings()
+            self.settings.tabs.setCurrentIndex(2)
 
     def hide_overlays(self):
         """收起全部搜索浮层并停止视觉计时器，保留输入草稿和报告。"""
@@ -280,6 +337,8 @@ class CompanionAgentController(QObject):
         if self._stopped:
             return
         self._stopped = True
+        if self.news is not None:
+            self.news.shutdown()
         self._thinking.stop()
         self.companion.set_agent_feedback()
         self.service.close()

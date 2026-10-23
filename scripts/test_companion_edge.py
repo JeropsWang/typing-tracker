@@ -1,5 +1,6 @@
 """Browser search extraction, private-page refusal and owned process cleanup."""
 import base64
+import io
 from pathlib import Path
 import socket
 import sys
@@ -131,6 +132,28 @@ class EdgeTests(unittest.TestCase):
         if sys.platform == 'win32':
             self.assertEqual(run.call_args.args[0], ['taskkill','/PID','12345','/T','/F'])
         process.wait.assert_called_once()
+
+    def test_locked_profile_cleanup_does_not_replace_successful_dom(self):
+        """Edge 子进程暂占配置目录时，清理竞争不应吞掉已经取得的搜索正文。"""
+        class LockedDirectory:
+            """模拟 Windows 临时目录的尽力清理协议，不创建真实浏览器或私人目录。"""
+            def __init__(self, *args, ignore_cleanup_errors=False, **kwargs):
+                """记录临时目录对残留文件占用的处理策略。"""
+                self.ignore = ignore_cleanup_errors
+            def __enter__(self):
+                """返回仅用于组装命令的夹具目录。"""
+                return 'isolated-profile'
+            def __exit__(self, *args):
+                """模拟已有成功输出，但 Windows 删除非空目录时发生145竞争。"""
+                if not self.ignore:
+                    raise OSError(41, 'fixture directory not empty')
+        process = Mock(returncode=0)
+        process.poll.return_value = 0
+        with patch('app.integrations.companion_agent.edge_search.edge_executable', return_value=Path('edge.exe')), \
+             patch('app.integrations.companion_agent.edge_search.tempfile.TemporaryDirectory', LockedDirectory), \
+             patch('app.integrations.companion_agent.edge_search.tempfile.TemporaryFile', return_value=io.BytesIO(DOM.encode())), \
+             patch('subprocess.Popen', return_value=process):
+            self.assertEqual(browser_dom('https://www.bing.com', threading.Event()), DOM)
 
 
 if __name__ == '__main__': unittest.main()

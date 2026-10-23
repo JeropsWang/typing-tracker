@@ -113,6 +113,29 @@ def companion_setup_service():
     from ..integrations.companion_agent.setup import AgentSetupService
     return AgentSetupService()
 
+
+def companion_news_capabilities(queries):
+    """只给生产桌面交付异步来信命令和可注入时钟，旧同步预览保持无调度器。"""
+    application = getattr(queries, 'application', None)
+    if application is None:
+        return None
+    return application.news_commands, application.news_local_now, application.news_utc_now
+
+
+def development_index_service():
+    """装配可选只读索引能力，固定入口选择留在集成层，不暴露任意文件读取。"""
+    from ..integrations.development_index import DevelopmentIndexService, CODE_ENTRIES
+    service = DevelopmentIndexService()
+    class AllowedIndex:
+        """只允许页面请求固定对象集合，不接受来自报告或索引的路径。"""
+        def snapshot(self):
+            """异步交付固定代码入口的安全展示快照。"""
+            return service.snapshot(tuple(CODE_ENTRIES))
+        def close(self):
+            """关闭窗口时停止索引后台准入。"""
+            service.close()
+    return AllowedIndex()
+
 def save_material(queries,balance,lang,topic,text,*,operation_id,test_mode=False):
     """根据装配方式选择生产异步或兼容同步材料保存，保持同一操作 ID 和资格边界。"""
     if getattr(queries,'application',None) is not None:

@@ -5,7 +5,7 @@
 """
 import json
 from dataclasses import replace
-from ...modules.companion.api import SearchSource, validate_topic
+from ...modules.companion.api import SearchSource, validate_topic, agent_failure_code
 from .search import AgentError, AgentCancelled, check_cancel, source_url
 from .pages import article_excerpt
 
@@ -36,6 +36,8 @@ class SearchMcpServer:
         self.searches = self.reads = 0
         self.cache = {}
         self.last_error = ''
+        self.last_failure_code = ''
+        self.last_search_failure_code = ''
         self.initialized = self.ready = False
 
     def dispatch(self, request):
@@ -101,7 +103,11 @@ class SearchMcpServer:
         # 精确重复的行动复用成功或失败结果；更换关键词才能触发新的搜索 I/O。
         key = (name, json.dumps(arguments, sort_keys=True, ensure_ascii=False))
         if key in self.cache:
+            if self.cache[key]['isError']:
+                self.last_error = self.cache[key]['structuredContent']['error']
+                self.last_failure_code = self.cache[key]['structuredContent'].get('error_code', 'agent.unknown')
             return self.cache[key]
+        adapter_attempt = False
         try:
             if name == 'web_search':
                 if self.searches >= self.limits.searches:
@@ -109,6 +115,7 @@ class SearchMcpServer:
                 query = validate_topic(arguments['query'])
                 self.searches += 1
                 self.announce('searching', '我正翻找资料：' + query)
+                adapter_attempt = True
                 found = self.search.search(query, self.cancel)
                 check_cancel(self.cancel)
                 indexes = []
@@ -125,7 +132,7 @@ class SearchMcpServer:
                     if index not in indexes:
                         indexes.append(index)
                 if not indexes:
-                    raise AgentError('没有找到新的可引用资料，请换关键词或说明资料不足。')
+                    raise AgentError('没有找到新的可引用资料，请换关键词或说明资料不足。', stage='search', code='no_sources')
                 result = observation(dict(kind='search_excerpt', sources=[self.record(i) for i in indexes]))
             else:
                 if self.reads >= self.limits.page_reads:
@@ -145,13 +152,18 @@ class SearchMcpServer:
             raise
         except (AgentError, ValueError) as error:
             check_cancel(self.cancel)
-            result = observation(dict(error=str(error)), error=True)
+            result = observation(dict(error=str(error), error_code=agent_failure_code(error)), error=True)
         except Exception:
             check_cancel(self.cancel)
-            result = observation(dict(error='资料工具暂时不可用，请调整方案或说明资料不足。'), error=True)
+            result = observation(dict(error='资料工具暂时不可用，请调整方案或说明资料不足。',
+                                      error_code='search.unknown'), error=True)
         self.cache[key] = result
         if result['isError']:
             self.last_error = result['structuredContent']['error']
+            self.last_failure_code = result['structuredContent'].get('error_code', 'agent.unknown')
+            if adapter_attempt:
+                # 模型重试到次数上限属于工具观察，不能覆盖真正上游的鉴权／连接故障。
+                self.last_search_failure_code = self.last_failure_code
         return result
 
 

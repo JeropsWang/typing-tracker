@@ -166,7 +166,7 @@ jobs:
           } else {
             Write-Output 'Historical build: same-brand upgrade check is not applicable'
           }
-      - name: Verify upgrade from Sariana 0.9.4
+      - name: Verify upgrade from recent Sariana versions
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,15 +174,20 @@ jobs:
           $taskManifest = Get-Content -LiteralPath 'release-output/payload/release-manifest.json' | ConvertFrom-Json
           if ($taskManifest.product_name -eq 'Sariana' -and [version]$taskManifest.version -ge [version]'0.9.5') {
             $taskHeaders = @{ Accept = 'application/vnd.github+json'; Authorization = "Bearer $env:GH_TOKEN" }
-            $taskPrevious = Invoke-RestMethod -Uri 'https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v0.9.4' -Headers $taskHeaders
-            $taskAsset = @($taskPrevious.assets | Where-Object name -eq 'Sariana-0.9.4-windows-x64-setup.exe')
-            if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw '0.9.4 installer missing' }
-            if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw '0.9.4 installer digest missing' }
-            $taskExpectedHash = $Matches[1]
-            $taskPreviousSetup = Join-Path $env:RUNNER_TEMP 'Sariana-0.9.4-setup.exe'
-            Invoke-WebRequest -Uri ($taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id) -OutFile $taskPreviousSetup
-            if ((Get-FileHash -LiteralPath $taskPreviousSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw '0.9.4 installer checksum mismatch' }
-            ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/sariana-094-upgrade-smoke" -UpgradeFromSetup $taskPreviousSetup
+            $taskBaselines = @('0.9.4')
+            # 0.9.7起覆盖当前正式版升级；历史0.9.5/0.9.6补编译不测试降级安装。
+            if ([version]$taskManifest.version -gt [version]'0.9.6') { $taskBaselines += '0.9.6' }
+            foreach ($taskVersion in $taskBaselines) {
+              $taskPrevious = Invoke-RestMethod -Uri "https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v$taskVersion" -Headers $taskHeaders
+              $taskAsset = @($taskPrevious.assets | Where-Object name -eq "Sariana-$taskVersion-windows-x64-setup.exe")
+              if ($taskAsset.Count -ne 1 -or $taskAsset[0].state -ne 'uploaded') { throw "$taskVersion installer missing" }
+              if ($taskAsset[0].digest -notmatch '^sha256:([a-f0-9]{64})$') { throw "$taskVersion installer digest missing" }
+              $taskExpectedHash = $Matches[1]
+              $taskPreviousSetup = Join-Path $env:RUNNER_TEMP "Sariana-$taskVersion-setup.exe"
+              Invoke-WebRequest -Uri ($taskAsset[0].browser_download_url + '?asset_id=' + $taskAsset[0].id) -OutFile $taskPreviousSetup
+              if ((Get-FileHash -LiteralPath $taskPreviousSetup).Hash.ToLowerInvariant() -ne $taskExpectedHash) { throw "$taskVersion installer checksum mismatch" }
+              ./tooling/scripts/test_installer.ps1 -PackageDir release-output -Workspace "$env:RUNNER_TEMP/sariana-$taskVersion-upgrade-smoke" -UpgradeFromSetup $taskPreviousSetup
+            }
           }
       - name: Verify reinstall from the same published version
         # 重打包构建不上传，先下载旧附件验工同版本覆盖安装；保留旧资产直到验证结束。

@@ -1,0 +1,6 @@
+# AOCI 正式资产使用 LF；试用接入不改变既有业务源码的全仓换行策略。
+aoci.txt text eol=lf
+aoci.meta.txt text eol=lf
+aoci.code.txt text eol=lf
+aoci.database.txt text eol=lf
+.aoci/*.json text eol=lf

@@ -33,7 +33,7 @@ def main():
     from PySide6.QtTest import QTest
     from app.bootstrap.application import DesktopApplication
     from app.bootstrap.features import DesktopQueries
-    from app.modules.companion.api import AgentReport, SearchSource
+    from app.modules.companion.api import AgentReport, SearchSource, AgentConfig, NewsConfig, configuration_fingerprint
     from app.integrations.ai.api import AIService
     from app.theme.theme_manager import ThemeManager
     from app.ui.main_window import MainWindow
@@ -75,6 +75,17 @@ def main():
                           '界面示例资料，不代表本次已经进行真实联网搜索。'),),
             datetime.now(timezone.utc).isoformat())
         agent.report = report
+        # 样例持久化走正式工作线程命令，截图不把内存报告伪装为已保存记忆。
+        utc_now = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        application.news_commands.save_settings(NewsConfig(interests=('天文学', '开源软件')).settings_values(),
+                                               operation_id='preview-interests', now_utc=utc_now).result(5)
+        local_now = datetime.now()
+        config = AgentConfig.from_settings(application.models)
+        news_config = application.models.news_snapshot().config
+        claim = application.news_commands.claim('manual:' + uuid.uuid4().hex, 'manual',
+                  configuration_fingerprint(config, news_config, True), local_now.date().isoformat(),
+                  local_now.strftime('%H:%M'), now_utc=utc_now).result(5)
+        application.news_commands.complete(claim, report, now_utc=utc_now).result(5)
         agent.show_last_report()
         QTest.qWait(100)
         window.grab().save(str(args.output/'window.png'))
@@ -106,6 +117,20 @@ def main():
         agent.settings.tabs.setCurrentIndex(2)
         QTest.qWait(50)
         agent.settings.grab().save(str(args.output/'settings-future.png'))
+        agent.settings.tabs.setCurrentIndex(3)
+        QTest.qWait(50)
+        agent.settings.grab().save(str(args.output/'settings-memory.png'))
+        agent.settings.memory_page.views.setCurrentIndex(1)
+        QTest.qWait(100)
+        agent.settings.grab().save(str(args.output/'settings-developer.png'))
+        agent.settings.resize(560, 660)
+        agent.settings.tabs.setCurrentIndex(2)
+        QTest.qWait(50)
+        agent.settings.grab().save(str(args.output/'settings-news-narrow.png'))
+        agent.settings.tabs.setCurrentIndex(3)
+        QTest.qWait(50)
+        agent.settings.grab().save(str(args.output/'settings-memory-narrow.png'))
+        agent.settings.resize(820, 660)
         agent.settings.tabs.setCurrentIndex(0)
         if not args.test_public_search and not args.test_local_model:
             # Composite the real Qt surfaces at their actual desktop positions.

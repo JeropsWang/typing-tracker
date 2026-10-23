@@ -315,6 +315,8 @@ def main() -> int:
             window.setEnabled(True)
             tray.contextMenu().setEnabled(True)
             updates.set_paused(False)
+            if window._companion is not None and window._companion.agent.news is not None:
+                window._companion.agent.news.resume()
         def restart_failed(exc):
             """采集恢复失败时明确显示未运行，仍恢复可供用户处理的界面。"""
             window.set_hook_status(False)
@@ -350,7 +352,7 @@ def main() -> int:
         if saving:
             QMessageBox.information(window,'请等待保存','有学习结果或设置正在保存，请保存完成后再安装更新。')
             return
-        message=('存在未完成练习或未保存的学习结果。退出会放弃这些内容，已保存的成绩会保留。\n\n'
+        message=('存在未完成练习、来信或未保存结果。退出会放弃这些内容，已保存记录会保留。\n\n'
                  if unfinished else '')+'确认保存统计、退出应用并打开新版安装向导？'
         if QMessageBox.question(window,'安装更新',message,QMessageBox.Yes|QMessageBox.No,QMessageBox.No)!=QMessageBox.Yes:
             return
@@ -365,6 +367,8 @@ def main() -> int:
         window.setEnabled(False)
         flush_timer.stop()
         roll_timer.stop()
+        if window._companion is not None and window._companion.agent.news is not None:
+            window._companion.agent.news.pause()
         update_exit.begin(installer)
 
     updates.install_requested.connect(request_update_install)
@@ -374,11 +378,11 @@ def main() -> int:
         updates.shutdown()
         if application._closed:
             return
-        application.stop_accepting()
         flush_timer.stop()
         roll_timer.stop()
         if window._companion is not None:
             window._companion.shutdown()
+        application.stop_accepting()
         if hasattr(window,'_challenge_page'):
             window._challenge_page._cancel_generation()
             window._challenge_page.chaos_panel.hide()

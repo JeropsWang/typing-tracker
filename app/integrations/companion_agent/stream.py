@@ -57,19 +57,19 @@ class VisibleText:
         return self.pending
 
 
-def read_model_text(request, cancel, on_text, *, opener=None):
-    """读取仅需正文的兼容响应；若服务返回工具行动则明确拒绝，不偷偷执行。"""
-    turn = read_model_turn(request, cancel, on_text, opener=opener)
+def read_model_text(request, cancel, on_text, *, opener=None, timeout=25):
+    """按 timeout 秒传输预算读取正文；返回工具行动时拒绝，不偷偷执行。"""
+    turn = read_model_turn(request, cancel, on_text, opener=opener, timeout=timeout)
     if turn.tool_calls:
         raise AgentError('当前请求不支持工具调用。')
     return turn.text
 
 
-def read_model_turn(request, cancel, on_text=lambda _: None, *, opener=None):
+def read_model_turn(request, cancel, on_text=lambda _: None, *, opener=None, timeout=25):
     """读取完整模型轮次，拼接有界工具参数与正文，截断/格式错误抛 AgentError。
 
     可见草稿通过 on_text 传递；reasoning_content 只进入返回轮次的私有字段。
-    cancel 在读取检查点生效，阻塞读取本身由传输超时结束。
+    cancel 在读取检查点生效，阻塞读取由 timeout 秒预算结束（默认25，本机模型120）。
     """
     visible = VisibleText()
     result = ''
@@ -128,7 +128,7 @@ def read_model_turn(request, cancel, on_text=lambda _: None, *, opener=None):
                 raise AgentError('模型正文格式不正确。')
             append(text)
 
-    with open_response(request, opener=opener) as response:
+    with open_response(request, opener=opener, timeout=timeout) as response:
         if 'text/event-stream' not in response.headers.get('Content-Type', '').lower():
             raw = response.read(MAX_RESPONSE + 1)
             if len(raw) > MAX_RESPONSE:
@@ -145,7 +145,7 @@ def read_model_turn(request, cancel, on_text=lambda _: None, *, opener=None):
             while True:
                 check_cancel(cancel)
                 if time.monotonic() - started > 180:
-                    raise AgentError('模型整理超时，请缩小话题或换用更快的模型。')
+                    raise AgentError('模型整理超时，请缩小话题或换用更快的模型。', code='timeout')
                 line = response.readline(65_537)
                 if not line:
                     break

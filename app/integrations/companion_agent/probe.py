@@ -3,8 +3,8 @@ import threading
 from .search import parse_public_results
 from .edge_search import SearchDOM
 from .relevance import relevance
-from ...modules.companion.api import SearchSource, AgentTurn, AgentToolCall
-from .graph import run_search
+from ...modules.companion.api import SearchSource, AgentTurn, AgentToolCall, NewsConfig, NewsRequest, due_plan
+from .graph import run_search, run_news
 from .stream import VisibleText
 
 
@@ -38,5 +38,11 @@ def selfcheck():
         raise RuntimeError('Missing Edge DOM parser')
     if relevance('明日方舟最新干员', SearchSource('出云市官网', 'https://example.org', '旅游与市政')) >= .75:
         raise RuntimeError('Unrelated search evidence accepted')
+    from datetime import datetime
+    news = run_news('news-probe', NewsRequest(('天文学',), '2026-10-20'), Model(), Search(), threading.Event(), progress.append)
+    config = NewsConfig(enabled=True, interests=('天文学',))
+    if (not news.sources or due_plan(config, datetime(2026, 10, 20, 9, 0)) is None
+            or due_plan(config, datetime(2026, 10, 20, 12, 0)) is not None):
+        raise RuntimeError('Companion news runtime verification failed')
     return dict(langgraph=True, react=True, mcp_tools=True, stream_filter=True,
-                public_search=True, edge_parser=True, network=False, database=False)
+                public_search=True, edge_parser=True, news=True, news_schedule=True, network=False, database=False)

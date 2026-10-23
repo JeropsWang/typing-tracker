@@ -8,8 +8,16 @@ from .validation import validate_manifest, safe_path, image_size, MAX_FILE, MAX_
 from .agent import (AgentConfig, AgentReport, AgentProgress, SearchSource, AgentTool,
                     AgentToolCall, AgentTurn, AgentRunLimits,
                     CompanionAgent, MODEL_PRESETS,
-                    AgentConnectionResult, validate_topic)
-from .persona import search_system_prompt, summary_system_prompt
+                    AgentConnectionResult, AgentBusyError, validate_topic)
+from .persona import search_system_prompt, summary_system_prompt, news_system_prompt
+from .news import (NewsConfig, NewsPlan, NewsRequest, NewsClaim, NewsTask,
+                   normalize_interests, is_quiet, scheduled_at, due_plan,
+                   next_news_at, configuration_fingerprint)
+from .news_codec import encode_report, decode_report
+from .memory import MemorySnapshot
+from .failures import (FAILURE_CODES, normalize_failure_code, agent_failure_code, failure_message)
+from .news_status import NewsStatus, news_status, retryable_news_task
+from .news_service import CompanionNewsService, task_from_row, validate_utc as validate_news_utc
 
 @dataclass(frozen=True)
 class ActivityState:

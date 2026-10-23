@@ -8,7 +8,10 @@ PURE_FILES={'app/modules/tracking/domain.py','app/modules/tracking/clock.py',
             'app/modules/practice/domain.py','app/modules/practice/keyboard_session.py',
             'app/modules/english/session.py','app/modules/english/scoring.py','app/modules/english/review.py',
             'app/modules/companion/models.py','app/modules/companion/runtime.py',
-            'app/modules/companion/agent.py','app/modules/companion/persona.py'}
+            'app/modules/companion/agent.py','app/modules/companion/persona.py',
+            'app/modules/companion/news.py','app/modules/companion/news_codec.py',
+            'app/modules/companion/memory.py','app/modules/companion/failures.py',
+            'app/modules/companion/news_status.py'}
 
 
 def dependencies(path,source):
@@ -34,7 +37,8 @@ def check(path,source):
     for line,target in dependencies(path,source):
         if relative.startswith('app/ui/') and target.startswith(('app.storage','sqlite3','psycopg','redis')):
             errors.append(f'{relative}:{line}: UI must use presenter/query interfaces: {target}')
-        if relative in PURE_FILES and target.startswith(('PySide6','sqlite3','urllib','http','socket','app.storage','app.integrations')):
+        # urllib.parse 只有文本解析，无 I/O；传输子模块仍按原边界拒绝。
+        if relative in PURE_FILES and target != 'urllib.parse' and target.startswith(('PySide6','sqlite3','urllib','http','socket','app.storage','app.integrations')):
             errors.append(f'{relative}:{line}: domain cannot depend on infrastructure: {target}')
         own=relative.split('/')[2] if relative.startswith('app/modules/') else None
         if own and target.startswith('app.modules.'):

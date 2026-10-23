@@ -24,6 +24,7 @@ def label(text, *, heading=False, muted=False):
 class AgentActions(QWidget):
     """Qt 主线程的浮动轮盘；仅按钮和轨道命中，中心保留桌宠摸头与拖动。"""
     search_requested = Signal()
+    news_requested = Signal()
     settings_requested = Signal()
 
     def __init__(self):
@@ -37,7 +38,7 @@ class AgentActions(QWidget):
         self.buttons = []
         for caption, title, name, tone, available, point in (
                 ('占卜', '占卜 · 第三期筹备中', 'agent-oracle', 'lavender', False, (8, 80)),
-                ('来信', '定时汇报 · 第二期筹备中', 'agent-report', 'coral', False, (102, 6)),
+                ('来信', '查看来信与定时配置', 'agent-report', 'coral', True, (102, 6)),
                 ('搜索', '联网搜索', 'agent-search', 'blue', True, (206, 68))):
             button = OrbitButton(caption, name, tone, self)
             side = 72 if available else 60 if caption == '来信' else 56
@@ -49,6 +50,7 @@ class AgentActions(QWidget):
             button.move(*point)
             self.buttons.append(button)
         self.buttons[-1].clicked.connect(self.search_requested)
+        self.buttons[1].clicked.connect(self.news_requested)
         # A transparent centre must remain clickable for petting and dragging.
         region = QRegion()
         for button in self.buttons:

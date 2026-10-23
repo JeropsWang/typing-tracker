@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 
 SCHEMA_PATH = Path(__file__).parent / 'schema.sql'
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def connect_db(db_path):
@@ -100,6 +100,9 @@ def init_schema(conn):
             setting = conn.execute("SELECT value FROM settings WHERE key='day_start_hour'").fetchone()
             day = AppCalendar(int(setting[0]) if setting else 4).day(datetime.now())
             migrate_review_schema(conn, day)
+        if version < 3:
+            from ..modules.companion.repository import migrate_news_schema
+            migrate_news_schema(conn)
         conn.execute(f'PRAGMA user_version={SCHEMA_VERSION}')
         conn.commit()
     except BaseException:

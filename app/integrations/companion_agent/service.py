@@ -5,10 +5,15 @@
 from concurrent.futures import Future
 import threading
 import uuid
-from ...modules.companion.api import validate_topic
+from ...modules.companion.api import validate_topic, NewsRequest, AgentBusyError as DomainBusyError
 from .model import CompanionModel
 from .search import WebSearch, AgentError
-from .graph import run_search
+from .graph import run_search, run_news
+
+
+class AgentBusyError(AgentError, DomainBusyError):
+    """保留旧调用方的 AgentError 捕获，同时给排期提供纯业务层的忙碌类型。"""
+    pass
 
 
 class CompanionAgentService:
@@ -19,10 +24,26 @@ class CompanionAgentService:
         self._lock = threading.Lock()
         self._cancel = None
         self._closed = False
+        self._request_id = None
+
+    @property
+    def busy(self):
+        """只读取得真实网络准入状态，取消之后直至底层执行结束仍为忙碌。"""
+        with self._lock:
+            return self._cancel is not None
 
     def search(self, config, topic, progress):
         """校验配置、取得单次准入并异步执行图，立即返回请求 ID 与结果 Future。"""
-        topic = validate_topic(topic)
+        return self._start(config, validate_topic(topic), progress)
+
+    def news(self, config, request, progress):
+        """验证专用来信请求并使用与主动搜索完全相同的准入，不按兴趣启动多条图。"""
+        if not isinstance(request, NewsRequest):
+            raise ValueError('来信请求格式不正确。')
+        return self._start(config, request.topic, progress, news_request=request)
+
+    def _start(self, config, topic, progress, *, news_request=None):
+        """共享配置校验和网络线程生命周期，持锁期间不执行模型或工具请求。"""
         if not config.enabled:
             raise AgentError('先在桌宠自定义 → 智能体中开启并配置联网搜索吧。')
         model, search = self.model_factory(config), self.search_factory(config)
@@ -32,33 +53,39 @@ class CompanionAgentService:
             if self._closed:
                 raise AgentError('桌宠智能体已关闭。')
             if self._cancel is not None:
-                raise AgentError('上一项任务还在结束，请稍等再试。')
+                raise AgentBusyError('上一项任务还在结束，请稍等再试。')
             cancel = threading.Event()
             self._cancel = cancel
+            request_id = uuid.uuid4().hex
+            self._request_id = request_id
         future = Future()
-        request_id = uuid.uuid4().hex
         def run():
             """在守护网络线程中执行图；结束后释放准入，再完成 Future 供 UI 桥接。"""
             try:
-                result = run_search(request_id, topic, model, search, cancel, progress)
+                result = (run_news(request_id, news_request, model, search, cancel, progress)
+                          if news_request else run_search(request_id, topic, model, search, cancel, progress))
             except Exception as error:
                 # 未知异常可能含上游 URL/密钥等信息，只向界面返回固定的脱敏提示。
                 failure = error if isinstance(error, AgentError) else AgentError('搜索未完成，请检查服务配置后重试。')
                 with self._lock:
                     self._cancel = None
+                    self._request_id = None
                 future.set_exception(failure)
             else:
                 with self._lock:
                     self._cancel = None
+                    self._request_id = None
                 future.set_result(result)
         threading.Thread(target=run, name='sariana-companion-agent', daemon=True).start()
         return request_id, future
 
-    def cancel(self):
-        """标记当前任务取消；不提前清空 _cancel，否则未结束的网络会重叠运行。"""
+    def cancel(self, request_id=None):
+        """只取消匹配的任务所有者；兼容无参数取消，不提前释放仍在运行的网络。"""
         with self._lock:
-            if self._cancel is not None:
+            if self._cancel is not None and (request_id is None or request_id == self._request_id):
                 self._cancel.set()
+                return True
+            return False
 
     def close(self):
         """永久拒绝新任务并标记在途任务取消，供桌宠退出时调用。"""

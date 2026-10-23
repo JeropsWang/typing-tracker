@@ -5,6 +5,7 @@ import json
 import threading
 from ..modules.reporting.api import QueryCache
 from ..modules.english.api import review_plan
+from ..modules.companion.api import NewsConfig, MemorySnapshot, task_from_row
 
 TABLES = {
  'profile': ('settings',),
@@ -12,6 +13,7 @@ TABLES = {
  'tracking': ('lifetime','daily_stats','minute_stats','settings'),
  'practice': ('challenge_history','ai_texts','keyboard_warrior_history'),
  'english': ('english_progress','english_sentences','english_review_schedule'),
+ 'companion': ('companion_news_tasks',),
 }
 
 class ReadModels:
@@ -26,6 +28,23 @@ class ReadModels:
         self._versions={}
         self._lock=threading.RLock()
         self._reports=QueryCache()
+
+    def news_snapshot(self):
+        """原子捕获设置与来信表副本，返回两个记忆视角共用的无连接不可变模型。"""
+        with self._lock:
+            values = dict(self._settings)
+            rows = tuple(dict(row) for row in self._tables.get('companion_news_tasks', ()))
+        error = ''
+        try:
+            config = NewsConfig.from_values(values)
+        except (TypeError, ValueError):
+            config, error = NewsConfig(), '来信配置格式不正确，请重新保存兴趣与时间。'
+        try:
+            revision = max(0, int(values.get('companion_news_revision', '0')))
+        except (TypeError, ValueError):
+            revision = 0
+        return MemorySnapshot(config, tuple(task_from_row(row) for row in rows),
+                               values.get('companion_news_updated_at', ''), revision, error)
 
     def replace(self,tables):
         """先构建独立行及聚合索引，再持锁替换变化表并失效相关报表缓存。"""

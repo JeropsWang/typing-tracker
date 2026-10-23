@@ -1,6 +1,7 @@
 """Desktop composition root and asynchronous application commands."""
 from concurrent.futures import Future
-from datetime import datetime
+from datetime import datetime, timezone
+import uuid
 from pathlib import Path
 from ..storage.db import connect_db, init_schema
 from ..storage.session import DataSession
@@ -27,7 +28,7 @@ class RemoteService:
 
 class DesktopApplication:
     """桌面应用装配根，协调唯一数据库线程、展示模型、异步命令及最终统计提交。"""
-    def __init__(self,data_dir,balance,definitions,defaults=None):
+    def __init__(self,data_dir,balance,definitions,defaults=None,*,news_local_now=None,news_utc_now=None):
         """创建事件/展示模型和工作线程，启动恢复后装配各模块对外命令代理。"""
         self.events=EventBus()
         self.models=ReadModels()
@@ -38,6 +39,9 @@ class DesktopApplication:
         from ..integrations.updates import UpdateService
         self.update_service=UpdateService(self.data_dir/'update-cache',__version__)
         self._defaults=defaults or {}
+        self.news_local_now = news_local_now or datetime.now
+        self.news_utc_now = news_utc_now or (lambda: datetime.now(timezone.utc).isoformat(timespec='seconds'))
+        self._news_run_id = uuid.uuid4().hex
         self._checkpoint_pending=None
         self._closing=False
         self._closed=False
@@ -62,6 +66,8 @@ class DesktopApplication:
         self.keyboard=RemoteService(self,'keyboard',KeyboardWarriorService(self.models),('record',))
         self.settings=RemoteService(self,'settings',None,('save',))
         self.english_commands=RemoteService(self,'english',None,('save_generated','record_sentence'))
+        self.news_commands=RemoteService(self,'news',None,
+            ('claim','release_unstarted','complete','fail','accept_notice','forget','save_settings','recover','prune'))
 
     def _initialize(self):
         """在应用线程打开/迁移数据库并装配业务，发布初始模型后切断计数器的直接 SQL 保存入口。"""
@@ -77,6 +83,11 @@ class DesktopApplication:
                 achievements=AchievementService(repo,self.balance,self.definitions),encourage=EncourageService(repo,self.balance),
                 practice=ChallengeService(repo),keyboard=KeyboardWarriorService(repo),
                 settings=SettingsService(repo,self.data_dir),english=EnglishService(repo))
+            from ..workflows.companion_news import CompanionNewsWorkflow
+            context['news'] = CompanionNewsWorkflow(repo, context['settings'], run_id=self._news_run_id,
+                                                     local_now=self.news_local_now)
+            context['news'].recover(now_utc=self.news_utc_now())
+            context['news'].prune(local_day=self.news_local_now().date().isoformat(), now_utc=self.news_utc_now())
             context['startup_checkin']=context['checkin'].checkin_if_needed(counter.current_day())
             context['startup_unlocks']=context['achievements'].check_all(counter)
             self._refresh(repo,set(TABLES))
@@ -94,7 +105,8 @@ class DesktopApplication:
     def _refresh(self,repo,topics):
         """在数据库线程读取变化主题所属表，转换为独立行后替换展示模型。"""
         names={name for topic in topics for name in TABLES.get(topic,())}
-        self.models.replace({name:[dict(r) for r in repo._conn.execute(f'SELECT * FROM {name}')] for name in names})
+        self.models.replace({name: (repo.companion.list_tasks() if name == 'companion_news_tasks'
+                                  else [dict(r) for r in repo._conn.execute(f'SELECT * FROM {name}')]) for name in names})
 
     def _changed(self,context,event):
         """提交通知后先刷新只读模型再发布业务事件，升级反馈以已提交经验为依据。"""

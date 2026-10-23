@@ -31,7 +31,7 @@ Sariana 是 Windows 本机桌面应用，使用 Python、PySide6 Widgets、pyqtg
 | practice | 普通范文、逐字评分、成绩和纪录、键盘侠；`challenge_history`、`ai_texts`、`keyboard_warrior_history` |
 | english | 词库、拼写会话、单词对齐评分、复习和英语材料；`english_attempts`、`english_progress`、`english_sentences`、`english_review_schedule` |
 | growth | 等级、经验、打卡、成就、库存、奖励上限和资格；`growth_daily`、`rewards`、`checkin_log`、`achievements`、经验相关列 |
-| companion | 活动/情绪状态、互动、作品包；数据目录中的 `companion/packs/` |
+| companion | 活动/情绪、互动、作品包、来信规则及 `companion_news_tasks`；作品目录 `companion/packs/` |
 | profile | 昵称、签名、头像和配置保存；个人资料配置及头像文件 |
 | reporting | 只读统计查询和有界查询缓存，不负责发奖或修改统计 |
 
@@ -64,6 +64,7 @@ flowchart TD
 - **ApplicationWorker**串行处理数据库命令。连接在该线程创建、使用和关闭，不能把连接转交给 UI 或网络线程，也不能通过关闭 SQLite 的线程检查掩盖违规访问。
 - **输入线程**只更新带锁的内存计数器。上屏文本用于即时计数，不进入统计检查点或输入日志。
 - **AI 网络线程**使用独立配置快照，不持有数据库连接，不修改 QWidget。
+- 纯规则可以使用标准库 `urllib.parse` 解析 URL 文本；`urllib.request`、HTTP、socket 等传输依赖仍被架构检查拒绝，解析不等于访问来源。
 - 启动时允许在创建窗口和输入钩子之前等待迁移与恢复完成。退出时等待已接收任务和最终检查点完成。
 
 `bootstrap/read_models.py` 保存从数据库脱离的展示数据；设置有字典索引，时段数据在后台预聚合。界面读取这些模型，不执行 SQL。报表缓存按数据版本和筛选条件区分；热力图在数据变更时复用已有格子，主题、年份或布局变化才重建。
@@ -116,7 +117,7 @@ flowchart TD
 
 ## 迁移、扩展与验证
 
-`storage/db.py` 使用 `PRAGMA user_version` 管理版本，当前为 2。旧库升级前用 SQLite Backup API 在同一数据目录的 `migration-backups/` 创建备份，再执行原子增量迁移；失败回滚并停止启动。未来变更新增迁移版本，不能只修改初始 `schema.sql`，因为已升级的数据库不会重新运行旧迁移。原数据目录和单实例锁名继续兼容 TypingTracker。
+`storage/db.py` 使用 `PRAGMA user_version` 管理版本，当前为 3。旧库升级前用 SQLite Backup API 在同一数据目录的 `migration-backups/` 创建备份，再执行原子增量迁移；失败回滚并停止启动。未来变更新增迁移版本，不能只修改初始 `schema.sql`，因为已升级的数据库不会重新运行旧迁移。原数据目录和单实例锁名继续兼容 TypingTracker。
 
 新增功能依次确认：数据/规则所属模块 → 扩展该模块公开 API → 用例与事务 → 仓储 → 启动注入/读模型 → Presenter → Widgets → 边界测试。新增跨模块能力由 workflows 编排，不直接导入另一模块的内部仓储。
 
@@ -159,3 +160,17 @@ companion API 公开不可变配置、模型轮次、工具调用、运行限额
 桌宠模型配置与训练 AI 独立，兼容模型适配负责原生工具调用和 SSE 分片拼接。流式正文过滤思考字段和标签；DeepSeek 工具续接所需的 `reasoning_content` 只在本次任务内存中回传，不进入报告、Qt 进度、日志或数据库。配置保存仍由 ApplicationWorker/UnitOfWork 提交；报告当前仅驻留内存，无新增数据库迁移。LangGraph 不引入云端运行服务，图执行显式关闭 tracing。冻结构建收集子模块与递归依赖元数据，并运行无网络、无数据库的 `--companion-agent-selfcheck`，覆盖 ReAct 与 MCP 工具调用。界面组件与后两期边界见 [companion-agent.md](companion-agent.md)。
 
 草稿连接测试由 bootstrap 装配的 AgentSetupService 执行，独立后台线程不接收数据会话；模型测试仅短消息，搜索测试校验来源。搜索默认用独立临时配置的 Edge 无头进程读取中文搜索 DOM，通过主题词相关性筛选（每次工具搜索无相关来源时最多一次核心词/换入口重试）。正文由模型选择稳定来源编号后单独读取；取消/超时只关闭本次拥有的进程。RSS、Tavily 与已有 SearXNG 为可选适配器，不管理容器。网络不占数据库事务，保存设置由用户独立提交。Qt 以任务 token 拒绝取消、关闭或草稿变更后的结果，任务结束前保持准入。冻结自检仍验证 Edge DOM/公开 RSS 解析，无搜索模板依赖。
+
+## 0.9.7 来信与记忆
+
+`companion/api.py` 公开 NewsConfig、NewsRequest、NewsClaim、NewsTask 与 MemorySnapshot。纯规则 `news.py` 使用本机自然日，与统计默认凌晨 4 点日切分离；同日自动任务 ID 固定，配置变化和删除不重获名额。`news_codec.py` 只接受白名单、有界、无私有推理的报告。
+
+`CompanionNewsWorkflow` 跨 profile／companion 核准当前已提交设置；`CompanionNewsService` 和仓储只在 ApplicationWorker 中执行。schema 3 新增 companion_news_tasks，迁移沿用备份和失败回滚。领取先提交，网络在事务外；完成按 task_id／attempt／run_id CAS；保存失败保留内存报告，仅重试数据库。启动恢复标记中断，不重放可能产生费用的网络。历史查询最多 200 条，清理终态保留最近 30 日／100 条，保护今日自动墓碑和在途任务。
+
+UI 的 `CompanionNewsController` 复用搜索服务，三十秒合并唤醒，无到期只读快照；隐藏暂停视觉计时而保留排期。准入竞争退还 waiting，真正执行后失败只允许明确重试。取消带请求所有者，旧任务不能取消新搜索。通知先核对可见／安静／练习／阅读占用，再提交受理；受理完成后才显示短卡。更新准备暂停排期，失败恢复不会自动重跑网络；真实退出先停止控制器再关闭命令准入。
+
+`NewsSettingsPanel` 编辑草稿；`MemoryPresenter` 与 `MemoryPage` 共享同一已提交快照的两个视角。删除只清内容保留墓碑，成功提交后再清当前阅读浮层。兴趣仅由用户填写，来源网页不会升级为偏好；未保存报告不标为已保存记忆。`DevelopmentIndexService` 在后台有界读取固定白名单入口的本地 AOCI 文本与基线摘要，缺失或过期不阻塞产品，未调用治理检查时只标「本地索引快照，治理状态未核验」，不暴露本机配置或任意路径能力。
+
+来信故障词表由纯规则 `failures.py` 统一维护。兼容 `AgentError` 增加 stage/code；模型、搜索传输和 MCP 观察保持分类，控制器只提交白名单错误码到既有 error_code 列，不存异常原文或新增迁移。历史 network 只显示原因未细分。`news_status.py` 从提交快照计算排期、最近失败与有效重试，删除墓碑仍消耗当日名额；配置页将排期与临时进度分开，重启不再硬编码「未开启」。
+
+失败事务成功后排入本进程最新一次气泡，隐藏、安静、练习和阅读占用时延后；取消不提醒，重启不补弹历史故障。正文保存和失败状态保存的重试文案与内存占位分开，均不重跑网络。本机模型单次传输等待120秒，远端和搜索仍25秒；总图合作截止、所有者取消和真正结束后释放准入保持原有约束。

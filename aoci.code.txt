@@ -1,0 +1,451 @@
+#AOCI-CODE-VOLUME: 1
+
+===D:/Sariana-typing-tracker/typing-tracker/===
+.gitattributes[FC4T]: F:固定 AOCI 正式资产的 Git LF 换行规则 | R:code:aoci.txt | A:aoci*.txt,.aoci/*.json | S:只覆盖认知资产，不改变既有业务源码换行
+.gitignore[FC4T]: F:排除依赖、构建、运行数据、预览及本机 AOCI 宿主配置 | R:- | A:Git ignore patterns | S:内置头像通过显式例外保留入库
+AGENTS.md[SG8S]: F:声明 Sariana 维护边界、接续入口与 AOCI 会话及维护纪律 | R:code:docs/agent.md,code:docs/architecture.md,code:docs/project-state.md | A:任务开始检查;AOCI 认知接续;阶段收尾 | S:用户明确指示优先；未经请求不提交推送发布；不可用扫描或历史摘要冒充完整认知
+CHANGELOG.md[SV5M]: F:记录各版本统计学习桌宠改进及0.9.7来信记忆与可靠性修复 | R:code:app/__init__.py | A:版本记录;兼容与发布说明 | S:占卜仍第三期；同版本重打包不触发更高版本提示
+LICENSE[SG4T]: F:声明项目 MIT 授权及版权与无担保条款 | R:- | A:MIT License | S:再分发须保留版权和许可声明
+README.md[SG7S]: F:介绍Sariana安装、统计训练、桌宠来信记忆和维护构建入口 | R:code:docs/architecture.md,code:docs/agent.md | A:0.9.7下载;源码运行;产品入口;验证构建 | S:沿用TypingTracker数据与安装标识；关窗驻留，真正退出后不排期；占卜未开放
+THEMES.md[SU5T]: F:说明主题包目录、manifest 配色字体、QSS 占位及图表配置 | R:code:app/theme/theme_manager.py | A:manifest.json;theme.qss;charts.json | S:内置主题目录标识保持兼容，界面使用萨莉安娜名称
+main.py[EG9L]: F:装配单实例桌面、输入钩子托盘并协调来信暂停及最终退出保存 | R:code:app/bootstrap/application.py,code:app/ui/updates.py,code:app/ui/main_window.py | A:main;--data-dir;--companion-agent-selfcheck;request_update_install;cleanup | S:沿用TypingTracker目录与app.lock；关窗驻留；更新确认处理未存来信并暂停调度，失败恢复不重跑；真实退出先停桌宠再关命令准入与统计线程
+requirements-release.txt[FV7T]: F:锁定 Python3.13 Windows x64 发布构建依赖版本 | R:code:scripts/build_release.py | A:PySide6;PyInstaller;LangGraph等精确版本 | S:发布环境锁与源码运行下限分离，依赖升级需独立验证
+requirements.txt[FC5T]: F:声明源码运行的 Qt、图表、COM、打包及 LangGraph 依赖范围 | R:- | A:Python package requirements | S:LangGraph限定小于2，不能用无约束升级代替兼容验证
+
+===D:/Sariana-typing-tracker/typing-tracker/.codex/===
+config.toml[FE5T]: F:为当前 Codex 项目注册 AOCI stdio MCP 与临时目录 | R:code:.aoci/config.json | A:mcp_servers.aoci | S:命令及仓库路径绑定本机；不能作为跨机器安装配置提交
+
+===D:/Sariana-typing-tracker/typing-tracker/.github/workflows/===
+regression.yml[OQ7T]: F:在 Windows CI 安装锁定依赖并执行架构、隔离回归与自检 | R:code:scripts/check_architecture.py,code:scripts/selftest.py | A:pull_request;push | S:使用 offscreen 与模拟服务，不证明真实输入法和多屏体验
+windows-release.yml[OV9M]: F:分离工具与源码冻结校验Windows附件，安装升级通过后按条件公开草稿 | R:code:scripts/build_release.py,code:scripts/test_installer.ps1 | A:release.published;workflow_dispatch;build_only;source_ref;tooling_ref | S:source_ref仅完整SHA；build_only不上传；仅发布job获写权限；0.9.7起验0.9.6升级，旧附件先验GitHub摘要，历史补编不降级
+
+===D:/Sariana-typing-tracker/typing-tracker/app/===
+__init__.py[FC5T]: F:定义0.9.7产品版本、品牌标题和陪伴标语 | R:- | A:__version__;APP_NAME;APP_DISPLAY_NAME;APP_TAGLINE | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/bootstrap/===
+__init__.py[AG3T]: F:标识应用依赖装配包的职责边界 | R:- | A:app.bootstrap | S:-
+application.py[AG9M]: F:装配唯一数据库线程、业务命令、来信恢复和提交后读模型刷新 | R:code:app/bootstrap/worker.py,code:app/bootstrap/read_models.py,code:app/workflows/companion_news.py | A:DesktopApplication;RemoteService;news_commands;prepare_update_exit;finish_update_exit | S:连接只在工作线程使用；初始模型前恢复并清理来信，不重放网络；检查点提交成功才确认；更新准备失败保留线程并恢复准入
+features.py[AG8S]: F:为页面装配查询、异步业务Presenter、来信时钟和可选索引能力 | R:code:app/bootstrap/application.py,code:app/integrations/development_index.py | A:DesktopQueries;EnglishPresenter;companion_news_capabilities;development_index_service | S:生产UI不取得DataSession；同步预览不启来信调度；索引包装只请求固定白名单对象
+read_models.py[PD8M]: F:维护线程安全脱离数据库的统计、设置及来信记忆快照 | R:code:app/modules/reporting/api.py,code:app/modules/companion/api.py | A:ReadModels;TABLES;replace;news_snapshot;settings | S:锁内共同捕获设置与任务，返回冻结报告和副本；损坏配置退回可读错误；UI查询不执行SQL
+worker.py[RR8T]: F:用单一应用线程串行执行数据库命令并通过 Future 交付结果 | R:code:app/bootstrap/application.py | A:ApplicationWorker;submit;ready;close | S:连接初始化和清理归同一线程；关闭准入后排空已接收任务，单项失败不终止后续命令
+
+===D:/Sariana-typing-tracker/typing-tracker/app/companion/===
+__init__.py[DB2T]: F:标识旧桌宠运行与作品包兼容命名空间 | R:code:app/modules/companion/api.py | A:app.companion | S:-
+models.py[DB3T]: F:将旧桌宠模型模块身份转发到 companion 实现 | R:code:app/modules/companion/models.py | A:app.companion.models | S:-
+packs.py[DB3T]: F:将旧作品包模块身份转发到 companion 实现 | R:code:app/modules/companion/packs.py | A:app.companion.packs | S:-
+runtime.py[DB3T]: F:将旧桌宠运行时模块身份转发到 companion 实现 | R:code:app/modules/companion/runtime.py | A:app.companion.runtime | S:-
+validation.py[DS3T]: F:将旧作品校验模块身份转发到 companion 实现 | R:code:app/modules/companion/validation.py | A:app.companion.validation | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/core/===
+__init__.py[CG2T]: F:标识跨业务基础规则及历史适配命名空间 | R:- | A:app.core | S:-
+avatars.py[DU4T]: F:定义内置头像稳定标识并将未知配置归一到默认头像 | R:- | A:AVATAR_PRESETS;DEFAULT_AVATAR;normalize_avatar | S:保存标识，不把素材绝对路径写入设置
+challenge.py[DB3T]: F:将旧挑战评分模块身份转发到 practice 领域 | R:code:app/modules/practice/domain.py | A:app.core.challenge | S:-
+classifier.py[KB8T]: F:统一字符分类、汉字权重及文本 tw 和预测速度换算 | R:code:app/modules/tracking/api.py | A:is_hanzi;classify_char;char_tw;text_tw;tw_to_hanzi_per_min | S:汉字默认 2tw，其余单字符 1tw；预测汉字速度固定按 tw 除二，字符计量可读 balance 配置
+engine.py[DB5T]: F:兼容旧 StatsEngine 入口并向 tracking 服务注入可打补丁的双时钟 | R:code:app/modules/tracking/api.py | A:StatsEngine;_LegacyClock | S:历史测试替换此模块时间仍影响服务，不另建统计口径
+keyboard_hook.py[IH9L]: F:组合 Windows 键盘钩子与 IMM/TSF 提交检测，过滤事件并发布计数回调 | R:code:app/core/tsf_hook.py,code:app/core/classifier.py | A:KeyboardHook;ImeCommitTracker;start;stop | S:TSF 中文模式首个拼音字母不能直接计数，否则与提交重复；组字退格不记删除；只发布计数，输入正文不落盘
+keyboard_warrior.py[DB3T]: F:将旧键盘侠会话模块身份转发到 practice 实现 | R:code:app/modules/practice/keyboard_session.py | A:app.core.keyboard_warrior | S:-
+tsf_bind.py[IH8M]: F:声明手写 TSF COM 接口、常量及编辑会话 ABI | R:code:app/core/tsf_hook.py | A:ITfThreadMgr;ITfContext;ITfRange;ITfSource;ITfEditSession | S:方法顺序严格保持 Windows SDK vtable 槽位；未使用接口仍须占位，不可按使用频率重排
+tsf_hook.py[IH9M]: F:在独立 COM STA 线程跟踪焦点和组字范围，读取最终提交文本供即时计数 | R:code:app/core/tsf_bind.py,code:app/core/keyboard_hook.py | A:TsfHook;start;stop;_update_state | S:保留上一组字 range 作为提交锚点；结束文本为空或仍等于拼音快照视为取消；临时文本不作日志或持久存储
+
+===D:/Sariana-typing-tracker/typing-tracker/app/english/===
+__init__.py[DB2T]: F:标识旧英语训练兼容命名空间 | R:code:app/modules/english/api.py | A:app.english | S:-
+ai.py[DB3T]: F:将旧英语 AI 模块身份转发到 english 业务实现 | R:code:app/modules/english/ai.py | A:app.english.ai | S:-
+catalog.py[DB3T]: F:将旧词库模块身份转发到 english 实现 | R:code:app/modules/english/catalog.py | A:app.english.catalog | S:-
+repository.py[PD3T]: F:将旧英语仓储模块身份转发到所属业务实现 | R:code:app/modules/english/repository.py | A:app.english.repository | S:-
+scoring.py[KB3T]: F:将旧英语评分模块身份转发到所属业务实现 | R:code:app/modules/english/scoring.py | A:app.english.scoring | S:-
+service.py[DB3T]: F:将旧英语服务模块身份转发到所属业务实现 | R:code:app/modules/english/service.py | A:app.english.service | S:-
+session.py[DB3T]: F:将旧英语会话模块身份转发到所属业务实现 | R:code:app/modules/english/session.py | A:app.english.session | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/integrations/===
+__init__.py[IG2T]: F:标识模型、搜索、更新与系统能力的外部适配层 | R:- | A:app.integrations | S:-
+development_index.py[ID7S]: F:后台有界读取固定代码入口的本地AOCI语义与源码摘要并提供回退展示 | R:code:app/bootstrap/features.py,code:app/ui/companion/memory_page.py | A:DevelopmentIndexService;snapshot;CodeEntry;CodeIndexSnapshot;CODE_ENTRIES | S:单文件至多2MiB，拒绝越界；仅展示白名单条目，不执行索引路径或命令；匹配也只标治理未核验；冻结无源码仅模块定位
+
+===D:/Sariana-typing-tracker/typing-tracker/app/integrations/ai/===
+__init__.py[IA2T]: F:标识共享模型传输、协议与请求生命周期包 | R:- | A:app.integrations.ai | S:-
+api.py[IA7T]: F:公开模型服务、不可变结果、共享准入及用量能力 | R:code:app/integrations/ai/requests.py,code:app/integrations/ai/service.py | A:AIService;AIResult;GenerationGate;TokenUsage | S:生产页面通过此入口协作，网络与结果生命周期分开结束
+protocol.py[IA8S]: F:根据端点和模型选择思考协议并构造载荷、解析 token 用量 | R:code:app/integrations/ai/response.py | A:ThinkingPolicy;chat_payload;thinking_policy;TokenUsage;usage_text | S:思考预算为 8192；未知用量保留 None，不显示成零；部分推理模型不支持关闭思考
+requests.py[RA8T]: F:定义不可变 AI 结果与共享双阶段生成租约 | R:code:app/integrations/ai/service.py | A:AIResult;GenerationGate;GenerationLease;capture_result | S:网络与结果保存或丢弃都结束才释放；取消不得提前放行仍运行的网络；旧租约不能释放新请求
+response.py[IN7T]: F:读取兼容 JSON 或 SSE 响应，聚合可见正文与用量 | R:code:app/integrations/ai/protocol.py | A:read_chat_response | S:流式缺少完成标记即失败；思考字段只保留存在标志，不保留推理正文
+service.py[IA8M]: F:提供训练模型配置快照、兼容聊天传输、连接测试和范文生成 | R:code:app/integrations/ai/protocol.py,code:app/integrations/ai/response.py | A:AIService;snapshot;test_connection;generate | S:快照复用同一 generation_gate；截断、空正文或只有思考不能当作成功材料；网络调用归后台线程
+
+===D:/Sariana-typing-tracker/typing-tracker/app/integrations/companion_agent/===
+__init__.py[IA3T]: F:公开桌宠独立 LangGraph 网络服务入口 | R:code:app/integrations/companion_agent/service.py | A:CompanionAgentService | S:-
+edge_search.py[IN8M]: F:以隔离无头Edge提取相关搜索DOM和公开正文 | R:code:app/integrations/companion_agent/relevance.py,code:app/integrations/companion_agent/search.py | A:EdgeSearch;browser_dom;SearchDOM;ArticleDOM | S:仅清理自有进程；临时目录占用尽力清理，不覆盖正文或主异常；每次至多两入口五来源，拒绝跑题
+graph.py[AA9M]: F:用有界LangGraph ReAct共用循环执行搜索和兴趣来信并保留终止分类 | R:code:app/integrations/companion_agent/mcp_tools.py,code:app/modules/companion/persona.py | A:run_search;run_news;RunSignal;SearchState | S:来信无真实来源即失败；超时码优先于无来源，上游故障优先预算观察；兴趣仅为user数据；缺证据只修正一次；禁tracing和持久推理，阻塞I/O合作取消
+mcp_tools.py[IN9M]: F:提供进程内MCP工具发现校验、来源台账、缓存及带分类错误观察 | R:code:app/integrations/companion_agent/pages.py,code:app/modules/companion/api.py | A:SearchMcpServer;McpToolClient;web_search;read_webpage | S:只搜索和读取已知编号，无任意URL或外部MCP；来源去重不重编号；重复行动缓存失败；预算观察不覆盖真实搜索故障；取消向外传播
+model.py[IA8S]: F:适配兼容聊天与原生工具轮次并标记模型阶段失败 | R:code:app/integrations/companion_agent/stream.py,code:app/integrations/ai/protocol.py | A:CompanionModel;validate;turn;assistant_message;test_connection | S:仅本机模型I/O120秒，远端25秒；短非思考连接测试不证明工具能力；推理只在本轮续接，本地可免Key
+pages.py[IS8T]: F:校验公开 HTTPS 及重定向并有界读取 HTML 正文节选 | R:code:app/integrations/companion_agent/edge_search.py | A:public_page;PublicRedirect;article_excerpt | S:逐跳拒绝内网；Fake-IP 仅在 HTTPS 代理下允许域名映射；读取失败返回空摘录，取消仍抛出；至多 2500 字
+probe.py[TQ7T]: F:用固定夹具自检真实搜索及来信图、MCP、过滤、排期和解析器 | R:code:app/integrations/companion_agent/graph.py,code:app/modules/companion/news.py | A:selfcheck | S:不联网、不打开用户数据库；成功不证明真实模型、公开搜索或新闻时效
+relevance.py[KA6T]: F:分离话题修饰词并按实体、别名和中文词片保守筛选搜索结果 | R:code:app/integrations/companion_agent/edge_search.py | A:split_query;topic_terms;focused_query;relevance | S:是词面筛选，不证明语义相关或资料真实性
+search.py[IN8M]: F:提供搜索适配、有界HTTP及兼容阶段化AgentError与脱敏传输分类 | R:code:app/modules/companion/api.py | A:WebSearch;AgentError;error_stage;open_response;parse_public_results;endpoint_url | S:取消类型不改写；RSS备用保留传输类别；默认I/O25秒，响应2MB；远端HTTPS且凭据仅配置端点；拒绝DTD和实体
+service.py[IA8S]: F:以独立网络线程为搜索和来信提供共用准入及所有者取消 | R:code:app/integrations/companion_agent/graph.py,code:app/modules/companion/api.py | A:CompanionAgentService;search;news;busy;cancel;close | S:取消后网络真实结束才释放；带ID取消只命中所有者，无参保留兼容；锁内不联网；未知异常固定脱敏
+setup.py[IA7T]: F:异步测试未保存模型和搜索草稿并返回耗时及来源数 | R:code:app/integrations/companion_agent/model.py,code:app/integrations/companion_agent/search.py | A:AgentSetupService;test_model;test_search;cancel;close | S:独立于正式搜索的准入；取消后等待实际结束；检查不保存草稿、不证明工具或思考能力
+stream.py[IN9S]: F:按有限传输预算解析JSON或SSE工具轮次并分离可见正文和私有推理 | R:code:app/modules/companion/api.py,code:app/integrations/companion_agent/search.py | A:VisibleText;read_model_turn;read_model_text | S:跨片思考标签不泄漏；截断或未完成工具不执行；拒绝缺失和重复ID；timeout仅控制阻塞传输，取消在检查点生效
+
+===D:/Sariana-typing-tracker/typing-tracker/app/integrations/updates/===
+__init__.py[IV5T]: F:公开版本检查、校验安装包及更新交接能力 | R:code:app/integrations/updates/service.py | A:UpdateService;VerifiedInstaller;UpdateRateLimited;launch_installer_helper | S:-
+service.py[IV9M]: F:检查 GitHub 正式版本、校验下载安装包并提供受授权的进程安装交接 | R:code:app/ui/updates.py,code:app/bootstrap/application.py | A:UpdateService;parse_release;VerifiedInstaller;installation_kind;InstallerHandoff;run_installer_helper | S:只安装已核对大小与 SHA-256 的可信附件；限流冷却仅限制 API 检查且不自动循环；交接等待主进程结束和授权标记，保持旧安装标识
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/===
+__init__.py[DG2T]: F:声明业务模块包及跨模块通过 api.py 协作的边界 | R:- | A:app.modules | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/companion/===
+__init__.py[DB2T]: F:标识活动、作品和智能体规则所属的桌宠业务模块 | R:code:app/modules/companion/api.py | A:app.modules.companion | S:-
+agent.py[DA8S]: F:定义模型配置、工具轮次、运行限额、可见报告和共用智能体协议 | R:code:app/modules/companion/api.py | A:AgentConfig;AgentReport;AgentTurn;CompanionAgent;AgentBusyError;validate_topic | S:整批捕获配置支持Mapping；凭据repr隐藏；主动话题上限200字；协议思考只在任务内续接；取消可指定请求所有者
+api.py[DB8T]: F:公开桌宠活动智能体、来信记忆事务和错误及只读状态规则 | R:code:app/modules/companion/news_service.py,code:app/modules/companion/failures.py,code:app/modules/companion/news_status.py,code:app/modules/growth/api.py | A:ActivityProvider;AgentConfig;NewsConfig;MemorySnapshot;CompanionNewsService;NewsStatus | S:跨模块经此入口协作；活动仅日期计数及练习来源，不含输入正文；生产UI不取得仓储连接
+models.py[DB6T]: F:定义桌宠状态词表、事件、姿态、频率和安全话术占位 | R:code:app/modules/companion/runtime.py | A:CompanionEvent;Pose;STATES;PLACEHOLDERS;format_line | S:话术替换仅处理字面字段，不求值表达式或属性
+packs.py[PE8M]: F:管理桌宠内置与用户作品、不可变版本及 ZIP 导入导出 | R:code:app/modules/companion/validation.py | A:PackStore;LoadedPack;Sprite;DEFAULT_PACK | S:暂存完整校验后原子切换 current 指针；失败保留旧版本；删除只移除激活指针，内置作品不可删除
+persona.py[DA8T]: F:装配默认陪伴角色、搜索和来信行动及不可信证据约束 | R:code:app/modules/companion/agent.py,code:app/modules/companion/news.py | A:DEFAULT_ROLE;search_system_prompt;news_system_prompt;summary_system_prompt | S:注入当前时间不等于发布日期；网页指令不执行；来信日期与兴趣作为任务数据处理；无来源不以模型记忆冒充搜索
+runtime.py[DB7S]: F:用可注入单调时钟和随机源决定桌宠姿态、事件优先级及互动排期 | R:code:app/modules/companion/models.py | A:Runtime;REACTIONS;react;sample | S:不依赖 Qt、磁盘或键盘；隐藏或练习时暂停自动互动；同反应调整时长不重置开始时间
+validation.py[DS8S]: F:校验作品 JSON、Windows 安全路径、素材体积和图集选区 | R:code:app/modules/companion/models.py | A:safe_path;validate_manifest;image_size;MAX_FILE;MAX_TOTAL | S:拒绝越界及保留名；单文件 10MiB、总量 50MiB、至多100文件；缺失可选姿态回退 idle，idle 损坏则失败
+memory.py[DD7T]: F:提供用户和开发者共用的冻结来信记忆快照及历史过滤 | R:code:app/modules/companion/news.py | A:MemorySnapshot;reports | S:仅完成且有报告并未删除的任务进入历史，按完成时间倒序；网络内存结果不能冒充已保存记录
+news.py[DW8M]: F:定义显式兴趣、冻结来信凭据及本机自然日排期和非凭据指纹 | R:code:app/modules/companion/agent.py | A:NewsConfig;NewsRequest;NewsClaim;NewsTask;due_plan;next_news_at | S:最多5兴趣各40字总200；自动ID按自然日固定，与统计4点日切分离；安静顺延跨日跳过；两小时闭合补做窗；指纹不含Key
+news_codec.py[DS8S]: F:对可见来信及来源执行严格有界JSON序列化和读回验证 | R:code:app/modules/companion/agent.py,code:app/modules/companion/news_service.py | A:encode_report;decode_report;MAX_REPORT_BYTES | S:最多256000字节、正文12000字、1至8来源、UTC时间；拒绝来源凭据和内网字面量，无DNS或请求；不保存私有推理，不静默截断引用
+news_service.py[AR8S]: F:在统一事务中管理来信领取完成、白名单失败、通知删除和恢复 | R:code:app/modules/companion/repository.py,code:app/modules/companion/news_codec.py,code:app/modules/companion/failures.py | A:CompanionNewsService;task_from_row;claim;complete;fail;forget | S:按任务/attempt/run核准所有权；终态唤醒不重放；删除稳定ID留墓碑；坏报告不可通知；失败仅存白名单码
+repository.py[PD8S]: F:建立schema3来信表并实现有界查询、条件更新和历史清理SQL | R:code:app/modules/companion/news_service.py,code:app/storage/unit_of_work.py | A:migrate_news_schema;CompanionRepository;finish_attempt;accept_notice;forget;prune | S:仓储不提交；CAS含ID/attempt/run及running；删除清正文留墓碑；保留今日自动、当前完成项和在途；终态最多100条及30日
+failures.py[DR7T]: F:统一来信阶段类别白名单、异常元数据归一和中文失败说明 | R:code:app/modules/companion/news_service.py,code:app/integrations/companion_agent/search.py | A:FAILURE_CODES;normalize_failure_code;agent_failure_code;failure_message | S:不从异常文字猜类别；未知码回退network，旧network明示历史未细分；不存上游原文
+news_status.py[DU7T]: F:从冻结快照推导排期、运行说明、最近失败和重试资格 | R:code:app/modules/companion/news.py,code:app/modules/companion/failures.py | A:NewsStatus;news_status;retryable_news_task | S:自动重试仅当前自然日；删除墓碑仍占今日名额；已保存总开关决定暂停，草稿不参与
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/english/===
+__init__.py[DB2T]: F:标识词库、作答、复习与造句的英语业务模块 | R:code:app/modules/english/api.py | A:app.modules.english | S:-
+ai.py[DA7T]: F:以词库目标词生成英文句子和中文释义并严格校验结构 | R:code:app/modules/english/catalog.py,code:app/integrations/ai/api.py | A:EnglishAI;validate_sentences | S:1至5个目标词必须完整词形出现；返回1至3句，英文不可混入中文；主题只作不可信练习数据
+api.py[DB7T]: F:公开英语训练、词库、拼写、间隔复习、评分与造句契约 | R:code:app/modules/english/service.py,code:app/modules/english/session.py | A:EnglishService;VocabularyCatalog;SpellingSession;review_plan;sentence_accuracy;EnglishAI | S:句子评分与普通训练逐字评分分离，排期规则使用显式应用日
+catalog.py[DB7T]: F:加载并缓存考试词书，校验清单摘要和词条后抽取练习词 | R:code:config/vocabulary/manifest.json | A:VocabularyCatalog;Word;DECKS;WORD_PATTERN | S:逐书核对 SHA-256、数量和唯一词键；只读内置资源，不读取用户库或联网
+repository.py[PD8S]: F:持久化英语作答、学习进度、造句和复习排期 | R:code:app/modules/english/review.py,code:app/storage/unit_of_work.py | A:EnglishRepository;record_attempt;review_plan;sentence_history;export | S:作答 ID 唯一；重复提交不更新进度或排期；作答与排期在同一 UnitOfWork；只存数值事件和主动材料
+review.py[KW7T]: F:按显式应用日与独立作答结果计算英语间隔排期和到期计划 | R:- | A:INTERVALS;next_schedule;review_plan | S:间隔1/3/7/14/30天；同日不重复晋级；额外练习不缩短未来期限；非独立作答当天待复习
+scoring.py[KB7T]: F:以统一单词规范化和编辑距离计算英语句子准确率及错误对齐 | R:code:app/modules/english/service.py | A:sentence_accuracy;sentence_alignment | S:忽略布局大小写及标点导致的位移；对齐仅临时展示，不持久化答案正文
+service.py[AB8S]: F:编排英语词书练习、成绩排期、造句校验与训练券材料保存 | R:code:app/modules/english/repository.py,code:app/modules/growth/api.py | A:EnglishService;EnglishSaveError;record_attempt;save_generated;record_sentence | S:英语不发普通训练经验；保存失败保留同一事件供重试；生成材料与必要扣券同事务，答案正文不落学习记录
+session.py[DB8S]: F:以准备和确认分离的纯状态机维护英语首测、纠正和轮末复测 | R:code:app/modules/english/catalog.py | A:SpellingSession;SpellingView;prepare;confirm;advance | S:保存前不推进；重试保留原作答 ID；首测错误不被纠正覆盖；每个错词最多追加一次轮末复测
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/growth/===
+__init__.py[DB2T]: F:标识经验、等级、打卡、奖励及资格的成长业务模块 | R:code:app/modules/growth/api.py | A:app.modules.growth | S:-
+access.py[DB6T]: F:按等级、训练券与会话临时开关判断 AI 训练资格 | R:- | A:ai_access_state;AITestSession | S:开发者测试资格仅本次运行，不写等级经验或券；临时解锁仍消耗上游 token
+achievements.py[AB8S]: F:判定成就解锁并在统一事务中发奖和标记领取 | R:code:config/achievements.json,code:app/storage/unit_of_work.py | A:AchievementService;check_all;claim | S:先发奖后标记领取且同事务回滚；已领取再次调用无奖励，避免失败后永久丢奖
+api.py[DB7T]: F:公开成长服务、经验规则、奖励结算及只读查询摘要 | R:code:app/modules/growth/settlement.py,code:app/modules/growth/access.py | A:GrowthSummary;GrowthQueries;RewardLedger;AchievementService;CheckinService | S:摘要只读，发奖资格和库存消费仍须在业务事务内核准
+checkin.py[AB8S]: F:按应用日自动签到或消耗补签卡补昨天，结算连续里程碑 | R:code:app/modules/tracking/api.py,code:app/storage/unit_of_work.py | A:CheckinService;checkin_if_needed;apply_makeup_card | S:补签只准昨天；扣卡、打卡、经验和里程碑同事务；重复签到或重复里程碑不可再次发放
+encourage.py[AB7T]: F:比较前后两个七日速度区间并在样本及冷却合格后发鼓励奖励 | R:code:app/modules/growth/repository.py | A:EncourageService;check | S:经验直接记经验账不放库存；冷却状态与奖励一起提交；样本分钟不足不触发
+experience.py[KB7T]: F:计算等级累计经验、经验反解等级、进度与等级段称号 | R:code:config/balance.json | A:cumulative_cost;level_from_exp;level_and_progress;band_title | S:默认满级100；无限等级保持同一累积公式；1级起点经验为0
+repository.py[PD8S]: F:提供成长经验列、打卡、成就、库存及兼容状态键的 SQL | R:code:app/storage/store.py | A:GrowthRepository;add_exp;use_reward;count_ai_passes;set_state_settings | S:仓储不提交；只改成长列不覆盖统计列；库存按 qty 消费，不能把多数量行一次清空
+rewards.py[AB7T]: F:汇总库存数量和称号，消费道具并维护经验加成到期 | R:code:app/modules/growth/repository.py | A:RewardService;count;titles;activate_exp_boost;use_exp_boost | S:库存按 qty 汇总；消费与到期更新同事务；损坏加成时间视为关闭
+settlement.py[AB9T]: F:按应用日经验高水位及上限结算输入和挑战成长 | R:code:app/storage/unit_of_work.py,code:config/balance.json | A:RewardLedger;typing;challenge | S:加入外层事务，不自行提交；兼容旧设置基线取最大值；千字块高水位不后退，重复检查点不重复发经验
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/practice/===
+__init__.py[DB2T]: F:标识普通竞速与键盘侠训练业务模块 | R:code:app/modules/practice/api.py | A:app.modules.practice | S:-
+api.py[DB7T]: F:公开训练评分、会话、成绩提交和排行榜查询契约 | R:code:app/modules/practice/service.py,code:app/modules/practice/keyboard_session.py | A:PracticeCommands;PracticeQueries;ChallengeService;KeyboardSession | S:写入使用稳定操作 ID；成绩与奖励原子结算后才能在 UI 庆祝
+domain.py[KB8T]: F:提供内置范文及主动训练逐字比较、完成率和加权评分 | R:code:app/modules/tracking/api.py | A:TEXTS;compare;score | S:正确率分母取输入与原文长度最大值，防尾随垃圾刷分；完成率封顶1；与全局删除近似口径不同
+keyboard.py[AB7T]: F:记录已结束键盘侠数值成绩并查询本地排行榜 | R:code:app/modules/practice/repository.py | A:KeyboardWarriorService;record;leaderboard | S:空会话不存，按会话 ID 去重；不存输入正文、不发普通训练奖励
+keyboard_session.py[KB7T]: F:维护固定十五秒的纯字符计数会话及稳定结算结果 | R:code:app/modules/tracking/api.py | A:KeyboardSession;add_text;remaining;result | S:使用单调时钟；结束后忽略输入，提前不能结算；速度为累计 tw 乘四，不存正文
+repository.py[PD7T]: F:提供训练历史、同篇排行榜、AI 材料及键盘侠记录 SQL | R:code:app/storage/store.py | A:PracticeRepository;add_keyboard_warrior;get_challenge_leaderboard;list_ai_texts | S:键盘侠按稳定 ID INSERT OR IGNORE；榜单排除无分或无耗时记录；不自行提交
+service.py[AB8T]: F:在幂等事务内记录普通训练成绩、个人纪录和经验奖励 | R:code:app/modules/growth/api.py,code:app/modules/tracking/api.py | A:ChallengeService;record;best;recent;leaderboard | S:应用日使用配置日切而非自然日；稳定操作 ID 重试返回原结果，避免重复经验
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/profile/===
+__init__.py[DC2T]: F:标识个人配置和头像保存补偿业务 | R:code:app/modules/profile/api.py | A:app.modules.profile | S:-
+api.py[DC7T]: F:公开个人设置只读查询和草稿原子保存契约 | R:code:app/modules/profile/service.py | A:ProfileQueries;ProfileCommands;SettingsService;validate_ai | S:生产 UI 不暴露连接，保存失败保持旧配置及头像
+repository.py[PD6T]: F:读取和批量更新个人设置键值 | R:code:app/storage/store.py | A:ProfileRepository;get_setting;set_settings;settings | S:值按文本存储；仓储不 commit，调用方统一事务决定提交
+service.py[AC8T]: F:校验设置草稿及头像预设，协调配置提交与头像文件补偿 | R:code:app/modules/profile/repository.py,code:app/core/avatars.py | A:SettingsService;save;validate_ai | S:先保留旧头像再替换，数据库保存失败恢复原文件；切回预设保留旧上传文件
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/reporting/===
+__init__.py[DA2T]: F:标识只读报表与查询缓存业务模块 | R:code:app/modules/reporting/api.py | A:app.modules.reporting | S:-
+api.py[CP6T]: F:提供有界进程内 LRU 查询缓存并隔离返回值 | R:- | A:QueryCache;get;clear | S:返回深拷贝，页面修改不能污染缓存；统计版本改变由装配层清空
+repository.py[PD6T]: F:查询日报范围、热力图、小时分布及有效分钟样本 | R:code:app/storage/store.py | A:ReportingRepository;get_daily_range;get_heatmap;get_hourly_stats;get_minute_quality | S:只读统计，不发奖励；区间均速按总 tw 除总活跃分钟，未知分母返回空值
+
+===D:/Sariana-typing-tracker/typing-tracker/app/modules/tracking/===
+__init__.py[DB2T]: F:标识输入统计、应用日和检查点模块 | R:code:app/modules/tracking/api.py | A:app.modules.tracking | S:-
+api.py[DB8T]: F:公开统计时钟、日历、快照、检查点和服务及统一 tw 计量 | R:code:app/modules/tracking/domain.py,code:app/core/classifier.py | A:Clock;AppCalendar;TrackingCounter;TrackingSnapshot;Checkpoint;TrackingService | S:快照与检查点只含数值，无被动输入正文
+application.py[AB7T]: F:从持久统计恢复计数器并为工具或测试装配同步检查点写入 | R:code:app/modules/tracking/domain.py,code:app/workflows/checkpoint.py | A:TrackingService;update_day_start | S:桌面生产装配会移除同步保存能力，改由 ApplicationWorker；恢复分钟和版本防止重启重复累计
+clock.py[CW8T]: F:定义可注入双时钟与按日切小时计算的应用日历 | R:- | A:Clock;SystemClock;AppCalendar | S:墙上时间仅决定日期，持续时长用单调时钟；默认凌晨4点，小时须为0至23
+domain.py[DB9S]: F:以锁保护输入计数、日切、不可变快照和待提交检查点 | R:code:app/modules/tracking/clock.py,code:app/core/classifier.py | A:TrackingCounter;TrackingSnapshot;Checkpoint;prepare_checkpoint;acknowledge | S:提交前不清脏数据；确认只清所提交版本，新输入保留；日切不丢旧日未保存分钟；不持有 Qt、网络或 SQL
+repository.py[PD8T]: F:读写统计拥有的终身数值、日报和日期分钟快照 | R:code:app/storage/store.py | A:TrackingRepository;upsert_lifetime;upsert_daily;upsert_minutes;clean_minute_stats | S:更新统计列不覆盖 total_exp 或 exp_gained；同分钟以累计快照覆盖，仓储不提交
+
+===D:/Sariana-typing-tracker/typing-tracker/app/services/===
+__init__.py[AG2T]: F:保留旧服务导入命名空间供兼容工具使用 | R:- | A:app.services | S:-
+achievement_service.py[DB3T]: F:通过成长公共入口兼容旧成就服务导入 | R:code:app/modules/growth/api.py | A:app.services.achievement_service | S:-
+ai_access.py[DB3T]: F:兼容旧临时 AI 测试资格导入 | R:code:app/modules/growth/access.py | A:AITestSession | S:-
+ai_protocol.py[IA3T]: F:将旧 AI 协议模块身份转发到集成层 | R:code:app/integrations/ai/protocol.py | A:app.services.ai_protocol | S:-
+ai_response.py[IN3T]: F:将旧响应解析模块身份转发到集成层 | R:code:app/integrations/ai/response.py | A:app.services.ai_response | S:-
+ai_service.py[IA3T]: F:将旧模型服务模块身份转发到集成层 | R:code:app/integrations/ai/service.py | A:app.services.ai_service | S:-
+challenge_service.py[DB3T]: F:通过训练公共入口兼容旧挑战服务导入 | R:code:app/modules/practice/api.py | A:app.services.challenge_service | S:-
+checkin_service.py[DB3T]: F:通过成长公共入口兼容旧打卡服务导入 | R:code:app/modules/growth/api.py | A:app.services.checkin_service | S:-
+encourage_service.py[DB3T]: F:通过成长公共入口兼容旧鼓励服务导入 | R:code:app/modules/growth/api.py | A:app.services.encourage_service | S:-
+exp_service.py[KB3T]: F:通过成长公共入口兼容旧经验规则导入 | R:code:app/modules/growth/api.py | A:app.services.exp_service | S:-
+export_service.py[AD3T]: F:兼容旧导出入口并转发跨模块导出流程 | R:code:app/workflows/export.py | A:export_all | S:-
+keyboard_warrior_service.py[DB3T]: F:通过训练公共入口兼容旧键盘侠服务导入 | R:code:app/modules/practice/api.py | A:app.services.keyboard_warrior_service | S:-
+reward_service.py[DB3T]: F:通过成长公共入口兼容旧道具服务导入 | R:code:app/modules/growth/api.py | A:app.services.reward_service | S:-
+settings_service.py[DC3T]: F:通过个人配置公共入口兼容旧设置服务导入 | R:code:app/modules/profile/api.py | A:app.services.settings_service | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/storage/===
+__init__.py[PD2T]: F:标识 SQLite 连接、迁移、工作单元及内部仓储层 | R:- | A:app.storage | S:-
+db.py[PR9S]: F:配置SQLite连接并以旧库备份和原子增量迁移升级至schema3 | R:code:app/storage/schema.sql,code:app/modules/companion/repository.py,code:app/modules/english/repository.py | A:connect_db;init_schema;SCHEMA_VERSION | S:Backup API保留升级前库；事务内逐语句DDL避免executescript隐式提交；过新版本拒绝打开；迁移失败回滚；保留WAL/FULL与旧数据目录
+schema.sql[FD8T]: F:定义兼容历史的基础统计、经验、打卡、成就、库存、设置与训练表 | R:code:app/storage/db.py | A:daily_stats;minute_stats;lifetime;checkin_log;rewards;settings | S:后续已安装用户依赖增量迁移，不能只改基础 schema；终身只存总量，日均速和正确率不汇入 lifetime
+session.py[AD9T]: F:为工作线程装配共享连接的模块仓储、统一事务和幂等写操作 | R:code:app/storage/unit_of_work.py,code:app/modules/companion/repository.py | A:DataSession;companion;transaction;operation;set_settings | S:生产UI不持有会话；成长状态键和profile设置按归属路由；仓储共享同一提交边界，来信不经旧动态仓储转发
+store.py[PD5T]: F:为业务仓储保存外部装配的 SQLite 连接 | R:code:app/storage/session.py | A:Store | S:不含业务规则、提交或连接生命周期管理
+unit_of_work.py[PR9T]: F:协调最外层提交、嵌套保存点、稳定操作结果和提交后通知 | R:code:app/workflows/events.py | A:UnitOfWork;transaction;operation;changed;transactional | S:嵌套只释放保存点不 commit；失败回滚数据及待发通知；成功结果按 kind/operation_id 跨重启重放；只有外层提交后发布
+
+===D:/Sariana-typing-tracker/typing-tracker/app/theme/===
+__init__.py[FC2T]: F:标识主题颜色、字体及 Qt 样式加载包 | R:- | A:app.theme | S:-
+theme_manager.py[AU8M]: F:扫描、导入、应用与删除主题并替换 QSS 变量和图表配色 | R:code:app/theme/themes/arknights_endfield_lino/manifest.json | A:ThemeManager;DEFAULT_THEME_ID;import_theme;delete_theme | S:内置主题不可删；保留旧目录标识以兼容设置；未知变量替换空串，导入逐条拒绝越界路径
+
+===D:/Sariana-typing-tracker/typing-tracker/app/theme/themes/arknights_endfield_lino/===
+charts.json[FU4T]: F:配置内置主题图表背景、网格、曲线与热力图阶梯色 | R:code:app/theme/theme_manager.py | A:background;grid;speed;acc;chars;levels;empty | S:-
+manifest.json[FU6T]: F:声明内置萨莉安娜主题元信息、颜色字体和动效资源 | R:code:app/theme/theme_manager.py | A:id;name;colors;fonts;effects | S:目录 ID 保留 arknights_endfield_lino 兼容历史设置，产品名称使用萨莉安娜
+theme.qss[FU5T]: F:为内置夜色手稿主题配置 Widgets 状态、输入框及滚动条样式 | R:code:app/theme/theme_manager.py | A:Qt stylesheet;colors.* placeholders | S:颜色由主题变量替换，透明主窗与独立对话框底色分别处理
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/===
+__init__.py[AU2T]: F:标识通过 Presenter 和异步能力协作的 PySide6 展示层 | R:- | A:app.ui | S:-
+dashboard.py[AU7L]: F:展示今日内存统计、等级、连签、采集状态和逐分钟曲线 | R:code:app/ui/widgets/design.py,code:app/core/classifier.py | A:Dashboard;refresh;set_hook_info;set_persistence_status | S:只读快照，不改经验和日切；紧凑布局通过内部滚动保留内容，不缩文字掩盖裁切
+main_window.py[AU9L]: F:装配主导航、业务页面、桌宠、刷新和提交后 Qt 事件接收 | R:code:app/bootstrap/application.py,code:app/ui/companion/controller.py,code:app/ui/updates.py | A:MainWindow;ApplicationEvents;closeEvent | S:关窗隐藏驻留而非退出；后台事件只经排队信号访问 UI；隐藏停装饰，保持后台统计
+palette.py[FU7S]: F:从主题派生统一画布、纸张、文字、边线及状态颜色 | R:code:app/theme/theme_manager.py | A:P;mix;主题调色更新 | S:纸张语义色与深画布文字分开，避免主题切换后低对比；页面不另造硬编码色表
+presenters.py[AU8T]: F:提供只读查询转发和训练提交展示状态机 | R:code:app/modules/practice/api.py | A:PracticePresenter;PracticeState;QueryPresenter | S:首次完成冻结操作 ID 和结果；失败保留供重试，确认保存才进入 COMPLETED
+settings_dialog.py[AU8L]: F:组合六组设置草稿、主题预览、模型连接测试与异步保存 | R:code:app/bootstrap/features.py,code:app/ui/updates.py | A:SettingsDialog;accept;reject | S:取消恢复原主题；主题删除及最终应用在配置成功后处理；保存失败保留草稿，连接测试不落库
+tasks.py[RU9T]: F:将 Future 安全送回 Qt 接收线程并封装共享网络租约生命周期 | R:code:app/integrations/ai/api.py | A:TaskBridge;begin_network;finish_network_result;cancel_network | S:不在 UI 等未完成 Future；后台只发排队信号；取消先作废结果，网络与结果均结束才释放
+tray.py[AU6T]: F:展示后台驻留摘要并提供桌宠、来信及配置快捷菜单 | R:code:app/ui/assets/app_icon.py | A:TrayIcon;show_requested;settings_requested;quit_requested;bind_companion | S:菜单只转交控制器能力，不访问数据库；来信入口只阅读或打开配置
+updates.py[AU8M]: F:异步检查下载更新并协调学习来信未存结果及退出保存 | R:code:app/integrations/updates/__init__.py,code:app/ui/tasks.py | A:UpdateController;UpdateExitCoordinator;UpdatesWidget;update_exit_status;discard_learning_for_update | S:包含来信领取/保存门禁和待存结果；明确放弃后才丢弃；准备失败恢复原应用准入；检查连点只受理一项；手动版本页不受API冷却
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/===
+__init__.py[FU2T]: F:标识程序图标、主题素材与资源路径包 | R:- | A:app.ui.assets | S:-
+achievement-map.json[FU5M]: F:将37项成就映射到分类图形与锁定、解锁、领取状态素材 | R:code:config/achievements.json | A:items;states;config_sha256;fallback | S:只覆盖 UI 图案，不改成就配置原 emoji 或奖励；缺失时回退 config.icon
+app_icon.py[AU6S]: F:加载交付应用图标或回退 QPainter 绘制并导出多尺寸 ICO | R:code:app/ui/assets/app_icon.png | A:draw_app_icon;save_ico;SIZES | S:窗口托盘和打包使用同一来源优先级；ICO 内嵌各尺寸 PNG，原始大图不入发布
+icons.py[AU6T]: F:按主题颜色和尺寸绘制并缓存 SVG 线性图标 | R:- | A:icon;pixmap;_SVG | S:缓存键包含颜色和尺寸；桌宠三个入口有透明填充几何图形
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/achievements/===
+chars-claimed.svg[FU3T]: F:绘制字数成就已领取的书本、星形与勾选徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+chars-locked.svg[FU3T]: F:绘制字数成就锁定的淡色书本与锁徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+chars-unlocked.svg[FU3T]: F:绘制字数成就已解锁待领取的书本星形图案 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+min_acc-claimed.svg[FU3T]: F:绘制分钟准确率成就已领取的靶心与勾选徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+min_acc-locked.svg[FU3T]: F:绘制分钟准确率成就锁定的淡色靶心与锁徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+min_acc-unlocked.svg[FU3T]: F:绘制分钟准确率成就已解锁的靶心箭头 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+speed-claimed.svg[FU3T]: F:绘制速度成就已领取的键盘闪电与勾选徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+speed-locked.svg[FU3T]: F:绘制速度成就锁定的淡色键盘闪电与锁徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+speed-unlocked.svg[FU3T]: F:绘制速度成就已解锁的键盘与闪电徽图 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+total_acc-claimed.svg[FU3T]: F:绘制整体准确率成就已领取的盾牌与勾选徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+total_acc-locked.svg[FU3T]: F:绘制整体准确率成就锁定的淡色盾牌和锁徽章 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+total_acc-unlocked.svg[FU3T]: F:绘制整体准确率成就已解锁的盾牌勾选图形 | R:code:app/ui/assets/achievement-map.json | A:96x96 SVG | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/companion/slacker/===
+manifest.json[FU5M]: F:声明摸鱼搭子作品状态图集、话术和互动素材 | R:code:app/modules/companion/validation.py | A:schema_version=1;id=slacker;states;memes | S:图集矩形为该作品专属坐标，替换图集须同步校验选区
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/companion/starlight/===
+manifest.json[FU5M]: F:声明默认星光陪伴作品状态图集、话术和互动素材 | R:code:app/modules/companion/validation.py | A:schema_version=1;id=starlight;states;memes | S:默认作品与损坏作品回退依赖此标识，图集坐标须匹配资产
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/companion/tsundere/===
+manifest.json[FU5M]: F:声明傲娇监督作品状态图集、话术和互动素材 | R:code:app/modules/companion/validation.py | A:schema_version=1;id=tsundere;states;memes | S:话术仅允许白名单占位符，图集矩形须随素材一同维护
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/decorations/===
+bow-rose.svg[FU2T]: F:绘制珊瑚玫瑰配紫色飘带的蝴蝶结装饰 | R:- | A:96x96 SVG | S:-
+bow-violet.svg[FU2T]: F:绘制紫色配珊瑚飘带的蝴蝶结装饰 | R:- | A:96x96 SVG | S:-
+note-corner-star.svg[FU2T]: F:绘制奶油折角便签与金色星形装饰 | R:- | A:96x96 SVG | S:-
+note-corner.svg[FU2T]: F:绘制带紫色折角和文字横线的便签装饰 | R:- | A:96x96 SVG | S:-
+star-gold.svg[FU2T]: F:绘制金色四角星与珊瑚光线装饰 | R:- | A:96x96 SVG | S:-
+star-outline.svg[FU2T]: F:绘制奶油色描边五角星及紫色十字装饰 | R:- | A:96x96 SVG | S:-
+tape-rose.svg[FU2T]: F:绘制半透明珊瑚斜纹手账胶带 | R:- | A:96x96 SVG | S:-
+tape-violet.svg[FU2T]: F:绘制半透明紫色圆点手账胶带 | R:- | A:96x96 SVG | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/lettering/===
+ai.svg[FU3T]: F:提供把灵感敲成星光的 AI 页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+growth.svg[FU3T]: F:提供小小坚持大大成长的成长页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+settings.svg[FU3T]: F:提供把习惯调成喜欢的样子的设置页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+stats.svg[FU3T]: F:提供把进步慢慢看清的统计页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+today.svg[FU3T]: F:提供今天的每一次敲击的今日页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+training.svg[FU3T]: F:提供今天也要闪闪发光的训练页面矢量标题 | R:- | A:650x220 SVG lettering | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/nav/===
+chevron-ink.svg[FU2T]: F:绘制墨色向下折线供组合框等导航使用 | R:- | A:16x16 SVG | S:-
+english.svg[FU3T]: F:绘制带字母、横线与星形的英语书本导航图标 | R:- | A:96x96 SVG | S:-
+growth.svg[FU3T]: F:绘制带星形和飘带的成长奖杯导航图标 | R:- | A:96x96 SVG | S:-
+settings.svg[FU3T]: F:绘制紫色齿轮与星形的设置导航图标 | R:- | A:96x96 SVG | S:-
+stats.svg[FU3T]: F:绘制柱状图与星形的统计导航图标 | R:- | A:96x96 SVG | S:-
+today.svg[FU3T]: F:绘制房屋和星形的今日概览导航图标 | R:- | A:96x96 SVG | S:-
+training.svg[FU3T]: F:绘制字母练习卡与星形的训练导航图标 | R:- | A:96x96 SVG | S:-
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/assets/sariana/===
+hair-strands-v1.svg[FU4T]: F:提供插画细发丝路径及摆幅、周期、相位动效参数 | R:code:app/ui/assets/sariana/idle.json | A:1487x1058 SVG;data-sway;data-period;data-phase | S:坐标绑定对应原画尺寸，替换图片须同步校验
+idle.json[FU5T]: F:绑定 Sariana 原画摘要、眼部区域与发丝动效资源 | R:code:app/ui/assets/sariana/hair-strands-v1.svg | A:source_sha256;source_size;closed_eyes;eyes;hair_svg | S:眼部中心及角度仅适用于所声明原画，资源替换不能复用旧定位
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/companion/===
+__init__.py[AU2T]: F:标识桌宠展示、宿主切换与作品工坊组件 | R:- | A:app.ui.companion | S:-
+agent_controller.py[AU8M]: F:协调搜索与来信共用轮盘、阅读浮层、进度及桌宠反馈 | R:code:app/ui/companion/news_controller.py,code:app/bootstrap/features.py | A:CompanionAgentController;search;open_news;show_news_task;sync_news_memory;shutdown | S:搜索结果仅内存，来信从已提交快照读取；展示报告与最近搜索分离；旧搜索取消只命中所属ID；删除提交后清阅读浮层；隐藏不自动重弹
+agent_controls.py[AU6S]: F:绘制有原生焦点语义的轮盘按钮和真实搜索阶段指示器 | R:code:app/ui/companion/agent_visuals.py | A:OrbitButton;AgentJourney | S:隐藏停止脉冲，减弱动态关闭悬停动效；阶段不展示虚构进度百分比
+agent_settings.py[AU8L]: F:组合模型搜索草稿、来信排期与记忆并协调异步测试和保存 | R:code:app/ui/companion/news_settings.py,code:app/ui/companion/memory_page.py,code:app/ui/tasks.py | A:AgentSettingsDialog;values;save_config;test_model;test_search | S:排期传已保存总开关；区分正文与失败状态保存重试；测试不保存草稿；失败重试稳定ID；子记忆保存阻止旧配置覆盖；提交后关闭
+agent_settings_art.py[AU5S]: F:绘制配置页切角纸张、章节几何和桌宠徽章装饰 | R:code:app/ui/companion/agent_visuals.py | A:SettingsSheet;SettingsSection;SettingsEmblem;paint_workspace | S:装饰无鼠标命中、额外计时或网络副作用
+agent_visuals.py[AU6S]: F:集中定义搜索、来信、记忆章节配色及非对称纸张气泡 | R:code:app/ui/palette.py | A:AgentColors;colors;settings_colors;agent_style;AgentBubble | S:深浅判断按纸张角色，四章节及原生时间/列表/标签页统一底色；输入与报告共用轮廓及尾巴
+agent_widgets.py[AU8M]: F:实现可复用话题输入、搜索来信轮盘、滚动短卡和来源详情 | R:code:app/ui/companion/agent_controls.py,code:app/ui/companion/agent_visuals.py | A:AgentActions;news_requested;AgentInputDialog;AgentDialogueCard;AgentReportDialog | S:占卜禁用；轮盘中心透明命中保留桌宠互动；正文转义且链接仅当前来源白名单；流式不重置用户阅读位置
+artwork.py[AU4T]: F:从桌宠验证素材生成有界缓存的静态缩略图 | R:- | A:sprite_icon | S:缓存最多40项，裁切后等比缩放到144像素
+controller.py[AU8M]: F:管理同一桌宠的显示模式、作品、公共活动和智能体设置联动 | R:code:app/modules/companion/api.py,code:app/ui/companion/agent_controller.py | A:CompanionController;start;sync_settings;switch_mode;shutdown | S:两种宿主复用视图；来信设置只同步已提交模型；智能体反馈让位练习和奖励；退出停止视觉及网络接收并断开屏幕信号
+desktop.py[AU5T]: F:用 Qt 逻辑坐标获取可用屏幕并限制桌宠和浮层位置 | R:- | A:available_screens;clamp_position | S:兼容负坐标和屏幕移除，目标屏不可用回退主屏
+editor.py[AU6M]: F:编辑工坊内存草稿中的状态、话术、持续时间和表情 | R:code:app/modules/companion/api.py | A:StateEditor;changed;replace_requested | S:不直接写文件或统计；内置作品不可编辑，表情最多20项
+motion.py[KU5S]: F:采样平滑姿态、拖动倾斜和落地回弹的纯动效帧 | R:- | A:MotionFrame;CharacterMotion | S:不创建计时器、不移动屏幕窗口、不发布业务事件；使用可注入单调时钟
+preview.py[AU5S]: F:复用桌宠视图预览作品草稿与模拟反应 | R:code:app/ui/companion/view.py | A:StudioCharacter;CreationPreview;simulate | S:预览禁拖动，模拟事件不进入业务奖励；隐藏停止动效
+settings.py[AU5T]: F:在普通设置页编辑桌宠开关、模式、频率、尺寸与气泡草稿 | R:- | A:CompanionSettings;values;workshop_requested | S:只返回待提交字典，外层统一保存后再打开工坊
+view.py[AU7M]: F:绘制同一透明桌宠、气泡和 GIF 并以信号发布点击拖动 | R:code:app/ui/companion/motion.py | A:CompanionView;set_content;set_motion_enabled;shutdown | S:隐藏停止动画和 GIF、释放拖动状态；透明命中遮罩保留宿主交互；不自行写业务记录
+workshop.py[AU7L]: F:提供离线作品图库、草稿编辑、预览、保存应用及 ZIP 共享 | R:code:app/ui/companion/editor.py,code:app/ui/companion/preview.py | A:Workshop;save_draft;refresh_gallery;reject | S:保存与应用分开，关闭先处理未保存草稿；退出清理自有临时目录，不改变真实统计
+memory_page.py[AU8M]: F:用同一冻结记录提供普通记忆阅读与开发者来源结构代码视角 | R:code:app/ui/companion/memory_presenter.py,code:app/ui/tasks.py | A:MemoryPage;refresh;forget_selected;save_interests;report_requested | S:两页按同一task_id选中；外部文字纯文本；删除确认失败不移除，重试沿用操作ID；兴趣保存共享外层门禁；仅打开已核准的固定代码路径
+memory_presenter.py[AU7T]: F:为记忆双视角提供只读快照及兴趣修改和删除的异步能力 | R:code:app/modules/companion/api.py | A:MemoryPresenter;snapshot;forget;save_interests | S:只从已提交读模型取记忆；清空兴趣同时关闭排期，非空修改保留已提交开关；操作ID由调用方保持
+news_controller.py[AW8L]: F:在Qt协调来信排期领取、共用网络、保存和提交后成功或失败反馈 | R:code:app/modules/companion/api.py,code:app/ui/tasks.py,code:app/ui/companion/agent_controller.py | A:CompanionNewsController;tick;run_now;retry;retry_save;pause | S:30秒合并唤醒无到期不写库；失败提交后仅本进程最新气泡，隐藏安静练习阅读延后；取消不提醒；历史不补弹；保存只重试DB；更新恢复不重跑网络
+news_settings.py[AU7S]: F:编辑兴趣时间安静草稿并分别展示保存排期、进度和最近失败 | R:code:app/modules/companion/api.py,code:app/ui/companion/agent_settings_art.py | A:NewsSettingsPanel;values;set_snapshot;run_requested;retry_requested;memory_requested | S:以保存总开关计算状态，刷新不覆盖草稿；过期自动任务不提供重试；现在准备仅用已保存配置
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/english/===
+__init__.py[AU2T]: F:标识英语页面及其展示组件 | R:- | A:app.ui.english | S:-
+library.py[AU5T]: F:展示英语词书选择、每轮数量和到期学习概览 | R:code:app/modules/english/api.py | A:LibraryPanel;deck_changed;set_type | S:查询来自脱离数据库的摘要，无尝试准确率显示未知
+page.py[AU8L]: F:组合英语学习组件并协调造句、成绩、材料和字号的异步保存 | R:code:app/bootstrap/features.py,code:app/ui/english/requests.py | A:EnglishPage;result_saved;update_exit_status;discard_for_update | S:提交成功才推进庆祝；保存期间不允许更新退出丢弃；未保存材料保留供重试，页面取消不接收迟到生成
+requests.py[AU7T]: F:捕获英语造句配置和输入，以稳定 ID 启动可失效网络请求 | R:code:app/modules/english/api.py,code:app/ui/tasks.py | A:SentenceRequest;start;cancel;done | S:只启动一次；取消作废结果，网络结束前继续持有共享准入；后台不读 SQL
+sentences.py[AU6M]: F:展示主动造句材料、词语目标、跟打输入和错误对齐 | R:code:app/ui/widgets/training_workspace.py,code:app/ui/english/typography.py | A:SentencePanel;generate_requested;finish_requested;retry_requested | S:网络判分和保存由页面服务处理；显示文字和对齐经过转义
+spelling.py[AU6S]: F:展示英语拼写题目、答案、纠正反馈和提示操作 | R:code:app/ui/english/typography.py | A:SpellingPanel;submit_requested;hint_requested;reveal_requested | S:通过语义信号请求动作，不把辅助输入伪装成独立首测正确
+typography.py[FU5T]: F:提供英语学习专属三档不可变逻辑像素字号 | R:- | A:EnglishType;SIZES;english_type | S:未知档回退 large，紧凑窗口不缩文字
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/pages/===
+__init__.py[AU2T]: F:标识主窗口业务页面包 | R:- | A:app.ui.pages | S:-
+achievements.py[AU7L]: F:按分类及真实解锁领取状态展示成就墙和异步领取操作 | R:code:app/ui/assets/achievement-map.json,code:app/modules/growth/api.py | A:AchievementsPage;成就领取与刷新 | S:状态由服务返回，不从素材推算；资源缺失回退配置图标；提交成功才刷新奖励反馈
+challenge.py[AU8L]: F:协调范文对照输入、逐字评分、模型材料和异步成绩提交 | R:code:app/ui/presenters.py,code:app/modules/practice/api.py,code:app/ui/tasks.py | A:ChallengePage;训练开始结算与保存重试 | S:保存重试保留稳定结果和操作 ID；生成取消不接迟到结果；挑战输入仍计入全局统计，评分口径分离
+checkin.py[AU7L]: F:展示连签、七日条带、月历、里程碑和库存并提交打卡道具动作 | R:code:app/modules/growth/api.py,code:app/ui/tasks.py | A:CheckinPage;打卡与补签操作 | S:UI 不写 SQL；保存期间防重复动作；紧凑布局通过换行和滚动保留文字
+profile.py[AU6L]: F:展示个人头像昵称、称号、成长摘要和终身统计 | R:code:app/ui/presenters.py,code:app/ui/widgets/avatar.py | A:ProfilePage;个人摘要与称号选择 | S:上传头像优先于预设；设置写入走异步能力，统计均读取模型
+reports.py[AU6L]: F:用日分钟只读快照绘制趋势、打卡热力图、时段分布与周月报 | R:code:app/ui/presenters.py,code:app/ui/widgets/design.py | A:ReportsPage;refresh;apply_chart_palette | S:保持真实刻度单位和缺数据状态；主题切换重绘并保留纸面可读性；不直接查询数据库
+
+===D:/Sariana-typing-tracker/typing-tracker/app/ui/widgets/===
+__init__.py[AU2T]: F:标识可复用 Qt 布局、输入、绘制与动效控件 | R:- | A:app.ui.widgets | S:-
+ai_connection.py[AU6T]: F:以配置快照和独立守护线程执行短模型连接测试 | R:code:app/integrations/ai/api.py | A:ConnectionTest;start;done | S:后台不操作控件；弹窗销毁时忽略回传，意外异常用固定提示
+ai_passage_composer.py[AU6M]: F:组合 AI 范文主题、语言长度、状态和 token 用量的纸张工作区 | R:code:app/ui/widgets/ai_usage.py,code:app/ui/widgets/responsive.py | A:AI 范文输入与生成信号 | S:资格判断和真实生成由页面服务处理，控件不扣券或写数据库
+ai_thinking_controls.py[AU6T]: F:编辑模型思考开关和协议草稿并展示临时测试资格 | R:code:app/integrations/ai/protocol.py | A:AIThinkingControls;test_mode_changed;apply_theme | S:测试彩蛋只影响当前运行资格，不持久化，也不免除上游 token
+ai_usage.py[AU5T]: F:显示本次真实模型 token 用量和未返回状态 | R:code:app/integrations/ai/protocol.py | A:TokenUsageLabel;begin_request;set_usage | S:新请求先清旧用量；思考 token 已含输出，不再次加入总计
+avatar.py[AU5M]: F:解析展示 Sariana 肖像和头像预设选择 | R:code:app/core/avatars.py | A:AvatarPortrait;AvatarPicker | S:仅显示和发选择信号，不自行保存；未知标识归默认预设
+chaos.py[AU7S]: F:提供可取消的短篇荒诞 AI 生成请求与展示 | R:code:app/ui/tasks.py | A:ChaosRequest;混乱生成面板 | S:隐藏作废当前结果且保留实际用量；复用共享租约，后台不读库
+character_motion.py[AU6S]: F:按资源摘要与局部坐标组合眨眼和发丝待机动画 | R:code:app/ui/widgets/hand_drawn_hair.py,code:app/ui/assets/sariana/idle.json | A:角色局部动效时间线和绘制层 | S:单一视觉计时器；资源不匹配保留静态图，不改变业务状态
+checkin_popup.py[AU6M]: F:在已提交签到后展示连签数字、里程碑和短暂粒子反馈 | R:code:app/ui/palette.py | A:CheckinPopup;set_motion_enabled | S:隐藏停止全部视觉计时器；视觉展示不能作为打卡提交依据
+confetti.py[AU5T]: F:绘制有限时长分数档位庆祝粒子 | R:- | A:彩带粒子触发和绘制 | S:仅视觉反馈，不发奖励或修改分数
+design.py[AU7L]: F:集中定义纸张视觉角色、艺术标题、字段、折叠区和页面骨架 | R:code:app/ui/palette.py | A:PaperPage;PaperSurface;ArtHeading;Disclosure;Panel;apply_styles | S:共享尺寸和配色由此取用；页面紧凑布局不另造字号；文本及表单仍保留原生控件语义
+hand_drawn_hair.py[AU5T]: F:解析手绘 SVG 发丝并只弯曲控制点实现轻微摆动 | R:code:app/ui/assets/sariana/hair-strands-v1.svg | A:SketchStrand;SvgHairLayer | S:发根固定，渲染失败保留静态原图；绘制保存恢复 painter 状态
+keyboard_warrior.py[AU7M]: F:管理十五秒主动输入、倒计时、异步成绩保存和排行榜 | R:code:app/modules/practice/api.py,code:app/ui/widgets/training_workspace.py | A:KeyboardInput;键盘侠面板 | S:仅真实修改文档的普通或 IME 上屏计数，禁粘贴；隐藏取消活动会话但保留待保存结果
+level_bar.py[AU5S]: F:绘制等级进度填充、分段和星光装饰 | R:- | A:LevelBar | S:只读经验进度，动画不代表奖励提交；减弱动态保持稳定终态
+motion.py[AU5T]: F:提供可中断有限数值过渡和轻量星形反馈层 | R:code:app/ui/widgets/scrapbook.py | A:MotionValue;FeedbackSpark | S:关闭动效落在目标终态，不改变控件几何或执行提交
+navigation.py[AU6M]: F:绘制停靠导航图标、选中反馈和只读用户摘要布局 | R:code:app/ui/widgets/responsive.py | A:导航按钮、导航条与底座 | S:不处理页面业务；选中态由文字图形与下划线共同表达，动效遵守减弱设置
+personal_settings.py[AU5T]: F:编辑昵称签名和头像选择的个人资料草稿 | R:code:app/ui/widgets/avatar.py | A:PersonalSettingsPanel;upload_requested;clear_requested | S:本控件不保存，统一提交由外层设置对话框处理
+practice_leaderboard.py[AU5T]: F:用只读表格展示同篇已提交训练的排名、成绩和口径 | R:- | A:PracticeLeaderboard;set_records | S:排名与速度由服务传入，空状态不伪造记录
+profile_hero.py[AU4T]: F:组合资料页头像、昵称、签名及身份摘要头图 | R:code:app/ui/widgets/avatar.py | A:ProfileHero | S:只展示真实资料，不写设置或成绩
+responsive.py[KU6S]: F:统一计算窗口、页面和导航的逻辑像素布局策略 | R:- | A:StageLayout;NavigationLayout;bounded;FIXED_WINDOW_SIZE | S:仅计算不改 QWidget；生产主窗口基准1440x1024，紧凑布局连续插值避免断点跳变
+scrapbook.py[AU4T]: F:绘制带错位衬纸、胶带与星轨的手账容器 | R:code:app/ui/palette.py | A:ScrapbookCard;star_path | S:交互内容仍由正常布局管理，装饰不执行提交
+starfield.py[AU5M]: F:绘制裁切插画、角色局部待机和主题星空粒子背景 | R:code:app/ui/widgets/character_motion.py | A:背景插画与星空层 | S:静态背景不含控件；隐藏和减弱动态停止视觉计时，不影响统计
+title_bar.py[AU5S]: F:提供无边框窗口拖动、最小化和关闭入口及主题样式 | R:code:app/ui/palette.py | A:TitleBar;apply_theme | S:不开放最大化，双击不能突破固定窗口策略
+toast_popup.py[AU5S]: F:显示成就、等级和鼓励等自动消失的轻量滑入通知 | R:- | A:ToastPopup;set_motion_enabled | S:无边框透明窗不使用 QGraphicsOpacityEffect，以免渲染偏移；关闭动效落在稳定位置
+training_workspace.py[AU6S]: F:组合手动输入、范文选择、指标和训练纸张展示 | R:code:app/ui/widgets/responsive.py | A:PracticeInput;训练工作区信号 | S:禁粘贴但保留 Qt IME 上屏；本层不判分、不读库、不发奖
+visual_tokens.py[FU6M]: F:集中定义逻辑像素尺寸、语义配色与导航插值规则 | R:code:app/ui/palette.py | A:TITLEBAR_HEIGHT;FONT_BODY;asset_path;nav_height | S:跨页复用相同角色；紧凑布局不通过缩字号掩盖裁切
+window_policy.py[AU6T]: F:约束窗口固定尺寸并拦截系统最大化或全屏请求 | R:- | A:FixedWindowPolicy | S:清除放大位保留最小化，不吞掉正常窗口事件
+
+===D:/Sariana-typing-tracker/typing-tracker/app/workflows/===
+__init__.py[AG2T]: F:标识跨模块事务及公开能力协作的应用工作流 | R:- | A:app.workflows | S:-
+checkpoint.py[AR9T]: F:同事务保存统计快照、成长经验和持久检查点版本 | R:code:app/modules/growth/api.py,code:app/storage/session.py | A:CheckpointWriter;save | S:持久版本大于等于来件即返回原保存时间；成功提交后才由调用方确认内存；分钟每日至多清理一次且保留30天
+events.py[CG7T]: F:提供带锁的进程内提交通知与可取消订阅 | R:code:app/storage/unit_of_work.py | A:Change;EventBus;subscribe;publish | S:复制订阅者后锁外调用；单个异常只记录，不撤销已提交工作
+export.py[AD8T]: F:导出日报 CSV 及包含成长、设置、英语的 JSON 备份 | R:code:app/storage/session.py | A:export_all | S:目录用时间和 UUID 避免覆盖；当前仅按 ai_api_key 键脱敏，新增凭据类型须补充脱敏清单
+material.py[AB8T]: F:以稳定操作 ID 原子保存主动生成范文并按资格消费训练券 | R:code:app/modules/growth/api.py,code:app/storage/session.py | A:save_passage | S:网络在此流程之前完成；事务内重新查等级券数；保存重试不重新调用模型或再次扣券
+companion_news.py[AW8T]: F:跨配置与来信事务重新核准领取完成、保存兴趣及历史保留 | R:code:app/modules/companion/api.py,code:app/modules/profile/api.py | A:CompanionNewsWorkflow;claim;complete;fail;save_settings | S:事务内无网络，自动领取按当前指纹/日/窗口核准；旧配置自动结果取消；终态与保留同事务；配置稳定操作ID结果只存版本时间，不存Key
+
+===D:/Sariana-typing-tracker/typing-tracker/config/===
+achievements.json[FB7T]: F:定义37项速度、字数、分钟及终身准确率成就和奖励 | R:code:app/modules/growth/achievements.py | A:speed;chars;min_acc;total_acc | S:业务阈值与奖励以此为准，UI 素材映射不得重写配置图标和规则
+balance.json[FB8T]: F:配置等级曲线、签到里程碑、经验上限、AI 解锁与 tw 单位 | R:code:app/modules/growth/settlement.py,code:app/core/classifier.py | A:level;checkin;typing_exp;challenge_exp;ai;unit | S:默认日切4点、汉字2tw、AI解锁45级，维护不能混同不同评分口径
+
+===D:/Sariana-typing-tracker/typing-tracker/config/vocabulary/===
+LICENSE-ECDICT.txt[SG4T]: F:保留 ECDICT 词典衍生资源的 MIT 许可声明 | R:code:config/vocabulary/manifest.json | A:MIT License;ECDICT attribution | S:分发词书时保留版权和许可
+cet4.json[FB5L]: F:提供四级词书的英文词、中文释义、音标和词频结构化资源 | R:code:config/vocabulary/manifest.json | A:Word JSON array;cet4 | S:修改字节须同步清单摘要和数量，否则词库加载拒绝
+cet6.json[FB5L]: F:提供包含基础词的六级结构化考试词书 | R:code:config/vocabulary/manifest.json | A:Word JSON array;cet6 | S:六级集合含基础词；修改须更新清单摘要和唯一词键数量
+kaoyan.json[FB5L]: F:提供考研结构化考试词书及中文释义音标 | R:code:config/vocabulary/manifest.json | A:Word JSON array;kaoyan | S:修改内容须同步清单摘要及词数，不能改变 Word 字段约定
+manifest.json[FB7T]: F:记录固定 ECDICT 来源版本及各词书数量、音标覆盖和 SHA-256 | R:code:app/modules/english/catalog.py,code:scripts/import_vocabulary.py | A:source;revision;books;validation | S:清单摘要绑定实际资源字节，导入重建与运行加载应使用同一词书口径
+
+===D:/Sariana-typing-tracker/typing-tracker/deploy/searxng/===
+README.md[SN5T]: F:说明用户自选 SearXNG 部署、JSON 配置、启动及故障诊断 | R:code:deploy/searxng/start.ps1 | A:可选本机搜索部署说明 | S:非应用必要运行条件，桌宠只连接已有接口；部署操作不由普通搜索自动触发
+compose.yaml[ON5T]: F:定义可选 SearXNG Linux 容器及本机配置缓存卷 | R:code:deploy/searxng/settings.example.yml | A:searxng service;127.0.0.1:8080 | S:仅映射回环地址；镜像 latest 只在首次或显式拉取时变化
+settings.example.yml[FN5T]: F:提供可选私有 SearXNG 引擎、中文和 JSON 搜索配置模板 | R:code:deploy/searxng/start.ps1 | A:search.formats;server.secret_key;engines | S:secret 占位符由首次启动随机替换；模板不能覆盖已有用户配置
+start.ps1[ON6T]: F:准备本机 SearXNG 配置、校验 Compose 并按开关启动和探测服务 | R:code:deploy/searxng/compose.yaml | A:-PrepareOnly;本机8080探测 | S:首次生成 secret 不打印；PrepareOnly 不启动容器；网页就绪不等于上游 JSON 搜索成功
+
+===D:/Sariana-typing-tracker/typing-tracker/docs/===
+README.md[SG6T]: F:导航架构协作、0.9.7计划接续、验证及开发产品记忆文档 | R:code:AGENTS.md,code:docs/project-state.md | A:维护阅读顺序;设计实施链接;验证导航 | S:实现和发布状态以当前代码与实际验证证据为准
+agent.md[SG8S]: F:规定模块维护、中文说明、隔离验证、故障回归及授权本机验收流程 | R:code:AGENTS.md,code:docs/architecture.md,code:scripts/check_comments.py | A:任务接续;线程事务约束;验证命令;代码说明;交付 | S:不触碰真实数据；技能不授权发布；开发索引与用户画像分开；模型验收需授权且夹具和公开搜索证据分开
+aoci.md[SG6T]: F:说明AOCI核验接入、正式代码索引查看及应用内可选索引分工 | R:code:AGENTS.md,code:docs/project-state.md | A:包核验;MCP配置;只读面板;维护命令;产品快照边界 | S:15资源技术跳过且未配置数据库卷；full仍纳入忽略的本机配置；产品本地快照不证明治理对齐，旧Overview不因维护自动有效
+architecture.md[SG9S]: F:说明模块化单体数据归属、线程事务及来信记忆和故障反馈协议 | R:code:app/bootstrap/application.py,code:app/storage/unit_of_work.py,code:app/modules/companion/api.py | A:模块边界;异步协议;schema3;来信记忆;故障分类 | S:UI只读模型和异步命令，SQL唯一工作线程；事务无网络，提交后确认统计和反馈；自然日来信独立统计日切；故障码白名单，无异常原文；本机I/O120秒不提前释放取消准入
+companion-agent-design.md[SU5T]: F:记录公开网站视觉观察证据及原生 Widgets 转译和验证范围 | R:code:app/ui/companion/agent_visuals.py | A:视觉映射;REA Evidence索引;局限 | S:只借鉴设计规律，不把外站角色脚本作为生产资产；静态 CSS 不等于动效已实测
+companion-agent.md[SA8S]: F:说明搜索来信记忆配置、故障处理与显式本机模型及定时联网验收 | R:code:app/modules/companion/api.py,code:app/integrations/companion_agent/graph.py,code:scripts/verify_companion_news_local.py | A:配置与限额;ReAct工具;来信记忆;故障说明;本机验收 | S:0.9.7未发布，占卜仍计划；MCP仅进程内子集；短连接测试不证明工具或新闻时效；RSS通过不代表Edge通过；过去自动任务改用现在准备
+english-research.md[SU5T]: F:记录英语网站交互观察及本机首测纠正复测和排期的独立设计 | R:code:app/modules/english/api.py | A:REA观察;自主实现要求;未验证范围 | S:不复制外站课程素材；不能从局部场景推断账号持久化或长期复习算法
+pi-agent-study.md[SA6T]: F:定位固定 Pi 源码版本并对照角色、模型、工具与行动循环分层 | R:code:app/integrations/companion_agent/graph.py | A:本机参考路径;阅读顺序;架构对照 | S:参考副本位于忽略目录，不安装 npm、不进入产品包；借鉴不等于复用其运行时
+project-state.md[SG7T]: F:记录0.9.7实现修复、本机验收及470项回归后的已授权发布准备 | R:code:docs/superpowers/plans/2026-10-23-companion-news-reliability.md,code:docs/validation.md | A:分支基线;当前阶段;验证边界;后续事项 | S:最新授权允许必要提交推送发布；锁同一源码工具SHA，门禁通过才公开；接手仍核源码及实时治理
+updates.md[SR8T]: F:说明正式版本检查、限流冷却、校验下载和更新退出恢复流程 | R:code:app/integrations/updates/service.py,code:app/ui/updates.py | A:更新协议;安装交接;发布兼容;验证范围 | S:失败也限制自动检查频率；传输20秒不是整体截止；同版本重打包需手动重装，不能提前释放在途准入
+validation.md[SQ7L]: F:保存发布、470项隔离回归及0.9.7来信修复与真实Ollama定时RSS证据 | R:code:docs/agent.md,code:docs/aoci.md | A:分组与全量回归;本机验收;静态检查;发布准备;未验证项 | S:各轮重叠不相加；4B预热不算来信，RSS不算Edge；发布准备并非最终附件及安装证据
+
+===D:/Sariana-typing-tracker/typing-tracker/docs/superpowers/specs/===
+2026-10-20-companion-news-design.md[SW7S]: F:规定已确认的定时来信排期、稳定尝试、持久化和通知设计 | R:code:docs/companion-agent.md,code:docs/validation.md | A:第二期设计;线程事务;验收场景 | S:仅显式兴趣不分析被动输入；保存先通知；失败不自动重复付费；自然日自动名额及删除墓碑保留；实现状态看当前源码
+2026-10-20-memory-views-design.md[SU7T]: F:规定应用内普通用户与开发者共享记忆记录的已确认设计 | R:code:docs/superpowers/specs/2026-10-20-companion-news-design.md,code:docs/validation.md | A:我的记忆;开发者;来源结构;代码入口 | S:不把内存报告标已保存，不将网页当用户偏好；可选AOCI不阻塞产品；路径白名单与冻结回退；未发布
+
+===D:/Sariana-typing-tracker/typing-tracker/packaging/windows/===
+TypingTracker.iss[OV8T]: F:为稳定安装标识构建 Windows 品牌兼容安装卸载流程 | R:code:scripts/build_release.py | A:AppVersion;PayloadDir;OutputDir;AppBrand;Inno Setup | S:更名只删除旧 exe 和快捷方式，不清用户记录；不定义用户数据 UninstallDelete；保留稳定 AppId
+
+===D:/Sariana-typing-tracker/typing-tracker/scripts/===
+_tsf_smoke.py[TH5T]: F:启动停止真实 TSF 监听验证线程与焦点回调不崩溃 | R:code:app/core/tsf_hook.py | A:手动TSF冒烟脚本 | S:含历史本机绝对路径；不能代表真实输入法组字已验证
+_tsf_verify.py[TH5T]: F:手工生成 msctf COM 绑定并验证线程管理器激活 | R:code:app/core/tsf_bind.py | A:Windows TSF基础探测 | S:在 STA 中初始化释放 COM；含历史本机路径，需核对环境后手动运行
+benchmark_architecture.py[TP6T]: F:用隔离一年日报及近月分钟样本测量恢复、保存和查询耗时 | R:code:app/bootstrap/application.py | A:--samples;--output;measure | S:结果单位毫秒，不测绘制帧率或真实输入法延迟；只使用临时数据库
+build.ps1[OV5T]: F:生成开发用单文件窗口版 exe 并收集 Qt 运行库与资源 | R:code:scripts/fetch_deps.py,code:scripts/pyinstaller_runtime.py | A:开发PyInstaller构建入口 | S:依赖缺失可能联网下载；此脚本不替代正式版本冻结验证和安装升级检查
+build_release.py[OV9M]: F:按显式源码构建并核验冻结模块素材、便携ZIP与Windows安装器 | R:code:packaging/windows/TypingTracker.iss,code:scripts/pyinstaller_runtime.py | A:verify_executable;build_executable;news_runtime_modules;--source-commit;--expected-version | S:来信及新增故障状态模块按源码存在性要求，兼容历史标签；比对字节码资源并无网自检；收LangGraph元数据；构建不证明安装升级
+check_architecture.py[XQ8T]: F:静态检查UI禁SQL、纯规则禁基础设施和跨业务API依赖 | R:code:docs/architecture.md | A:PURE_FILES;dependencies;check;main | S:来信故障与状态模块列入纯集合；仅urllib.parse为无I/O例外，其他urllib仍禁；静态检查不代替真实线程验证
+check_comments.py[XQ7T]: F:只读扫描全部自有 Python 模块类及嵌套函数的非空说明覆盖 | R:code:docs/agent.md | A:definitions;--json;main | S:不导入应用、不联网、不读用户库；仅检查说明存在，不证明内容准确
+fetch_deps.py[OV5T]: F:从 PyPI 选择并下载 wheel 解包到项目依赖目录 | R:code:scripts/build.ps1 | A:包名参数;PKGS;.deps;.dl | S:已有wheel跳过下载；维护工具会联网，不能自动作为产品运行依赖安装
+hook_e2e_test.py[TH6T]: F:在隔离统计引擎中注入按键验证真实钩子计数链路 | R:code:app/core/keyboard_hook.py,code:app/core/engine.py | A:手动钩子端到端测试 | S:会向当前前台注入 A 与退格，不属于无交互普通回归；禁止指向真实用户库
+hook_probe.py[XH5S]: F:打印限定时间内键盘原始及计数事件帮助诊断采集过滤 | R:code:app/core/keyboard_hook.py | A:--seconds;--inject | S:诊断可能输出临时输入事件，须在隔离人工场景运行；F24注入只验证钩子不产生字符统计
+import_vocabulary.py[XD6T]: F:从固定摘要的 ECDICT CSV 生成考试词书、许可和校验清单 | R:code:config/vocabulary/manifest.json | A:--source;--output;--license;import_vocabulary | S:源摘要不符即拒绝；原始CSV不随产品分发；运行会覆盖指定输出词书
+layout_audit.py[TU5S]: F:离屏构造隔离窗口并检查几何越界、文字溢出和重叠 | R:code:scripts/ui_test_support.py | A:布局体检;主题参数 | S:不证明真实DPI或IME；临时数据与真实用户数据分开
+layout_conformance.py[TU5S]: F:将离屏训练页几何与交接基准帧对比 | R:code:scripts/ui_test_support.py | A:基准几何核对 | S:纸张容差12px、主要控件8px；只用隔离内存库，不安装输入钩子
+make_icon.py[XU4T]: F:从统一交付PNG或绘制回退生成七档多尺寸应用ICO | R:code:app/ui/assets/app_icon.py | A:app.ico生成 | S:运行会整文件覆盖仓库图标；只用于资源维护，不访问业务数据库
+preview_companion.py[XU5S]: F:用隔离数据预览桌宠、模式和作品工坊 | R:code:app/ui/companion/controller.py | A:桌宠交互预览参数 | S:不安装全局输入钩子，不打开真实用户库
+preview_companion_agent.py[XU6M]: F:用隔离真实桌面线程预览搜索、来信和双视角记忆的宽窄界面 | R:code:app/ui/companion/agent_controller.py,code:app/ui/companion/memory_page.py | A:main;--interactive;--output;真实网络显式开关 | S:默认只用样例，不请求模型或装输入钩子；记忆样例经正式异步命令持久化；不访问真实用户库，不以预览代替真实搜索验收
+preview_ui.py[XU5S]: F:构造隔离窗口进行主题、多尺寸截图和布局检查 | R:code:scripts/layout_audit.py | A:--interactive;截图输出 | S:不安装键盘钩子；交互关闭退出，不接触用户记录
+pyinstaller_runtime.py[RR7T]: F:在 Qt 导入前预加载 Windows 系统 ICU DLL | R:code:scripts/build_release.py | A:PyInstaller runtime hook | S:只从系统目录选择 icuuc.dll，避免同名第三方 DLL 抢占
+screenshot.py[XU4T]: F:把指定数据目录的主窗口页渲染为离屏PNG | R:code:app/ui/main_window.py | A:--data-dir;--tab;--out | S:维护时只指定隔离数据目录，不把截图工具指向真实用户库
+seed_demo.py[XD4T]: F:为指定目录生成历史日报、分钟和签到演示数据 | R:code:app/storage/session.py | A:--data-dir;--days | S:会写入目标数据库；跳过今天数据，必须使用演示目录
+selftest.py[TQ7L]: F:通过隔离场景自检分类、日切、等级、存储、签到和钩子启停 | R:code:app/core/classifier.py,code:app/core/engine.py | A:main;check | S:历史自检成功不能替代真实桌面工作线程和 IME 人工验证
+shot_lino.py[XU4T]: F:离屏截取内置主题背景、等级条与弹窗效果 | R:code:app/ui/main_window.py | A:主题效果PNG | S:隔离预览，不证明真实显示环境动效帧率
+smoke_ui.py[TU5M]: F:构造主窗报表设置并短时运行事件循环验证刷新落盘 | R:code:app/ui/main_window.py | A:--data-dir;GUI冒烟 | S:指定已有目录时保留数据，维护必须选隔离目录；不替代真实IME测试
+test_ai_controls.py[TA6M]: F:以本地HTTP夹具验证思考协议、token预算及响应解析 | R:code:app/integrations/ai/protocol.py | A:AI控制协议回归 | S:端点路由为本地模拟，不消耗真实用户Key或验证实际供应商能力
+test_ai_service.py[TA6S]: F:用本地HTTP验证模型正文、连接回复及兼容失败处理 | R:code:app/integrations/ai/service.py | A:模型传输兼容回归 | S:官方域名请求被测试路由替换，不能宣称真实端点连通
+test_ai_usage_ui.py[TU5S]: F:验证思考草稿、token展示与临时开发者资格的UI行为 | R:code:app/ui/widgets/ai_thinking_controls.py,code:app/ui/widgets/ai_usage.py | A:AI用量UI回归 | S:使用隔离Qt夹具和模拟接口，草稿取消不能保存
+test_architecture.py[TQ8M]: F:验证事务失败、幂等、恢复、线程所有权及缓存准入契约 | R:code:app/workflows/checkpoint.py,code:app/storage/unit_of_work.py | A:架构回归套件 | S:覆盖提交后确认丢失仍不重复发奖；使用隔离数据库和故障注入，非生产数据
+test_companion_agent.py[TA7M]: F:验证真实图执行、有界搜索传输、凭据隔离与取消 | R:code:app/integrations/companion_agent/graph.py | A:桌宠搜索集成回归 | S:真实执行图但模型搜索使用夹具，不能宣称真实服务已验证
+test_companion_agent_ui.py[TU6M]: F:回归搜索Qt回传、轮盘、安全阅读、章节配色和配置草稿保留 | R:code:app/ui/companion/agent_controller.py,code:app/ui/companion/agent_settings.py | A:CompanionAgentUITests;ControlledService | S:受控Future制造迟到与取消，所有者取消兼容；来信入口开放而占卜禁用；不请求真实模型
+test_companion_assets.py[TU5T]: F:验证三套内置桌宠状态、表情和透明素材完整性 | R:code:app/modules/companion/packs.py | A:内置作品资源回归 | S:检查真实资源和临时作品目录，不改用户作品
+test_companion_edge.py[TN6S]: F:验证搜索相关性、原文内网拒绝及进程和锁目录清理边界 | R:code:app/integrations/companion_agent/edge_search.py,code:app/integrations/companion_agent/pages.py | A:EdgeTests;DOM和锁目录夹具 | S:模拟目录占用不能覆盖成功DOM；仅作用自有进程；夹具与DNS注入不证明在线搜索
+test_companion_integration.py[TU6T]: F:验证真实服务提交和设置驱动桌宠且不重复反应 | R:code:app/ui/companion/controller.py | A:业务与桌宠集成回归 | S:统计奖励先成功保存再发事件；取消设置不改变既有控制器
+test_companion_motion.py[TU5T]: F:以确定时钟验证桌宠姿态连续性、限幅和中断过渡 | R:code:app/ui/companion/motion.py | A:纯动效帧回归 | S:采样不代表真实屏幕FPS或多屏拖动体验
+test_companion_packs.py[TS6S]: F:用真实图片ZIP验证作品往返、路径和清单安全及保存回退 | R:code:app/modules/companion/validation.py,code:app/modules/companion/packs.py | A:作品边界回归 | S:使用临时目录，拒绝模板表达式和未知密钥字段，不打开私人作品
+test_companion_react.py[TA8M]: F:验证模型自主改词读取补搜、错误观察及稳定引用和运行边界 | R:code:app/integrations/companion_agent/graph.py,code:app/integrations/companion_agent/mcp_tools.py | A:ReAct/MCP协议回归 | S:执行真实LangGraph，模型工具为确定夹具；不执行任意URL、外部MCP或真实付费请求
+test_companion_runtime.py[TB6S]: F:验证桌宠纯状态机去重、反应优先级、期限和基础姿态恢复 | R:code:app/modules/companion/runtime.py | A:Runtime回归 | S:注入时钟和随机源，无Qt窗口或实际等待
+test_companion_setup.py[TA6T]: F:验证异步模型搜索草稿检查、短预算与取消准入 | R:code:app/integrations/companion_agent/setup.py | A:连接检查回归 | S:夹具在取消后保持阻塞，用于验证真实结束前不放行，不验证上游工具能力
+test_companion_ui.py[TU6M]: F:验证真实Qt桌宠宿主切换、可见性、拖动与退出清理 | R:code:app/ui/companion/controller.py | A:桌宠窗口回归 | S:窗口与桌面模式保留同一视图；离屏场景不能替代物理多屏人工验收
+test_companion_workshop.py[TU6S]: F:验证作品复制、编辑、保存、应用和取消的独立边界 | R:code:app/ui/companion/workshop.py | A:工坊UI回归 | S:无效草稿和保存失败保留原作品，测试只用隔离素材目录
+test_desktop_architecture.py[TQ8M]: F:在正式ApplicationWorker和Qt页面中验证提交顺序及来信记忆联动 | R:code:app/bootstrap/application.py,code:app/ui/companion/agent_controller.py,code:app/ui/tasks.py | A:DesktopWorkflowTests;真实线程异步回归 | S:成绩确认庆祝晚于提交；正式来信共用服务且删除清浮层；兴趣在途保存阻止外层旧配置覆盖；隔离数据与模型，不用同步预览替代
+test_english_learning.py[TB7S]: F:验证拼写纠正复测、间隔排期、字号及旧库迁移回滚 | R:code:app/modules/english/session.py,code:app/modules/english/review.py | A:学习规则;字号;ReviewMigrationTests | S:纠正不计分且作答ID稳定；v1夹具移除后来新增的表，升级断言跟随SCHEMA_VERSION；仅隔离数据，无真实AI请求
+test_english_training.py[TB6M]: F:验证真实词书、评分、学习记录、造句校验和材料事务 | R:code:app/modules/english/api.py | A:英语领域回归 | S:真实词书加隔离SQLite，无网络；六级包含四级基础词
+test_english_ui.py[TU6M]: F:验证英语导航、拼写交互、异步造句和材料持久化 | R:code:app/ui/english/page.py | A:英语UI回归 | S:固定窗口和离屏键盘事件不等于真实中文IME验收
+test_fixed_window.py[TU5T]: F:验证主窗固定尺寸、放大拦截及最小化恢复和设置窗口约束 | R:code:app/ui/widgets/window_policy.py | A:FixedWindowTests | S:使用隔离Qt夹具，测试系统状态请求不等于真实DPI人工验证
+test_import_boundaries.py[TQ7T]: F:验证静态架构检查拒绝UI SQL和跨业务内部导入而保留纯解析例外 | R:code:scripts/check_architecture.py | A:ImportBoundaryTests | S:使用合成源码不导入应用；仅urllib.parse可用于纯报告codec，urllib.request仍拒绝
+test_installer.ps1[TV8S]: F:在干净Windows机实际验证安装、旧版升级与卸载保留数据 | R:code:scripts/build_release.py,code:scripts/verify_release_updates.py | A:PackageDir;Workspace;UpgradeFromSetup | S:拒绝已有同产品安装；确实改注册表和快捷方式，只清理自建唯一数据标记；非普通源码回归
+test_layout_regressions.py[TU5S]: F:验证标题导航及业务页面在紧凑布局中的可见性与草稿保留 | R:code:app/ui/widgets/design.py | A:LayoutRegression | S:离屏隔离场景，不证明真实显示器体验
+test_motion_controls.py[TU5T]: F:验证共享动画取消终态、动效设置和隐藏暂停 | R:code:app/ui/widgets/motion.py | A:MotionValueTests | S:反复悬停应复用同一动画；禁动效不能被训练重置覆盖
+test_playground_ui.py[TU6S]: F:验证键盘侠真实Qt输入结算、保存重试及混乱生成取消 | R:code:app/ui/widgets/keyboard_warrior.py,code:app/ui/widgets/chaos.py | A:PlaygroundUITests | S:网络为夹具，保存用隔离数据；模式切换和粘贴不能制造成绩
+test_regressions.py[TR7M]: F:验证统计重启恢复、日切奖励高水位及AI快照工作线程 | R:code:app/modules/tracking/application.py,code:app/integrations/ai/service.py | A:统计恢复与模型工作线程回归 | S:隔离SQLite与本地HTTP，不访问真实用户模型端点
+test_release_094.py[TB5S]: F:验证词级对齐评分、十五秒计量及短AI生成的历史行为 | R:code:app/modules/english/api.py,code:app/modules/practice/keyboard_session.py | A:0.9.4兼容行为回归 | S:内存数据库和模拟模型；键盘侠稳定ID重复完成不能重复记录
+test_release_branding.py[TV6T]: F:验证品牌命名、历史构建兼容和稳定用户数据目录 | R:code:scripts/build_release.py,code:main.py | A:ReleaseBrandTests | S:构建读取品牌不能导入或执行待测应用源码
+test_responsive_ui.py[TU5S]: F:验证主窗拒绝缩放后训练纸张、导航及操作入口布局稳定 | R:code:app/ui/main_window.py,code:app/ui/widgets/responsive.py | A:固定窗口内布局回归 | S:内存数据且不启动键盘钩子；不通过缩字号掩盖裁切
+test_sariana_motion.py[TU5S]: F:验证眨眼发丝只改局部像素并服从静态设置与窗口生命周期 | R:code:app/ui/widgets/character_motion.py | A:CharacterMotionTests | S:异常或不匹配资源回退静态图；像素采样不代表实际帧率
+test_sariana_profile.py[TU5T]: F:验证头像预设草稿保存取消及同篇范文个人排行榜 | R:code:app/ui/widgets/avatar.py,code:app/modules/practice/api.py | A:SarianaProfileTests | S:使用隔离数据库；榜单来自已记录成绩，不从界面文字推算
+test_ui_workflow.py[TU7L]: F:提供隔离Qt夹具并回归训练、设置、异步请求、主题和导航流程 | R:code:app/ui/main_window.py,code:app/ui/settings_dialog.py | A:UIFixture;APP;pump_until;UI流程测试 | S:同步兼容服务夹具不能替代真实桌面工作线程测试；网络受控，不安装真实输入钩子
+test_updates.py[TR8L]: F:验证更新版本筛选、附件校验、限流并发与真实工作线程退出提交 | R:code:app/integrations/updates/service.py,code:app/ui/updates.py | A:更新协议与退出回归 | S:模拟GitHub且不启动安装器；在途请求拒绝重复检查；最终提交失败保留工作线程和脏统计
+ui_test_support.py[TU4T]: F:为Windows离屏Qt预览准备现有系统中文字体 | R:- | A:prepare_fonts;load_fonts | S:前者在QApplication前设置目录，后者在创建后加载微软雅黑；不覆盖已有环境
+verify_companion_agent_local.py[TA7T]: F:用真实本机模型执行LangGraph并检查流式来源和推理过滤 | R:code:app/integrations/companion_agent/service.py | A:--model;--public-search;--search-url;--output | S:默认搜索HTTP是夹具；仅显式开关访问真实搜索，不据默认成功宣称公开搜索连通
+verify_release_updates.py[TV7S]: F:核验工作区或可信冻结包更新模块的安装识别、正式版本及下载摘要 | R:code:app/integrations/updates/service.py | A:verify;--exe;--detect-installation-only;--cache-dir | S:不会启动安装器，但静态提取后会执行包内Python，仅接受已验证本仓库包；完整模式实际联网下载
+test_companion_memory.py[TD7T]: F:验证记忆删除去重、清空兴趣和可选索引缺失过期回退 | R:code:app/ui/companion/memory_presenter.py,code:app/integrations/development_index.py | A:MemoryTests;DevelopmentIndexTests | S:真实隔离工作线程配固定模型；冻结仅模块定位；非白名单拒绝；源码摘要变化不能假报治理对齐
+test_companion_memory_ui.py[TU6T]: F:验证双视角同一记录、纯文本来源及删除取消失败的保留 | R:code:app/ui/companion/memory_page.py | A:MemoryPageTests | S:Qt与不可变样例、受控Future；不读用户库；长中文和HTML标记按字面显示
+test_companion_news_desktop.py[TW8M]: F:以真实数据库线程和Qt验证排期、准入、保存重试通知及恢复 | R:code:app/ui/companion/news_controller.py,code:app/bootstrap/application.py | A:NewsDesktopTests;PetHost;AgentHost | S:确定图夹具无外网；覆盖五十唤醒单任务、提交后展示、旧配置丢弃、更新恢复、隐藏视觉、保留策略、终态重试及无效报告，不操作真实数据
+test_companion_news_graph.py[TA7S]: F:验证真实来信图消息工具、日期证据及与搜索共用取消准入 | R:code:app/integrations/companion_agent/graph.py,code:app/integrations/companion_agent/service.py | A:NewsGraphTests;RecordingModel | S:模型和搜索为夹具；取消等待实际阻塞I/O结束；未知日期不由图改写；有来源部分报告带警告；不证明真实新闻时效
+test_companion_news_release.py[TV6T]: F:验证来信无网自检及历史源码和新增故障状态模块的构建必需清单 | R:code:app/integrations/companion_agent/probe.py,code:scripts/build_release.py | A:NewsReleaseTests | S:无来信旧源码不要求新模块；自检network/database=false；不实际构建或安装
+test_companion_news_rules.py[TW7S]: F:验证显式兴趣限额、自然日安静排期、指纹和报告安全边界 | R:code:app/modules/companion/news.py,code:app/modules/companion/news_codec.py | A:NewsRuleTests | S:固定当地时钟，不联网或读取用户数据；覆盖两小时闭合窗口、午夜跳过、凭据不进指纹、来源URL及正文限额
+test_companion_news_storage.py[TD8M]: F:以真实SQLite验证来信attempt事务、删除通知、配置和schema3迁移 | R:code:app/modules/companion/news_service.py,code:app/workflows/companion_news.py,code:app/storage/db.py | A:NewsStorageTests;NewsMigrationTests | S:隔离内存及文件库，触发器注入保存/删除故障；旧attempt不能覆盖；0/1/2旧库升级保留资料和备份，失败回滚，不访问真实用户库
+test_companion_news_ui.py[TU7T]: F:验证来信草稿规范化、四章节配色和通知资格及受理失败 | R:code:app/ui/companion/news_settings.py,code:app/ui/companion/news_controller.py | A:NewsSettingsTests;NewsNoticeTests | S:默认关闭与取消不写库；实际Qt时间控件；隐藏/练习/阅读占用延后通知，受理失败不弹卡；模型为确定夹具
+test_companion_news_failures.py[TR8M]: F:用隔离真实工作线程和故障传输验证来信分类、排期恢复与失败反馈 | R:code:app/ui/companion/news_controller.py,code:app/modules/companion/news_status.py,code:app/integrations/companion_agent/graph.py | A:FailureTransportTests;FailureDesktopTests | S:无真实上游和用户库；覆盖本机120与远端25秒、截止及预算保留分类、提交前不提醒、隐藏安静练习阅读延后、过期及删除墓碑
+verify_companion_news_local.py[TA7M]: F:显式验收真实本机模型、来信持久化通知及可选公开搜索与正式定时器 | R:code:app/ui/companion/agent_controller.py,code:app/bootstrap/application.py | A:main;--model;--public-search;--search-provider;--timer;--output | S:只写.local独立库，不下载；默认搜索及正文受控；timer才等自动任务；50唤醒等worker屏障及领取回调，不以qWait冒充完成
+
+===D:/Sariana-typing-tracker/typing-tracker/docs/superpowers/plans/===
+2026-10-20-companion-news-memory.md[SW7S]: F:定义已批准Native顺序实现来信和记忆的七任务接口与验收计划 | R:code:docs/superpowers/specs/2026-10-20-companion-news-design.md,code:docs/superpowers/specs/2026-10-20-memory-views-design.md | A:Task1至7;Review Focus;模块接口;验证步骤 | S:已批准连续执行不重复询问；复用Widgets/SQLite/LangGraph；任务清单不是执行证据，结果看validation；不授权发布
+2026-10-23-companion-news-reliability.md[SW7T]: F:定义已批准的来信故障分类、状态提醒和本机验收实施计划 | R:code:docs/companion-agent.md,code:docs/validation.md | A:任务1至5;接口约束;本机验收 | S:用户允许现有1.7B替代4B，不下载；本机超时局部120秒；无迁移，不改真数据，不授权提交发布

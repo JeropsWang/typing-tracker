@@ -21,7 +21,7 @@ def edge_executable():
             path = Path(directory) / 'Microsoft/Edge/Application/msedge.exe'
             if path.is_file():
                 return path
-    raise AgentError('未找到 Microsoft Edge，请安装 Edge，或切换轻量网页搜索、Tavily 或已有 SearXNG。')
+    raise AgentError('未找到 Microsoft Edge，请安装 Edge，或切换轻量网页搜索、Tavily 或已有 SearXNG。', code='configuration')
 
 
 def stop_process(process):
@@ -37,10 +37,11 @@ def stop_process(process):
 
 
 def browser_dom(url, cancel):
-    """用独立临时配置启动无头 Edge，取得有界 DOM；取消/失败均清理本次进程。"""
+    """用独立临时配置取得有界 DOM；清理自己进程，配置目录占用不覆盖正文或主异常。"""
     executable = edge_executable()
     check_cancel(cancel)
-    with tempfile.TemporaryDirectory(prefix='sariana-edge-') as directory:
+    # Windows 子进程退出后可能短暂占用目录（实测 WinError145）；尽力清理不能覆盖搜索结果。
+    with tempfile.TemporaryDirectory(prefix='sariana-edge-', ignore_cleanup_errors=True) as directory:
         profile = Path(directory) / 'profile'
         with tempfile.TemporaryFile() as output:
             process = subprocess.Popen([str(executable), '--headless=new', '--disable-gpu',
@@ -54,13 +55,13 @@ def browser_dom(url, cancel):
                 while process.poll() is None:
                     check_cancel(cancel)
                     if time.monotonic() >= deadline or output.tell() > MAX_RESPONSE:
-                        raise AgentError('Edge 页面加载超时或内容过大，请稍后重试。')
+                        raise AgentError('Edge 页面加载超时或内容过大，请稍后重试。', code='timeout')
                     cancel.wait(.1)
                 check_cancel(cancel)
                 output.seek(0)
                 raw = output.read(MAX_RESPONSE + 1)
                 if process.returncode or len(raw) > MAX_RESPONSE:
-                    raise AgentError('Edge 未能读取搜索页面，请检查网络后重试。')
+                    raise AgentError('Edge 未能读取搜索页面，请检查网络后重试。', code='connection')
                 return raw.decode('utf-8', errors='replace')
             finally:
                 stop_process(process)
@@ -192,8 +193,8 @@ class EdgeSearch:
             if sources:
                 return tuple(sources[:5])
         if not raw_count:
-            raise AgentError('搜索页面没有返回可读取的结果，可能加载失败、限流或需要验证。已尝试备用查询，请稍后重试或切换搜索服务。')
-        raise AgentError('搜索返回的资料与话题不匹配，已过滤跑题结果并尝试备用查询。请换一种说法或切换搜索服务；本次不会用无关来源生成回答。')
+            raise AgentError('搜索页面没有返回可读取的结果，可能加载失败、限流或需要验证。已尝试备用查询，请稍后重试或切换搜索服务。', code='no_sources')
+        raise AgentError('搜索返回的资料与话题不匹配，已过滤跑题结果并尝试备用查询。请换一种说法或切换搜索服务；本次不会用无关来源生成回答。', code='no_sources')
 
     def enrich(self, sources, cancel):
         # Read only two public pages. Do not navigate into local/private networks.

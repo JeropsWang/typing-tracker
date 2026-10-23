@@ -7,6 +7,7 @@ from ..modules.growth.repository import GrowthRepository
 from ..modules.practice.repository import PracticeRepository
 from ..modules.reporting.repository import ReportingRepository
 from ..modules.english.repository import EnglishRepository
+from ..modules.companion.repository import CompanionRepository
 
 
 class DataSession:
@@ -21,6 +22,7 @@ class DataSession:
         self.practice = PracticeRepository(conn)
         self.reporting = ReportingRepository(conn)
         self.english = EnglishRepository(conn, self.uow)
+        self.companion = CompanionRepository(conn)
 
     def transaction(self):
         """提供统一事务上下文，不允许仓储自行提交。"""

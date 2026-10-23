@@ -1,6 +1,7 @@
 """桌宠智能体的不可变业务契约与配置规则；不依赖数据库、Qt 或网络。"""
 from dataclasses import dataclass, field
 from typing import Callable, Protocol
+from collections.abc import Mapping
 
 
 MODEL_PRESETS = {
@@ -9,6 +10,11 @@ MODEL_PRESETS = {
     'local': ('http://127.0.0.1:11434/v1', 'qwen3:1.7b'),
     'custom': ('', ''),
 }
+
+
+class AgentBusyError(RuntimeError):
+    """共享网络准入被占用；自动排期应退让，不能将其记成已执行的上游失败。"""
+    pass
 
 
 @dataclass(frozen=True)
@@ -30,7 +36,7 @@ class AgentConfig:
         """从已提交的设置快照构造配置，兼容旧托管搜索开关而不修改保存值。"""
         # 一次读取整个脱离数据库的快照，避免后台更新时混用不同版本的服务与密钥。
         snapshot = getattr(settings, 'settings', None)
-        get = snapshot().get if callable(snapshot) else settings.get_setting
+        get = settings.get if isinstance(settings, Mapping) else (snapshot().get if callable(snapshot) else settings.get_setting)
         legacy_managed = get('companion_agent_managed_search', '0') == '1'
         return cls(enabled=get('companion_agent_enabled', '0') == '1',
                    thinking=get('companion_agent_thinking', '1') != '0',
@@ -126,8 +132,11 @@ class CompanionAgent(Protocol):
     def search(self, config: AgentConfig, topic: str, progress: Callable):
         """启动主动话题搜索，返回稳定请求 ID 与 Future，进度通过回调传递。"""
         ...
-    def cancel(self):
-        """请求取消当前任务；后台真正结束前仍持有运行准入。"""
+    def news(self, config: AgentConfig, request, progress: Callable):
+        """以专用主动兴趣契约生成来信，与搜索共用同一网络准入和图执行器。"""
+        ...
+    def cancel(self, request_id=None):
+        """请求取消当前所有者任务；后台真正结束前仍持有运行准入。"""
         ...
     def close(self):
         """停止接收新任务并请求取消在途任务，供界面退出时调用。"""

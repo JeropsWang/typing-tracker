@@ -80,6 +80,8 @@ class CompanionController(QObject):
         self.bubbles = self.presenter.get_setting('companion_bubbles', '1') != '0'
         self.motion = self.presenter.get_setting('reduced_motion', '0') != '1'
         self.agent.sync_motion()
+        if self.agent.news is not None:
+            self.agent.news.sync_settings()
         self.runtime.set_frequency(self.presenter.get_setting('companion_frequency', 'normal'))
         try:
             size = int(self.presenter.get_setting('companion_size', '160'))
@@ -251,6 +253,7 @@ class CompanionController(QObject):
         action.triggered.connect(lambda: self.switch_mode('window' if self.mode == 'desktop' else 'desktop'))
         menu.addAction('本地二创工坊…', self.open_workshop)
         menu.addAction('联网搜索…', self.agent.open_search)
+        menu.addAction('来信与定时配置…', self.agent.open_news)
         last_report = menu.addAction('查看最近的搜索报告', self.agent.show_last_report)
         last_report.setEnabled(self.agent.report is not None and not self.agent._busy)
         menu.addAction('桌宠智能体设置…', lambda: self.agent.open_settings())

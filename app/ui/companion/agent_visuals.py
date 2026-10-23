@@ -37,12 +37,13 @@ def colors():
 
 
 def settings_colors(section=0):
-    """从共享色板派生模型/搜索/未来章节色，统一背景、边线与强调色。"""
+    """从共享色板派生模型／搜索／来信／记忆章节色，统一原生控件底色。"""
     c = colors()
     dark = QColor(c.surface).lightnessF() < .45
     tone, accent = ((c.lavender, c.accent),
                     (c.blue, '#a8dbe5' if dark else '#356777'),
-                    (c.coral, '#f0b5a8' if dark else '#925557'))[section]
+                    (c.coral, '#f0b5a8' if dark else '#925557'),
+                    (c.lavender, c.accent))[max(0, min(section, 3))]
     return replace(c, bg=mix(tone, c.bg, .32), accent=accent,
                    line=mix(accent, c.surface, .25))
 
@@ -63,7 +64,11 @@ def agent_style(palette=None):
     QFrame[agentTone="lavender"] {{background:{c.lavender};border:0;border-radius:18px;}}
     QFrame[agentTone="blue"] {{background:{c.blue};border:0;border-radius:18px;}}
     QFrame[agentTone="coral"] {{background:{c.coral};border:0;border-radius:18px;}}
-    QLineEdit, QComboBox {{background:{c.surface};color:{c.ink};border:1px solid {c.control_line};border-radius:12px;padding:8px 10px;min-height:24px;selection-background-color:{c.accent};selection-color:{c.on_accent};}}
+    QLineEdit, QComboBox, QTimeEdit {{background:{c.surface};color:{c.ink};border:1px solid {c.control_line};border-radius:12px;padding:8px 10px;min-height:24px;selection-background-color:{c.accent};selection-color:{c.on_accent};}}
+    QListWidget, QTabWidget::pane {{background:{c.surface};color:{c.ink};border:1px solid {c.line};border-radius:10px;}}
+    QListWidget::item:selected {{background:{c.lavender};color:{c.ink};}}
+    QTabBar::tab {{background:{c.bg};color:{c.muted};padding:8px 14px;border:1px solid {c.line};}}
+    QTabBar::tab:selected {{background:{c.lavender};color:{c.ink};}}
     QComboBox::drop-down {{border:0;width:24px;}}
     QComboBox QAbstractItemView {{background:{c.surface};color:{c.ink};selection-background-color:{c.lavender};selection-color:{c.ink};}}
     QPlainTextEdit, QTextBrowser {{background:transparent;color:{c.ink};border:0;font-size:15px;padding:0;selection-background-color:{c.lavender};}}

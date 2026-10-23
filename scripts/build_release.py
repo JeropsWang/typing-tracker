@@ -99,8 +99,22 @@ def check_bootstrap(command: list[str], timeout: float = 60) -> None:
         raise subprocess.CalledProcessError(returncode, command)
 
 
+def news_runtime_modules(source: Path) -> list[str]:
+    """按源码存在性校验来信及故障状态模块，缺少后来新增文件的历史标签保持兼容。"""
+    if not (source / 'app/modules/companion/news.py').is_file():
+        return []
+    modules = ['app.modules.companion.' + name for name in
+            ('news', 'news_codec', 'memory', 'news_service', 'repository')] + [
+        'app.workflows.companion_news', 'app.integrations.development_index',
+        'app.ui.companion.news_controller', 'app.ui.companion.news_settings',
+        'app.ui.companion.memory_presenter', 'app.ui.companion.memory_page']
+    modules.extend('app.modules.companion.' + name for name in ('failures', 'news_status')
+                   if (source / ('app/modules/companion/' + name + '.py')).is_file())
+    return modules
+
+
 def verify_executable(exe: Path, source: Path) -> dict:
-    """Check the frozen program itself, including source code and runtime assets."""
+    """比对冻结程序代码及素材并运行无网自检，按源码存在性核准来信模块清单。"""
     from PyInstaller.archive.readers import CArchiveReader
 
     check_bootstrap([str(exe), '--help'])
@@ -121,6 +135,7 @@ def verify_executable(exe: Path, source: Path) -> dict:
                 raise ValueError(f'Packaged code differs from source: {module}')
             checked.append(module)
     required_modules = ['app','app.ui.main_window','app.ui.settings_dialog']
+    required_modules.extend(news_runtime_modules(source))
     if (source / 'app/bootstrap/application.py').is_file():
         required_modules.extend(('app.integrations.ai.service','app.bootstrap.application',
                                  'app.modules.tracking.domain','app.modules.growth.settlement'))

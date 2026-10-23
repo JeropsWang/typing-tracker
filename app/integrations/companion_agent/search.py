@@ -6,19 +6,35 @@ from urllib.parse import urlsplit, urlencode
 from urllib.request import Request, urlopen, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
 from xml.etree import ElementTree
-from ...modules.companion.api import SearchSource
+from ...modules.companion.api import SearchSource, agent_failure_code
 
 MAX_RESPONSE = 2_000_000
 
 
 class AgentError(RuntimeError):
-    """桌宠网络/配置/资料失败的可见异常，外层服务可保留真实来源并提示用户。"""
-    pass
+    """兼容可见异常，增加固定阶段／类别；异常文字不能直接写入任务表。"""
+    def __init__(self, message='', *, stage='agent', code='unknown'):
+        """保留旧字符串构造；新增元数据只接受领域白名单，不接收响应正文。"""
+        super().__init__(message)
+        self.stage, self.code = stage, code
+        self.stage, self.code = agent_failure_code(self).split('.')
 
 
 class AgentCancelled(AgentError):
     """用户取消的独立异常类型，不能当作工具失败吞掉继续搜索。"""
     pass
+
+
+@contextmanager
+def error_stage(stage, default_code='protocol'):
+    """为适配器错误补足阶段与默认类别，取消保持原类型，不改变可见兼容文字。"""
+    try:
+        yield
+    except AgentCancelled:
+        raise
+    except AgentError as error:
+        code = default_code if error.code == 'unknown' else error.code
+        raise AgentError(str(error), stage=stage, code=code) from None
 
 
 def check_cancel(cancel):
@@ -61,11 +77,11 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 @contextmanager
-def open_response(request, *, opener=None):
-    """带超时打开受限响应上下文，关闭响应并把 HTTP/网络/解析错误转为脱敏提示。"""
+def open_response(request, *, opener=None, timeout=25):
+    """用调用方指定的有限秒数打开响应；默认25秒，模型本机冷启动可单独放宽。"""
     opener = opener or build_opener(NoRedirect()).open
     try:
-        with opener(request, timeout=25) as response:
+        with opener(request, timeout=timeout) as response:
             yield response
     except AgentError:
         raise
@@ -73,12 +89,15 @@ def open_response(request, *, opener=None):
         code = error.code
         error.close()
         if code in (401, 403):
-            raise AgentError('服务拒绝访问，请检查 API Key 和权限。') from None
+            raise AgentError('服务拒绝访问，请检查 API Key 和权限。', code='auth') from None
         if code == 429:
-            raise AgentError('请求太频繁或额度不足，请稍后再试。') from None
-        raise AgentError(f'服务返回 HTTP {code}，请检查接口配置。') from None
-    except (TimeoutError, URLError, OSError):
-        raise AgentError('暂时连接不上服务，请检查网络和服务是否启动。') from None
+            raise AgentError('请求太频繁或额度不足，请稍后再试。', code='rate_limit') from None
+        raise AgentError(f'服务返回 HTTP {code}，请检查接口配置。', code='protocol') from None
+    except TimeoutError:
+        raise AgentError('服务响应超时，请稍后重试。', code='timeout') from None
+    except (URLError, OSError) as error:
+        code = 'timeout' if isinstance(getattr(error, 'reason', None), TimeoutError) else 'connection'
+        raise AgentError('暂时连接不上服务，请检查网络和服务是否启动。', code=code) from None
     except (ValueError, UnicodeError):
         raise AgentError('服务没有返回有效 JSON，请检查接口地址。') from None
 
@@ -103,6 +122,11 @@ class WebSearch:
 
     def validate(self):
         """按搜索服务校验必要密钥/端点，公开搜索不要求 Key 或管理外部服务。"""
+        with error_stage('search', 'configuration'):
+            self._validate()
+
+    def _validate(self):
+        """校验内部搜索配置，由公开入口补齐搜索阶段与配置失败类别。"""
         if self.config.search_provider in ('web', 'web-lite'):
             return
         if self.config.search_provider == 'tavily':
@@ -115,6 +139,11 @@ class WebSearch:
 
     def search(self, topic, cancel):
         """执行所选只读搜索并校验/去重/限制来源，返回真实摘录或明确错误。"""
+        with error_stage('search'):
+            return self._search(topic, cancel)
+
+    def _search(self, topic, cancel):
+        """在已设定搜索错误边界内执行传输，外层统一保留分类。"""
         self.validate()
         check_cancel(cancel)
         if self.config.search_provider == 'web':
@@ -151,7 +180,7 @@ class WebSearch:
             if len(results) == 5:
                 break
         if not results:
-            raise AgentError('没有找到可引用的结果，试试更具体的话题。')
+            raise AgentError('没有找到可引用的结果，试试更具体的话题。', code='no_sources')
         return tuple(results)
 
     def enrich(self, sources, cancel):
@@ -165,6 +194,7 @@ class WebSearch:
         # Public RSS results need no credential, daemon or external executable.
         # Keep each attempt bounded; never mistake a CAPTCHA page for results.
         """最多尝试两个公开 RSS 入口，验证码/非 RSS/空结果不当作成功，取消不继续备用请求。"""
+        last_code = 'no_sources'
         for host in ('www.bing.com', 'cn.bing.com'):
             check_cancel(cancel)
             request = Request('https://' + host + '/search?' + urlencode(
@@ -180,11 +210,16 @@ class WebSearch:
                 results = parse_public_results(raw)
                 if results:
                     return results
+                last_code = 'no_sources'
             except AgentCancelled:
                 raise
-            except (AgentError, ElementTree.ParseError, ValueError):
+            except AgentError as error:
+                last_code = error.code
                 continue
-        raise AgentError('免 Key 搜索暂时不可用或没有结果，请稍后重试；也可在配置中切换 Tavily 或已有 SearXNG。')
+            except (ElementTree.ParseError, ValueError):
+                last_code = 'protocol'
+                continue
+        raise AgentError('免 Key 搜索暂时不可用或没有结果，请稍后重试；也可在配置中切换 Tavily 或已有 SearXNG。', code=last_code)
 
 
 def parse_public_results(raw):

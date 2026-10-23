@@ -154,6 +154,8 @@ class ReviewMigrationTests(unittest.TestCase):
                 repo.english.record_attempt(dict(id='old', deck='cet4', word='apple', mode='spelling',
                     correct=False, assisted=False, elapsed=1))
                 conn.execute('DROP TABLE english_review_schedule')
+                # 从当前新库回退构造 v1 样本时，也移除 v3 的 companion 表。
+                conn.execute('DROP TABLE companion_news_tasks')
                 conn.execute('PRAGMA user_version=1')
                 conn.commit()
                 from app.modules.english.repository import migrate_review_schema
@@ -167,7 +169,8 @@ class ReviewMigrationTests(unittest.TestCase):
                 self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 1)
                 self.assertIsNone(conn.execute("SELECT name FROM sqlite_master WHERE name='english_review_schedule'").fetchone())
                 init_schema(conn)
-                self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], 2)
+                from app.storage.db import SCHEMA_VERSION
+                self.assertEqual(conn.execute('PRAGMA user_version').fetchone()[0], SCHEMA_VERSION)
                 self.assertEqual(conn.execute('SELECT COUNT(*) FROM english_attempts').fetchone()[0], 1)
                 self.assertEqual(conn.execute('SELECT stage FROM english_review_schedule').fetchone()[0], 0)
                 backups = list((Path(directory)/'migration-backups').glob('*.db'))

@@ -5,23 +5,29 @@ from PySide6.QtGui import QColor, QPalette, QPainter
 from PySide6.QtWidgets import (QDialog, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout,
     QCheckBox, QComboBox, QLineEdit, QPushButton, QScrollArea, QFrame, QStackedWidget,
     QGridLayout, QSizePolicy, QButtonGroup)
-from ...modules.companion.api import AgentConfig, MODEL_PRESETS
-from ...bootstrap.features import companion_setup_service
+from ...modules.companion.api import AgentConfig, MODEL_PRESETS, NewsConfig, MemorySnapshot
+from ...bootstrap.features import companion_setup_service, companion_news_capabilities, development_index_service
 from ..tasks import TaskBridge
 from ..assets.icons import icon
 from .agent_visuals import settings_colors
 from .agent_widgets import agent_style, label
 from .agent_settings_art import SettingsSheet, SettingsSection, SettingsEmblem, paint_workspace
+from .news_settings import NewsSettingsPanel
+from .memory_presenter import MemoryPresenter
+from .memory_page import MemoryPage
 
 
 class AgentSettingsDialog(QDialog):
     """Qt 主线程的智能体配置草稿窗口，异步检查/保存，经任务 token 拒绝迟到结果。"""
     setup_progress = Signal(object)
 
-    def __init__(self, presenter, parent=None, *, setup=None, portrait=None):
-        """从已提交配置建立模型/搜索/未来分区与草稿字段，装配异步检查及保存回调。"""
+    def __init__(self, presenter, parent=None, *, setup=None, portrait=None, news=None):
+        """装配模型／搜索草稿和独立的来信、记忆组件，经异步命令保存后才关闭。"""
         super().__init__(parent)
         self.presenter = presenter
+        self.news = news
+        self._save_id = uuid.uuid4().hex
+        self._save_values = None
         self.tasks = TaskBridge(self)
         self.saving = False
         self.setup = setup or companion_setup_service()
@@ -59,8 +65,8 @@ class AgentSettingsDialog(QDialog):
         stamp, stamp_body = self._panel('coral', 'settingsStamp')
         stamp_body.setContentsMargins(16, 12, 16, 12)
         stamp_body.setSpacing(3)
-        stamp_body.addWidget(label('01 / SEARCH', muted=True))
-        stamp_body.addWidget(label('联网搜索篇'))
+        stamp_body.addWidget(label('SEARCH / LETTER', muted=True))
+        stamp_body.addWidget(label('搜索与来信'))
         header.addSpacing(8)
         header.addWidget(stamp, 0, Qt.AlignBottom)
         layout.addLayout(header)
@@ -76,7 +82,7 @@ class AgentSettingsDialog(QDialog):
         self.enabled.setChecked(config.enabled)
         channel.addWidget(self.enabled)
         channel.addSpacing(12)
-        channel.addWidget(label('只回应你主动输入的话题', muted=True), 1)
+        channel.addWidget(label('主动搜索，也可以按兴趣准备来信', muted=True), 1)
         content_layout.addLayout(channel)
 
         # Independent native buttons avoid the platform's document-tab backplate.
@@ -89,7 +95,7 @@ class AgentSettingsDialog(QDialog):
         self.nav_group = QButtonGroup(self)
         self.nav_buttons = []
         for index, (text, name, offset) in enumerate(
-                [('模型搭档', 'zap', 0), ('搜索偏好', 'search', 10), ('未来来信', 'calendar', 3)]):
+                [('模型搭档', 'zap', 0), ('搜索偏好', 'search', 10), ('定时来信', 'calendar', 3), ('记忆', 'copy', 8)]):
             holder = QWidget()
             stack = QVBoxLayout(holder)
             stack.setContentsMargins(0, offset, 0, 10 - offset)
@@ -225,16 +231,29 @@ class AgentSettingsDialog(QDialog):
         search_body.addWidget(self._stage(search_panel, search_aside))
         search_body.addStretch()
 
-        future_body.addWidget(self._section_intro('COMING NEXT / 02—03',
-            '把下一次陪伴，留给未来', '搜索已经启程，下一封来信还在路上。'))
-        first = self._planned_card('blue', '02', '定时来信',
-            '在约好的时间，带来你感兴趣的新鲜事。',
-            '兴趣话题、汇报时间与新闻小卡片将在第二期开放。', '第二期 · 尚未开放')
-        second = self._planned_card('coral', '03', '小小占卜',
-            '一句话，看看她的灵感偏向哪边。',
-            '50 字内提问，以饼图显示对错占比，并附上解释。', '第三期 · 尚未开放')
-        future_body.addWidget(self._stage(first, second, future=True))
-        future_body.addStretch()
+        capabilities = companion_news_capabilities(presenter)
+        snapshot = presenter.news_snapshot() if capabilities is not None else MemorySnapshot()
+        self.news_panel = NewsSettingsPanel(snapshot.config, snapshot, now_local=capabilities[1] if capabilities else None,
+            agent_enabled=config.enabled, companion_enabled=presenter.get_setting('companion_enabled', '1') != '0')
+        future_body.addWidget(self.news_panel)
+        self.news_panel.run_requested.connect(self._run_news)
+        self.news_panel.retry_requested.connect(self._retry_news)
+        if news is not None:
+            news.changed.connect(self._refresh_news)
+        self.news_panel.memory_requested.connect(self._open_memory)
+        if capabilities is not None:
+            index_service = development_index_service()
+            self.destroyed.connect(index_service.close)
+            self.memory_page = MemoryPage(MemoryPresenter(presenter, capabilities[0], now_utc=capabilities[2]), index_service)
+            self.memory_scroll, memory_body = self._page('memorySettingsPage')
+            memory_body.addWidget(self.memory_page)
+            self.tabs.addWidget(self.memory_scroll)
+            self.memory_page.interests_saved.connect(self._interests_saved)
+            if news is not None:
+                news.changed.connect(self.memory_page.refresh)
+                self.memory_page.report_requested.connect(news.agent.show_news_task)
+        else:
+            self.nav_buttons[-1].setEnabled(False)
 
         self.feedback = label('', muted=True)
         self.feedback.setAccessibleName('配置保存与连接测试状态')
@@ -404,7 +423,7 @@ class AgentSettingsDialog(QDialog):
         self.setStyleSheet(agent_style(c) + self._settings_style(c))
         for i, button in enumerate(self.nav_buttons):
             button.setChecked(i == index)
-            button.setIcon(icon(('zap', 'search', 'calendar')[i], c.on_accent if i == index else c.muted, 17))
+            button.setIcon(icon(('zap', 'search', 'calendar', 'copy')[i], c.on_accent if i == index else c.muted, 17))
         self.update()
 
     @staticmethod
@@ -480,7 +499,7 @@ class AgentSettingsDialog(QDialog):
 
     def _run_job(self, kind, factory, message):
         """捕获草稿和唯一 token 启动连接检查，锁定控件并经 TaskBridge 异步接收结果。"""
-        if self.saving or self._job is not None or self._closed:
+        if self.saving or self._job is not None or self._closed or self._memory_saving():
             return
         token = uuid.uuid4().hex
         config = self.draft_config()
@@ -535,7 +554,7 @@ class AgentSettingsDialog(QDialog):
         self._run_job('search', lambda config, progress:self.setup.test_search(config, progress), '正在测试搜索连接…')
 
     def values(self):
-        """读取并规范化表单值，返回带 companion_agent 前缀的待提交设置字典。"""
+        """合并模型搜索与来信草稿，返回 companion_agent／news 命名空间设置。"""
         values = {name: getattr(self, name).text().strip() for name in
                   ('base_url', 'model', 'api_key', 'search_key', 'search_url', 'default_topic')}
         values.update(enabled='1' if self.enabled.isChecked() else '0',
@@ -543,19 +562,73 @@ class AgentSettingsDialog(QDialog):
                       provider=self.provider.currentData(),
                       search_provider=self.search_provider.currentData(),
                       managed_search='0')
-        return {'companion_agent_' + name: value for name, value in values.items()}
+        return dict({'companion_agent_' + name: value for name, value in values.items()}, **self.news_panel.values())
+
+    def _refresh_news(self):
+        """刷新只读排期与操作资格；区分正文／终态保存重试，不覆盖表单草稿。"""
+        if not self._closed and self.news is not None:
+            self.news_panel.set_snapshot(self.presenter.news_snapshot(), status=self.news.status, busy=self.news.busy,
+                agent_enabled=AgentConfig.from_settings(self.presenter).enabled,
+                companion_enabled=self.presenter.get_setting('companion_enabled', '1') != '0')
+            if self.news.pending_report is not None or self.news._pending_failure is not None:
+                self.news_panel.retry_button.setEnabled(not self.news.saving)
+                self.news_panel.retry_button.setText('重试保存任务状态' if self.news._pending_failure is not None
+                                                     else '重试保存已生成来信')
+            else:
+                self.news_panel.retry_button.setText('重试最近未完成来信')
+
+    def _run_news(self):
+        """显式联网动作只使用已保存配置，未保存草稿不会发送给模型。"""
+        if self.news is None:
+            self.feedback.setText('请在正式桌面应用中使用来信服务。')
+        else:
+            self.news.run_now()
+            self._refresh_news()
+
+    def _retry_news(self, task_id):
+        """将明确重试交给拥有准入和待存报告的来信控制器。"""
+        if self.news is not None:
+            self.news.retry(task_id)
+
+    def _open_memory(self):
+        """由独立记忆页面模块提供入口，组件间不共享数据库对象。"""
+        if hasattr(self, 'memory_page'):
+            self.tabs.setCurrentWidget(self.memory_scroll)
+
+    def _interests_saved(self, config):
+        """记忆页显式提交兴趣后同步对应来信草稿，避免外层保存再覆盖刚提交的画像。"""
+        self.news_panel.interests.setPlainText('\n'.join(config.interests))
+        self.news_panel.enabled.setChecked(config.enabled)
+
+    def _memory_saving(self):
+        """共享外层／记忆页的保存门禁，禁止旧草稿排在兴趣提交后覆盖新值。"""
+        return bool(getattr(getattr(self, 'memory_page', None), '_saving', False))
 
     def save_config(self):
         """禁用重复操作并请求 Presenter 异步保存；提交成功后才关闭配置窗口。"""
         if self.saving or self._job is not None:
             return
+        if self._memory_saving():
+            self.feedback.setText('记忆页正在保存，请完成后再保存配置。')
+            return
+        try:
+            values = self.values()
+        except ValueError as error:
+            self.feedback.setText(str(error))
+            return
+        if values != self._save_values:
+            self._save_id = uuid.uuid4().hex
+            self._save_values = values
         self.saving = True
         self.save.setEnabled(False)
         self.cancel.setEnabled(False)
         self.content.setEnabled(False)
         self.feedback.setText('正在保存配置…')
         try:
-            result = self.presenter.set_settings(self.values())
+            capabilities = companion_news_capabilities(self.presenter)
+            result = (capabilities[0].save_settings(values, operation_id=self._save_id,
+                                                   now_utc=capabilities[2]()) if capabilities is not None
+                      else self.presenter.set_settings(values))
         except Exception:
             self._failed(None)
             return
@@ -576,7 +649,7 @@ class AgentSettingsDialog(QDialog):
 
     def reject(self):
         """保存期间拒绝关闭；检查期间先请求取消，空闲时关闭且不提交草稿。"""
-        if self.saving:
+        if self.saving or self._memory_saving():
             return
         if self._job is not None and not self._job_cancelled:
             self._job_cancelled = True
@@ -590,7 +663,7 @@ class AgentSettingsDialog(QDialog):
 
     def closeEvent(self, event):
         """窗口关闭时复用草稿取消规则；保存或检查仍在处理时按原状态决定是否接受关闭。"""
-        if self.saving:
+        if self.saving or self._memory_saving():
             event.ignore()
         else:
             self._closed = True

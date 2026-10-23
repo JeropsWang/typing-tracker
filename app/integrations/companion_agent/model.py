@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from urllib.request import Request
 from ..ai.protocol import chat_payload, thinking_policy
 from ...modules.companion.api import summary_system_prompt
-from .search import AgentError, endpoint_url, check_cancel
+from .search import AgentError, endpoint_url, check_cancel, error_stage
 from .stream import read_model_text, read_model_turn
 
 
@@ -18,6 +18,11 @@ class CompanionModel:
 
     def validate(self):
         """检查服务类型、地址、模型与所需密钥；配置无效时抛用户可读 AgentError。"""
+        with error_stage('model', 'configuration'):
+            self._validate()
+
+    def _validate(self):
+        """执行模型配置校验，外层赋予固定模型阶段而不暴露配置值。"""
         if self.config.provider not in ('openai', 'deepseek', 'local', 'custom'):
             raise AgentError('请选择可用的模型服务。')
         endpoint_url(self.settings['base_url'])
@@ -78,7 +83,7 @@ class CompanionModel:
                 settings['thinking'] = '0'
             payload = chat_payload(settings, endpoint, settings['model'], messages, budget)
         except ValueError:
-            raise AgentError('当前模型无法关闭思考，请改用普通或非思考模型。') from None
+            raise AgentError('当前模型无法关闭思考，请改用普通或非思考模型。', stage='model', code='configuration') from None
         payload['stream'] = True
         if tools is not None:
             payload['tools'] = tools
@@ -86,6 +91,9 @@ class CompanionModel:
         if self.config.provider == 'local':
             payload['think'] = settings['thinking'] == '1'
         request = Request(endpoint, headers=headers, method='POST', data=json.dumps(payload).encode('utf-8'))
-        if tools is not None:
-            return read_model_turn(request, cancel, on_text, opener=self.opener)
-        return read_model_text(request, cancel, on_text, opener=self.opener)
+        # Ollama 冷启动实测超过25秒；只给本机模型120秒 I/O 预算，仍受图的合作截止和取消约束。
+        timeout = 120 if self.config.provider == 'local' else 25
+        with error_stage('model'):
+            if tools is not None:
+                return read_model_turn(request, cancel, on_text, opener=self.opener, timeout=timeout)
+            return read_model_text(request, cancel, on_text, opener=self.opener, timeout=timeout)

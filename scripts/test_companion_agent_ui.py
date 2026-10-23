@@ -21,7 +21,7 @@ class ControlledService:
         self.calls += 1
         self.topic, self.progress = topic, progress
         return 'request-one', self.future
-    def cancel(self):
+    def cancel(self, request_id=None):
         """记录取消或作废本例结果，保留迟到回传条件用于检查过滤。"""
         self.cancelled = True
     def close(self):
@@ -130,7 +130,7 @@ class CompanionAgentUITests(UIFixture):
         window, agent = self.agent()
         APP.sendEvent(window._companion.view, QEvent(QEvent.Enter))
         self.assertTrue(agent.actions.isVisible())
-        self.assertEqual([b.isEnabled() for b in agent.actions.buttons], [False, False, True])
+        self.assertEqual([b.isEnabled() for b in agent.actions.buttons], [False, True, True])
         self.assertTrue(all(b.width() >= 44 for b in agent.actions.buttons))
         agent.open_search()
         self.assertTrue(agent.input.isVisible())
@@ -328,7 +328,7 @@ class CompanionAgentUITests(UIFixture):
             c = dialog.section_palette
             backgrounds.append(c.bg)
             self.assertEqual(dialog.tabs.currentIndex(), index)
-            self.assertEqual([b.isChecked() for b in dialog.nav_buttons], [i == index for i in range(3)])
+            self.assertEqual([b.isChecked() for b in dialog.nav_buttons], [i == index for i in range(len(dialog.nav_buttons))])
             self.assertEqual(dialog.palette().color(QPalette.Window), QColor(c.bg))
             navigation = dialog.findChild(QWidget, 'agentSectionNavigation')
             sample = navigation.grab().toImage().pixelColor(navigation.width() - 4, 4)
