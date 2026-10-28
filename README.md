@@ -37,7 +37,7 @@ Sariana（原打字管家 TypingTracker）是 Windows 本地桌面陪伴、打�
 
 ## 运行
 
-仅支持 Windows。0.9.7 的安装版为 `Sariana-0.9.7-windows-x64-setup.exe`，免安装版为 `Sariana-0.9.7-windows-x64-portable.zip`，请从 [GitHub Release](https://github.com/JeropsWang/typing-tracker/releases/tag/v0.9.7) 下载。
+仅支持 Windows。0.9.8 的安装版为 `Sariana-0.9.8-windows-x64-setup.exe`，免安装版为 `Sariana-0.9.8-windows-x64-portable.zip`，请从 [GitHub Release](https://github.com/JeropsWang/typing-tracker/releases/tag/v0.9.8) 下载。
 发布附件含构建清单和 SHA-256 校验文件；升级前从托盘退出旧版本，卸载保留 `%APPDATA%\TypingTracker` 中的记录。
 0.9.4 及更早正式版本没有自动更新入口，首次升级到 0.9.5 请下载并运行安装包；0.9.5 起可在设置 → 数据备份 → 应用更新检查后续版本。
 为兼容旧版，数据目录继续使用原名称；安装版会复用旧安装位置并替换程序和快捷方式。免安装版请完整解压到新文件夹，继续沿用同一份本机记录。
@@ -148,7 +148,7 @@ Lv.45 解锁 AI 生成，提前体验需训练券；英语与范文生成共用�
 单文件上限 10 MiB、作品总量 50 MiB、最多 100 个文件、图片每边最大 2048 像素；作品不执行脚本或请求网络。
 内置作品使用根据现有 Sariana 参考形象生成的透明 Q 版二创图集，与原背景插画独立。
 
-桌宠智能体支持 OpenAI、DeepSeek 或本地模型，默认调用本机 Edge 搜索，也可选轻量 RSS、Tavily 或已有 SearXNG。悬停桌宠点击搜索后，由有界 LangGraph 行动循环选择查询、补搜、读取来源并整理，短卡可滚动、详情可核对原文。0.9.7 配置新增定时来信与记忆：来信按钮只打开历史或配置；「现在联网准备一封」才显式发起请求。默认只展示正文，不保存思考过程；模型须支持原生工具调用。占卜保留第三期，详见 [三期设计与配置](docs/companion-agent.md)。
+桌宠智能体支持 OpenAI、DeepSeek 或本地模型，默认调用本机 Edge 搜索，也可选轻量 RSS、Tavily 或已有 SearXNG。悬停桌宠点击搜索后，由有界 LangGraph 行动循环选择查询、补搜、读取来源并整理，短卡可滚动、详情可核对原文。0.9.7 配置新增定时来信与记忆：来信按钮只打开历史或配置；「现在联网准备一封」才显式发起请求。默认只展示正文，不保存思考过程；模型须支持原生工具调用。0.9.8 已开放占卜（仅需模型配置，不需要搜索配置），详见 [三期设计与配置](docs/companion-agent.md)。
 
 配置窗口提供模型连接测试和搜索测试。搜索默认使用 Edge 浏览器检索，无需 Docker 或搜索 Key；也可选 Tavily API 或已有 SearXNG。检查使用配置草稿并显示耗时/失败原因，保存配置仍由用户确认。
 
