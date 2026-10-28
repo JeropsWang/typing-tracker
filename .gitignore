@@ -23,6 +23,34 @@ __pycache__/
 .local/
 .superpowers/
 
+# 本机建模与实验资料不进入版本库
+/artwork/
+/textures/
+/other tex/
+*.blend
+*.blend1
+*.blend2
+*.glb
+*.gltf
+*.bam
+*.pmx
+*.pmd
+*.fbx
+*.obj
+*.mtl
+/requirements-artwork.txt
+/app/integrations/companion_render/
+/app/ui/assets/companion3d/
+/app/ui/companion/render_bridge.py
+/scripts/build_companion_model.py
+/scripts/test_companion_3d*.py
+/scripts/test_companion_render.py
+/scripts/verify_companion_3d.py
+/docs/companion-3d.md
+/docs/superpowers/plans/*oracle-3d*.md
+/docs/superpowers/plans/*sariana-*.md
+/docs/superpowers/specs/*oracle-3d*.md
+
 # 运行时数据（本地生成，不入库）
 *.db
 *.db-shm

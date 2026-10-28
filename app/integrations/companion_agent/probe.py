@@ -44,5 +44,9 @@ def selfcheck():
     if (not news.sources or due_plan(config, datetime(2026, 10, 20, 9, 0)) is None
             or due_plan(config, datetime(2026, 10, 20, 12, 0)) is not None):
         raise RuntimeError('Companion news runtime verification failed')
+    from ...modules.companion.api import parse_oracle
+    if parse_oracle('{"yes":80,"uncertain":10,"no":10}', 'probe', '问题').verdict != '是':
+        raise RuntimeError('Oracle probability verification failed')
     return dict(langgraph=True, react=True, mcp_tools=True, stream_filter=True,
-                public_search=True, edge_parser=True, news=True, news_schedule=True, network=False, database=False)
+                public_search=True, edge_parser=True, news=True, news_schedule=True,
+                oracle=True, network=False, database=False)

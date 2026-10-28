@@ -76,6 +76,53 @@ class DesktopWorkflowTests(unittest.TestCase):
         self.assertTrue(pump_until(lambda: not agent.card.isVisible() and not agent.detail.isVisible()))
         self.assertIsNone(agent._shown_report)
 
+    def test_oracle_shares_admission_and_never_writes_news_memory(self):
+        """真实ApplicationWorker配置和Qt回传配合占卜，搜索/来信退让且结果不入历史。"""
+        from app.integrations.companion_agent.service import CompanionAgentService
+        from app.modules.companion.api import OracleResult, AgentConfig, AgentBusyError, NewsRequest
+        from test_companion_agent import FakeSearch
+        entered, release = threading.Event(), threading.Event()
+        main_thread=threading.get_ident()
+        calls=[]
+        class Model:
+            """阻塞夹具只替换外部模型，不替换正式线程、准入和UI异步桥。"""
+            def __init__(self, config):
+                """记录配置快照中已提交的模型名，不接收统计或画像。"""
+                self.config=config
+            def validate(self):
+                """本例不联网验证模型。"""
+            def judge(self, request_id, question, cancel, progress):
+                """在独立网络线程等待测试释放后返回不可变概率。"""
+                calls.append((threading.get_ident(),question,self.config.model))
+                entered.set()
+                if not release.wait(5):raise TimeoutError('fixture release missing')
+                return OracleResult(request_id,question,80,10,10)
+        agent=self.window._companion.agent
+        self.assertIs(agent.oracle.service,agent.service)
+        agent.service.close()
+        agent.service=CompanionAgentService(model_factory=Model,search_factory=FakeSearch)
+        agent.news.service=agent.oracle.service=agent.service
+        self.application.set_settings(dict(companion_agent_enabled='1',companion_agent_provider='local',
+            companion_agent_model='isolated-oracle',companion_agent_search_provider='invalid')).result(5)
+        agent.oracle.submit('  会顺利吗？  ')
+        try:
+            self.assertTrue(entered.wait(2))
+            self.assertNotEqual(calls[0][0],main_thread)
+            self.assertEqual(calls[0][1:],('会顺利吗？','isolated-oracle'))
+            self.assertFalse(agent.can_show_news())
+            config=AgentConfig.from_settings(self.queries)
+            with self.assertRaises(AgentBusyError):agent.service.search(config,'天文',lambda _:None)
+            with self.assertRaises(AgentBusyError):
+                agent.service.news(config,NewsRequest(('天文',),'2026-10-24'),lambda _:None)
+        finally:
+            release.set()
+        self.assertTrue(pump_until(lambda:agent.oracle.card.result is not None))
+        self.assertEqual(agent.oracle.card.result.yes,80)
+        self.application.worker.submit(lambda context:None).result(5)
+        self.assertFalse(self.queries.news_snapshot().reports)
+        self.assertFalse(self.queries.news_snapshot().tasks)
+        self.assertIsNone(agent.report)
+
     def test_memory_interest_save_blocks_stale_outer_config_save(self):
         """记忆页提交期间外层不得排旧画像，避免工作线程成功后又被旧草稿覆盖。"""
         from app.modules.companion.api import NewsConfig

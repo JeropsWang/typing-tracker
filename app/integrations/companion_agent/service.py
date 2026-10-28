@@ -5,9 +5,9 @@
 from concurrent.futures import Future
 import threading
 import uuid
-from ...modules.companion.api import validate_topic, NewsRequest, AgentBusyError as DomainBusyError
+from ...modules.companion.api import validate_topic, validate_question, NewsRequest, AgentBusyError as DomainBusyError
 from .model import CompanionModel
-from .search import WebSearch, AgentError
+from .search import WebSearch, AgentError, check_cancel
 from .graph import run_search, run_news
 
 
@@ -42,13 +42,20 @@ class CompanionAgentService:
             raise ValueError('来信请求格式不正确。')
         return self._start(config, request.topic, progress, news_request=request)
 
-    def _start(self, config, topic, progress, *, news_request=None):
+    def judge(self, config, question, progress):
+        """占卜仅校验模型，与搜索/来信共享真实网络结束后释放的准入。"""
+        return self._start(config, validate_question(question), progress, oracle=True)
+
+    def _start(self, config, topic, progress, *, news_request=None, oracle=False):
         """共享配置校验和网络线程生命周期，持锁期间不执行模型或工具请求。"""
         if not config.enabled:
-            raise AgentError('先在桌宠自定义 → 智能体中开启并配置联网搜索吧。')
-        model, search = self.model_factory(config), self.search_factory(config)
+            raise AgentError('先在桌宠自定义 → 智能体中开启并配置模型吧。')
+        model = self.model_factory(config)
         model.validate()
-        search.validate()
+        # 占卜不创建搜索器；缺失或无效的搜索配置不能阻止纯模型判断。
+        search = None if oracle else self.search_factory(config)
+        if search is not None:
+            search.validate()
         with self._lock:
             if self._closed:
                 raise AgentError('桌宠智能体已关闭。')
@@ -62,11 +69,14 @@ class CompanionAgentService:
         def run():
             """在守护网络线程中执行图；结束后释放准入，再完成 Future 供 UI 桥接。"""
             try:
-                result = (run_news(request_id, news_request, model, search, cancel, progress)
+                result = (model.judge(request_id, topic, cancel, progress) if oracle else
+                          run_news(request_id, news_request, model, search, cancel, progress)
                           if news_request else run_search(request_id, topic, model, search, cancel, progress))
+                check_cancel(cancel)
             except Exception as error:
                 # 未知异常可能含上游 URL/密钥等信息，只向界面返回固定的脱敏提示。
-                failure = error if isinstance(error, AgentError) else AgentError('搜索未完成，请检查服务配置后重试。')
+                failure = error if isinstance(error, AgentError) else AgentError(
+                    '占卜未完成，请检查模型配置后重试。' if oracle else '搜索未完成，请检查服务配置后重试。')
                 with self._lock:
                     self._cancel = None
                     self._request_id = None

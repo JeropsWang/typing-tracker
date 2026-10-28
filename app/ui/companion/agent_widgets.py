@@ -25,6 +25,7 @@ class AgentActions(QWidget):
     """Qt 主线程的浮动轮盘；仅按钮和轨道命中，中心保留桌宠摸头与拖动。"""
     search_requested = Signal()
     news_requested = Signal()
+    oracle_requested = Signal()
     settings_requested = Signal()
 
     def __init__(self):
@@ -37,11 +38,11 @@ class AgentActions(QWidget):
         self.setFixedSize(286, 154)
         self.buttons = []
         for caption, title, name, tone, available, point in (
-                ('占卜', '占卜 · 第三期筹备中', 'agent-oracle', 'lavender', False, (8, 80)),
+                ('占卜', '占卜 · 是、不确定与否', 'agent-oracle', 'lavender', True, (8, 80)),
                 ('来信', '查看来信与定时配置', 'agent-report', 'coral', True, (102, 6)),
                 ('搜索', '联网搜索', 'agent-search', 'blue', True, (206, 68))):
             button = OrbitButton(caption, name, tone, self)
-            side = 72 if available else 60 if caption == '来信' else 56
+            side = 72 if caption == '搜索' else 60 if caption == '来信' else 56
             button.setFixedSize(side, side)
             button.setAccessibleName(title)
             button.setToolTip(title)
@@ -51,6 +52,7 @@ class AgentActions(QWidget):
             self.buttons.append(button)
         self.buttons[-1].clicked.connect(self.search_requested)
         self.buttons[1].clicked.connect(self.news_requested)
+        self.buttons[0].clicked.connect(self.oracle_requested)
         # A transparent centre must remain clickable for petting and dragging.
         region = QRegion()
         for button in self.buttons:
@@ -89,7 +91,7 @@ class AgentInputDialog(AgentBubble):
     """可复用的话题输入浮层；限制字符数，以信号交出主动输入，不请求网络。"""
     submitted = Signal(str)
 
-    def __init__(self, *, title='今天，想一起探索什么？', limit=200):
+    def __init__(self, *, title='今天，想一起探索什么？', limit=200, purpose='search'):
         """创建话题、计数、校验反馈与确认/取消控件，确认时发布原始话题。"""
         super().__init__()
         self.setWindowTitle('Sariana · 联网搜索')
@@ -98,17 +100,18 @@ class AgentInputDialog(AgentBubble):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 32, 36, 40)
         layout.setSpacing(10)
-        eyebrow = label('SARIANA / 一起去看看')
+        oracle = purpose == 'oracle'
+        eyebrow = label('SARIANA / 问问星星' if oracle else 'SARIANA / 一起去看看')
         eyebrow.setProperty('agentEyebrow', True)
         layout.addWidget(eyebrow)
         layout.addWidget(label(title, heading=True))
         self.topic = QLineEdit()
         self.topic.setMaxLength(limit)
-        self.topic.setPlaceholderText('最近的天文发现，或你的一个小好奇…')
-        self.topic.setAccessibleName('搜索话题')
+        self.topic.setPlaceholderText('今天的计划会顺利吗？' if oracle else '最近的天文发现，或你的一个小好奇…')
+        self.topic.setAccessibleName('占卜问题' if oracle else '搜索话题')
         layout.addWidget(self.topic)
         hint = QHBoxLayout()
-        hint.addWidget(label('你来提问，我把线索带回来。', muted=True), 1)
+        hint.addWidget(label('仅为娱乐性估计，不搜索资料。' if oracle else '你来提问，我把线索带回来。', muted=True), 1)
         self.count = label(f'0 / {limit}', muted=True)
         self.count.setWordWrap(False)
         self.topic.textChanged.connect(lambda text: self.count.setText(f'{len(text)} / {limit}'))
@@ -121,7 +124,7 @@ class AgentInputDialog(AgentBubble):
         self.cancel = QPushButton('稍后再聊')
         self.cancel.setProperty('agentQuiet', True)
         self.cancel.clicked.connect(self.hide)
-        self.submit = QPushButton('一起找找  →')
+        self.submit = QPushButton('问问星星  →' if oracle else '一起找找  →')
         self.submit.setProperty('agentPrimary', True)
         self.submit.setCursor(Qt.PointingHandCursor)
         self.submit.setDefault(True)

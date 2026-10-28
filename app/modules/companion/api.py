@@ -17,6 +17,7 @@ from .news_codec import encode_report, decode_report
 from .memory import MemorySnapshot
 from .failures import (FAILURE_CODES, normalize_failure_code, agent_failure_code, failure_message)
 from .news_status import NewsStatus, news_status, retryable_news_task
+from .oracle import OracleResult, parse_oracle, validate_question, ORACLE_SCHEMA, oracle_system_prompt
 from .news_service import CompanionNewsService, task_from_row, validate_utc as validate_news_utc
 
 @dataclass(frozen=True)

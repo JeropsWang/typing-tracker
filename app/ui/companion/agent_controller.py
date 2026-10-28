@@ -9,6 +9,7 @@ from .agent_widgets import AgentActions, AgentInputDialog, AgentDialogueCard, Ag
 from .agent_settings import AgentSettingsDialog
 from .artwork import sprite_icon
 from .news_controller import CompanionNewsController
+from .oracle_controller import OracleController
 
 
 class CompanionAgentController(QObject):
@@ -38,8 +39,10 @@ class CompanionAgentController(QObject):
         self._card_dismissed = False
         self._thinking_stage = 'searching'
         self._thinking_index = 0
+        self.oracle = OracleController(self)
         self.actions.search_requested.connect(self.open_search)
         self.actions.news_requested.connect(self.open_news)
+        self.actions.oracle_requested.connect(self.oracle.open)
         self.input.submitted.connect(self.search)
         self.card.detail_requested.connect(self.open_detail)
         self.card.config_requested.connect(self.open_settings)
@@ -83,6 +86,8 @@ class CompanionAgentController(QObject):
 
     def eventFilter(self, watched, event):
         """跟随主窗口/桌宠移动定位浮层，处理悬停入口及隐藏后的视觉收起。"""
+        if event.type() in (QEvent.Move, QEvent.Resize):
+            self.oracle.place_visible()
         if watched is self.companion.window and event.type() == QEvent.Move:
             for widget in (self.actions, self.card, self.input):
                 if widget.isVisible():
@@ -142,6 +147,9 @@ class CompanionAgentController(QObject):
     def open_search(self):
         """显示话题输入；未启用时打开配置，在途任务则展示当前卡片，保留已有草稿。"""
         if self._stopped:
+            return
+        if self.oracle.busy:
+            self.oracle.open()
             return
         if self._busy:
             self._card_dismissed = False
@@ -268,7 +276,8 @@ class CompanionAgentController(QObject):
 
     def can_show_news(self):
         """来信不覆盖正在搜索、输入话题或阅读中的卡片与详情。"""
-        return not (self._stopped or self._busy or self.input.isVisible()
+        return not (self._stopped or self._busy or self.oracle.busy
+                    or self.oracle.input.isVisible() or self.oracle.card.isVisible() or self.input.isVisible()
                     or self.card.isVisible() or self.detail.isVisible())
 
     def show_news_task(self, task):
@@ -327,6 +336,7 @@ class CompanionAgentController(QObject):
     def hide_overlays(self):
         """收起全部搜索浮层并停止视觉计时器，保留输入草稿和报告。"""
         self._card_dismissed = True
+        self.oracle.hide()
         self._hover.stop()
         self._thinking.stop()
         for widget in (self.actions, self.input, self.card, self.detail):
@@ -337,6 +347,7 @@ class CompanionAgentController(QObject):
         if self._stopped:
             return
         self._stopped = True
+        self.oracle.shutdown()
         if self.news is not None:
             self.news.shutdown()
         self._thinking.stop()

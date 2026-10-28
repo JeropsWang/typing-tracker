@@ -11,7 +11,7 @@ PURE_FILES={'app/modules/tracking/domain.py','app/modules/tracking/clock.py',
             'app/modules/companion/agent.py','app/modules/companion/persona.py',
             'app/modules/companion/news.py','app/modules/companion/news_codec.py',
             'app/modules/companion/memory.py','app/modules/companion/failures.py',
-            'app/modules/companion/news_status.py'}
+            'app/modules/companion/news_status.py','app/modules/companion/oracle.py'}
 
 
 def dependencies(path,source):

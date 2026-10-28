@@ -54,7 +54,7 @@ class ReleaseBrandTests(UIFixture):
         """验证帮助采用新品牌但保留原数据目录行为。"""
         import main
         self.assertEqual(main.DEFAULT_DATA_DIR.name, 'TypingTracker')
-        result = subprocess.run([sys.executable, str(ROOT / 'main.py'), '--help'],
+        result = subprocess.run([sys.executable, '-X', 'utf8', str(ROOT / 'main.py'), '--help'],
                                 capture_output=True, text=True, encoding='utf-8', timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('Sariana', result.stdout)

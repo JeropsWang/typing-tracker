@@ -1,3 +1,7 @@
+# 0.9.8 占卜边界
+
+占卜规则由 companion 公共 API 导出不可变 OracleResult。网络适配负责结构化输出、严格校验和一次有界纠错；与搜索、来信共用准入，但不构造搜索器。UI 只接收 Future 的已校验结果，取消或隐藏后的迟到回传不得重新弹窗。问题及结果不写数据库，schema 保持 3。完整契约见 [占卜说明](companion-oracle.md)。
+
 # Sariana 项目架构
 
 Sariana 是 Windows 本机桌面应用，使用 Python、PySide6 Widgets、pyqtgraph 和 SQLite。当前采用模块化单体：一个进程、一个用户数据库、多个业务模块。没有 Redis、Web 后端、账户或云同步依赖。

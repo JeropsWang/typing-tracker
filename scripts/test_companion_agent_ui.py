@@ -130,7 +130,7 @@ class CompanionAgentUITests(UIFixture):
         window, agent = self.agent()
         APP.sendEvent(window._companion.view, QEvent(QEvent.Enter))
         self.assertTrue(agent.actions.isVisible())
-        self.assertEqual([b.isEnabled() for b in agent.actions.buttons], [False, True, True])
+        self.assertEqual([b.isEnabled() for b in agent.actions.buttons], [True, True, True])
         self.assertTrue(all(b.width() >= 44 for b in agent.actions.buttons))
         agent.open_search()
         self.assertTrue(agent.input.isVisible())

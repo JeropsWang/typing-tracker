@@ -67,7 +67,7 @@ class NewsSettingsPanel(QWidget):
         memory.setAutoDefault(False)
         memory.clicked.connect(self.memory_requested)
         note.addWidget(memory)
-        note.addWidget(label('现在汇报使用已保存配置，可能产生模型／搜索费用。失败不会自动重复请求。占卜仍在第三期准备中。', muted=True))
+        note.addWidget(label('现在汇报使用已保存配置，可能产生模型／搜索费用。失败不会自动重复请求。占卜与搜索、来信共用模型任务准入。', muted=True))
         body.addWidget(aside, 0, Qt.AlignRight)
         body.addStretch()
         self.set_snapshot(snapshot)

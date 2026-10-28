@@ -2,10 +2,17 @@
 import json
 from datetime import datetime, timezone
 from urllib.request import Request
+from urllib.error import HTTPError
 from ..ai.protocol import chat_payload, thinking_policy
-from ...modules.companion.api import summary_system_prompt
-from .search import AgentError, endpoint_url, check_cancel, error_stage
+from ...modules.companion.api import (summary_system_prompt, parse_oracle, validate_question,
+                                     ORACLE_SCHEMA, oracle_system_prompt, AgentProgress)
+from .search import AgentError, endpoint_url, check_cancel, error_stage, build_opener, NoRedirect
 from .stream import read_model_text, read_model_turn
+
+
+class UnsupportedOracleFormat(RuntimeError):
+    """仅内部使用的明确格式参数拒绝信号，不携带供应商响应正文。"""
+    pass
 
 
 class CompanionModel:
@@ -50,6 +57,35 @@ class CompanionModel:
         """发送一次携带工具声明的模型请求，返回 AgentTurn，正文草稿经回调发布。"""
         return self._chat(messages, 1600, cancel, on_text, tools=tools)
 
+    def judge(self, request_id, question, cancel, progress):
+        """最多两次HTTP尝试完成严格概率判断；格式降级与纠错共享预算，网络错误不重试。"""
+        question = validate_question(question)
+        messages = [{'role': 'system', 'content': oracle_system_prompt()},
+                    {'role': 'user', 'content': json.dumps({'question': question}, ensure_ascii=False)}]
+        structured = self.config.provider != 'custom'
+        response_format = ({'type': 'json_object'} if self.config.provider == 'deepseek' else
+                           {'type': 'json_schema', 'json_schema': {
+                               'name': 'sariana_oracle', 'strict': True, 'schema': ORACLE_SCHEMA}})
+        for attempt in range(2):
+            check_cancel(cancel)
+            progress(AgentProgress(request_id, 'judging' if not attempt else 'repairing',
+                                   '正在判断这个小问题。' if not attempt else '正在修正概率格式。'))
+            try:
+                text = self._chat(messages, 256, cancel, lambda _: None, short=True,
+                                  response_format=response_format if structured else None)
+            except UnsupportedOracleFormat:
+                if attempt:
+                    break
+                structured = False
+                continue
+            check_cancel(cancel)
+            try:
+                return parse_oracle(text, request_id, question)
+            except ValueError:
+                # 不把无效正文拼回下一次上下文，也不向界面流式泄漏候选内容。
+                messages.append({'role': 'user', 'content': '上次概率格式不合要求。请严格只输出三个整数，总和100的JSON对象。'})
+        raise AgentError('模型没有返回有效的概率格式，请重试或更换模型。', stage='model', code='protocol')
+
     @staticmethod
     def assistant_message(turn):
         """将轮次转成可续接的 assistant 消息，保持工具 ID 及私有协议字段。"""
@@ -62,7 +98,8 @@ class CompanionModel:
             message['reasoning_content'] = turn.reasoning
         return message
 
-    def _chat(self, messages, budget, cancel, on_text, *, test=False, tools=None):
+    def _chat(self, messages, budget, cancel, on_text, *, test=False, tools=None,
+              response_format=None, short=False):
         """统一组装鉴权/思考/工具参数并读响应；仅所配置模型端点收到模型密钥。
 
         tools=None 表示只读正文，非 None 返回工具轮次；测试始终走短小非思考路径。
@@ -79,12 +116,14 @@ class CompanionModel:
             settings = dict(self.settings)
             policy = thinking_policy(settings, endpoint, settings['model'])
             # 普通模型无思考开关；连接测试显式禁用支持协议的思考以控制测试成本。
-            if test or policy.protocol == 'none':
+            if test or policy.protocol == 'none' or (short and policy.can_disable):
                 settings['thinking'] = '0'
             payload = chat_payload(settings, endpoint, settings['model'], messages, budget)
         except ValueError:
             raise AgentError('当前模型无法关闭思考，请改用普通或非思考模型。', stage='model', code='configuration') from None
         payload['stream'] = True
+        if response_format is not None:
+            payload['response_format'] = response_format
         if tools is not None:
             payload['tools'] = tools
             payload['tool_choice'] = 'auto'
@@ -93,7 +132,24 @@ class CompanionModel:
         request = Request(endpoint, headers=headers, method='POST', data=json.dumps(payload).encode('utf-8'))
         # Ollama 冷启动实测超过25秒；只给本机模型120秒 I/O 预算，仍受图的合作截止和取消约束。
         timeout = 120 if self.config.provider == 'local' else 25
+        opener = self.opener
+        if response_format is not None:
+            transport = opener or build_opener(NoRedirect()).open
+            def format_opener(request, *, timeout):
+                """仅明确的格式参数拒绝允许降级；其余HTTP错误交现有分类，不输出上游原文。"""
+                try:
+                    return transport(request, timeout=timeout)
+                except HTTPError as error:
+                    if error.code in (400, 422):
+                        raw = error.read(8193)
+                        description = raw.decode('utf-8', errors='replace').lower() if len(raw) <= 8192 else ''
+                        if 'response_format' in description and any(word in description for word in
+                                ('unsupported', 'not supported', 'not support')):
+                            error.close()
+                            raise UnsupportedOracleFormat() from None
+                    raise
+            opener = format_opener
         with error_stage('model'):
             if tools is not None:
-                return read_model_turn(request, cancel, on_text, opener=self.opener, timeout=timeout)
-            return read_model_text(request, cancel, on_text, opener=self.opener, timeout=timeout)
+                return read_model_turn(request, cancel, on_text, opener=opener, timeout=timeout)
+            return read_model_text(request, cancel, on_text, opener=opener, timeout=timeout)

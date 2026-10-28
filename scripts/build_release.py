@@ -72,13 +72,23 @@ def normalize(code: CodeType) -> CodeType:
 
 
 def runtime_files(source: Path) -> list[Path]:
-    """列出数据库建表脚本、配置、主题与界面素材，排除字节码和临时文件。"""
+    """列出数据库与产品资源，排除字节码、临时文件和本机模型实验文件。"""
     files = [source / 'app/storage/schema.sql']
     for directory in ('config', 'app/theme/themes', 'app/ui/assets'):
         files.extend(path for path in (source / directory).rglob('*')
                      if path.is_file() and '__pycache__' not in path.parts
-                     and path.suffix not in ('.pyc', '.pyo', '.tmpc'))
+                     and 'companion3d' not in path.relative_to(source).parts
+                     and path.suffix.lower() not in ('.pyc', '.pyo', '.tmpc', '.blend', '.glb', '.gltf', '.bam', '.pmx', '.pmd', '.fbx', '.obj', '.mtl'))
     return files
+
+
+def companion_098_runtime_modules(source: Path) -> list[str]:
+    """按源码存在性核验占卜模块，保留历史标签的冻结构建兼容。"""
+    modules = []
+    if (source / 'app/modules/companion/oracle.py').is_file():
+        modules.extend(('app.modules.companion.oracle', 'app.ui.companion.oracle_controller',
+                        'app.ui.companion.oracle_widgets'))
+    return modules
 
 
 def check_bootstrap(command: list[str], timeout: float = 60) -> None:
@@ -136,6 +146,7 @@ def verify_executable(exe: Path, source: Path) -> dict:
             checked.append(module)
     required_modules = ['app','app.ui.main_window','app.ui.settings_dialog']
     required_modules.extend(news_runtime_modules(source))
+    required_modules.extend(companion_098_runtime_modules(source))
     if (source / 'app/bootstrap/application.py').is_file():
         required_modules.extend(('app.integrations.ai.service','app.bootstrap.application',
                                  'app.modules.tracking.domain','app.modules.growth.settlement'))
@@ -209,7 +220,7 @@ def build_executable(source: Path, output: Path, version: str) -> Path:
         f"a = Analysis([{str(source / 'main.py')!r}], pathex=[{str(source)!r}], "
         f"binaries={vc_dlls!r}, datas={datas!r} + agent_metadata, hiddenimports=agent_hidden, "
         f"runtime_hooks=[{str(source / 'scripts/pyinstaller_runtime.py')!r}], "
-        "excludes=['pygame'], optimize=0)\npyz = PYZ(a.pure)\n"
+        "excludes=['pygame', 'panda3d', 'direct', 'bpy'], optimize=0)\npyz = PYZ(a.pure)\n"
         # Embedded Python ignores PYTHONIOENCODING; UTF-8 must be a bootloader option.
         f"exe = EXE(pyz, a.scripts, a.binaries, a.datas, [('X utf8', None, 'OPTION')], name={brand!r}, "
         f"console=False, upx=False, icon={str(source / 'app.ico')!r}, version={str(version_file)!r})\n",

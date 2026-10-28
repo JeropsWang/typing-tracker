@@ -253,6 +253,7 @@ class CompanionController(QObject):
         action.triggered.connect(lambda: self.switch_mode('window' if self.mode == 'desktop' else 'desktop'))
         menu.addAction('本地二创工坊…', self.open_workshop)
         menu.addAction('联网搜索…', self.agent.open_search)
+        menu.addAction('占卜…', self.agent.oracle.open)
         menu.addAction('来信与定时配置…', self.agent.open_news)
         last_report = menu.addAction('查看最近的搜索报告', self.agent.show_last_report)
         last_report.setEnabled(self.agent.report is not None and not self.agent._busy)

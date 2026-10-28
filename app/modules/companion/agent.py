@@ -135,6 +135,9 @@ class CompanionAgent(Protocol):
     def news(self, config: AgentConfig, request, progress: Callable):
         """以专用主动兴趣契约生成来信，与搜索共用同一网络准入和图执行器。"""
         ...
+    def judge(self, config: AgentConfig, question: str, progress: Callable):
+        """启动仅模型的娱乐占卜，返回请求ID及OracleResult Future，不校验搜索配置。"""
+        ...
     def cancel(self, request_id=None):
         """请求取消当前所有者任务；后台真正结束前仍持有运行准入。"""
         ...

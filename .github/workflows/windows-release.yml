@@ -177,6 +177,7 @@ jobs:
             $taskBaselines = @('0.9.4')
             # 0.9.7起覆盖当前正式版升级；历史0.9.5/0.9.6补编译不测试降级安装。
             if ([version]$taskManifest.version -gt [version]'0.9.6') { $taskBaselines += '0.9.6' }
+            if ([version]$taskManifest.version -gt [version]'0.9.7') { $taskBaselines += '0.9.7' }
             foreach ($taskVersion in $taskBaselines) {
               $taskPrevious = Invoke-RestMethod -Uri "https://api.github.com/repos/JeropsWang/typing-tracker/releases/tags/v$taskVersion" -Headers $taskHeaders
               $taskAsset = @($taskPrevious.assets | Where-Object name -eq "Sariana-$taskVersion-windows-x64-setup.exe")

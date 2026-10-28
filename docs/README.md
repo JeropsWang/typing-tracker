@@ -1,3 +1,8 @@
+# 0.9.8 接续入口
+
+- [占卜契约](companion-oracle.md)
+- [发布收尾计划](superpowers/plans/2026-10-28-oracle-release.md)
+
 # Sariana 维护文档
 
 首次维护按以下顺序阅读：
